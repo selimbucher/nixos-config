@@ -43,7 +43,7 @@
       ];
 
       windowrule = [
-        "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:float true"
+        
 
         "float 1, match:class ^(io\\.missioncenter\\.MissionCenter)$"
         "size 1000 600, match:class ^(io\\.missioncenter\\.MissionCenter)$"
@@ -52,12 +52,15 @@
         "float 1, match:class ^(org.gnome.Nautilus)$"
         "float 1, match:class ^(\\.blueman-manager-wrapped)$"
         "float 1, move monitor_w-window_w-15 monitor_h-window_h-15, match:class ^(it.mijorus.smile)$"
+        "float 1, match:class ^(gjs)$"
         
         "tile 1, match:class ^(brave-browser)$"
         "tile 1, match:class ^(Code)$"
         
         "immediate 1, match:class ^(steam_app_.*)$"
         "fullscreen 1, match:class ^(steam_app_.*)$"
+
+        "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:class ^(kitty)$"
       ];
 
       layerrule = [
