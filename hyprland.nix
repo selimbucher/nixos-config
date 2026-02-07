@@ -5,8 +5,11 @@
     enable = true;
     # System package is handled in configuration.nix
     package = null;
+
     plugins = [
-      inputs.hyprland-plugins.packages.${pkgs.system}.hyprexpo
+      inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprexpo
+      # inputs.Hyprspace.packages.${pkgs.stdenv.hostPlatform.system}.Hyprspace
+      # THIS FUCKING PLUGIN IN ASS CHEEKS - IT DOESNT WORK
     ];
     
     # Raw configuration for Monitor, HDR, and Color settings
@@ -87,6 +90,29 @@
       exec = [
         "ags run ~/.config/ags/app.ts"          #
       ];
+
+      gesture = [
+        "3, horizontal, workspace"
+        "3, down, dispatcher, hyprexpo:expo, on"
+        "3, up, dispatcher, hyprexpo:expo, off"
+      ];
+
+      gestures = {
+        workspace_swipe_distance = 400;
+        
+        # INVERT SCROLLING (Touchpad)
+        workspace_swipe_invert = true; 
+
+        workspace_swipe_min_speed_to_force = 20; 
+        workspace_swipe_cancel_ratio = 0.2;
+
+        # BEHAVIOR
+        # Creates a new empty workspace if you swipe past the last one
+        workspace_swipe_create_new = true; 
+        
+        # Continuous swiping (go 1 -> 2 -> 3 in one long drag)
+        workspace_swipe_forever = true; 
+      };
 
       general = {
         gaps_in = 5;
@@ -174,7 +200,7 @@
         follow_mouse = 1;
         sensitivity = 0.25; # Updated
         touchpad = {
-          natural_scroll = false;
+          natural_scroll = true;
         };
       };
 

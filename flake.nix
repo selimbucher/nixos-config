@@ -26,6 +26,11 @@
       inputs.hyprland.follows = "hyprland";
     };
     
+    Hyprspace = {
+      url = "github:KZDKM/Hyprspace";
+      inputs.hyprland.follows = "hyprland";
+    };
+
     ags = {
       url = "github:aylur/ags";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -47,6 +52,8 @@
           ./hosts/laptop/configuration.nix
           
           home-manager.nixosModules.home-manager
+          inputs.hyprland.nixosModules.default
+
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
