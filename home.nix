@@ -46,7 +46,6 @@
     pavucontrol
     swaynotificationcenter
     libnotify
-    waycorner
     hyprshell
 
     showtime
