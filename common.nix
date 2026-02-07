@@ -5,10 +5,10 @@
 { inputs, config, lib, pkgs, ... }:
 
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+  #imports =
+  #  [ # Include the results of the hardware scan.
+  #    ./hardware-configuration.nix
+  #  ];
   
   nixpkgs.config.allowUnfree = true;
   # Enable flakes and new CLI
@@ -65,7 +65,7 @@
   # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  networking.hostName = "nixOS"; # Define your hostname.
+  # networking.hostName = "nixOS"; # Define your hostname.
   
   xdg.portal = {
     enable = true;

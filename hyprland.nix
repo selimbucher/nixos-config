@@ -3,21 +3,26 @@
 {
   wayland.windowManager.hyprland = {
     enable = true;
-    
     # System package is handled in configuration.nix
     package = null;
-    
     plugins = [
-      # inputs.hyprland-plugins.packages.${pkgs.system}.hyprexpo
+      inputs.hyprland-plugins.packages.${pkgs.system}.hyprexpo
     ];
-
+    
+    # Raw configuration for Monitor, HDR, and Color settings
     extraConfig = ''
       source = ~/.config/desktop/hypr.conf
-      source = ~/.config/hypr/testing.conf
-      
       general {
-        col.active_border = $primaryColor
+          col.active_border = $primaryColor
       }
+      
+      # Monitor Configuration
+      monitor = eDP-1, 2880x1800@120, 0x0, 2, bitdepth, 10
+
+      # Experimental HDR/OLED settings
+      # These specific keys often require raw config because they are experimental
+      monitor = eDP-1, addreserved, 0, 0, 0, 0
+      # debug:manual_crash = 0
     '';
 
     xwayland.enable = true;
@@ -31,6 +36,7 @@
         "GDK_SCALE,2"
         "XCURSOR_SIZE,32"
         "HYPRCURSOR_SIZE,24"
+        "ENABLE_HDR_WSI,1" #
       ];
 
       windowrule = [
@@ -44,15 +50,13 @@
         "float 1, match:class ^(\\.blueman-manager-wrapped)$"
         "float 1, move monitor_w-window_w-15 monitor_h-window_h-15, match:class ^(it.mijorus.smile)$"
         
-        
-
         "tile 1, match:class ^(brave-browser)$"
         "tile 1, match:class ^(Code)$"
         
         "immediate 1, match:class ^(steam_app_.*)$"
         "fullscreen 1, match:class ^(steam_app_.*)$"
       ];
-      
+
       layerrule = [
         # "blur on, match:namespace gtk4-layer-shell"
         # "ignore_alpha 1, match:namespace gtk4-layer-shell"
@@ -69,11 +73,19 @@
       "$lock" = "hyprlock";
       "$mainMod" = "SUPER";
 
+      # Standard startup applications
       exec-once = [
         "swww-daemon"
         "xsettingsd"
         "hyprctl setcursor WhiteSur-cursors 24"
         "waycorner"
+        "wl-clip-persist --clipboard regular"   #
+        "play --volume=0.4 .config/startup.mp3" #
+      ];
+
+      # Applications to run on every reload
+      exec = [
+        "ags run ~/.config/ags/app.ts"          #
       ];
 
       general = {
@@ -89,8 +101,8 @@
       decoration = {
         rounding = 6;
         active_opacity = 1.0;
-        inactive_opacity = 1.0; 
-
+        inactive_opacity = 1.0;
+        
         shadow = {
           enabled = true;
           range = 10;
@@ -160,7 +172,7 @@
         kb_layout = "ch";
         kb_variant = "de";
         follow_mouse = 1;
-        sensitivity = 0.2;
+        sensitivity = 0.25; # Updated
         touchpad = {
           natural_scroll = false;
         };
@@ -172,6 +184,10 @@
       };
 
       bind = [
+        "SUPER, period, exec, smile"
+        ", section, togglespecialworkspace, magic"
+        "SHIFT, section, movetoworkspace, special:magic"
+
         ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
         "CTRL, Print, exec, grim - | wl-copy"
         "$mainMod, Q, exec, $terminal"
@@ -239,7 +255,6 @@
         "$mainMod, mouse:273, resizewindow"
       ];
       
-      # Plugin block must remain commented out if plugins = []
       # plugin = { ... };
     };
   };

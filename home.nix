@@ -1,5 +1,4 @@
-# Rebuild: 2025-10-08
-{ inputs, config, pkgs, lib, ... }:
+{ inputs, config, pkgs, lib, hostName, ... }:
 
 {
   imports = [
@@ -190,6 +189,19 @@
     '';
   };
 
+  home.activation = {
+    createDefaultHyprTheme = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      themeFile="${config.home.homeDirectory}/.config/desktop/hypr.conf"
+      
+      if [ ! -f "$themeFile" ]; then
+        echo "Creating default Hyprland theme file..."
+        mkdir -p "$(dirname "$themeFile")"
+        
+        # We write a safe default color so Hyprland doesn't crash
+        echo '$primaryColor = rgba(179,165,231,0.6)' > "$themeFile"
+      fi
+    '';
+  };
 
   systemd.user.services.polkit-gnome-authentication-agent-1 = {
     Unit = {
@@ -268,7 +280,7 @@
       name = "NixOS Rebuild";
       terminal = false;
       icon = "system-software-update";
-      exec = "kitty --title \"NixOS Rebuild\" --hold sh -c \"sudo nixos-rebuild switch --flake /home/selim/.nixos#nixOS\"";
+      exec = "kitty --title \"NixOS Rebuild\" --hold sh -c \"sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}\"";
     };
     upgrade = {
       name = "Upgrade Packages";
