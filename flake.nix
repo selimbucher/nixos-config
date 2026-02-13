@@ -67,7 +67,7 @@
               hostName = "laptop"; 
             };
             
-            home-manager.users.selim = import ./home.nix;
+            # home-manager.users.selim = import ./home.nix;
           }
         ];
       };
