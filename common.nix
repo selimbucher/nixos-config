@@ -150,6 +150,7 @@
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
   
+  programs.ssh.startAgent = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
