@@ -85,6 +85,7 @@
     
     fastfetch
     sox
+    playerctl
 
     whitesur-cursors
     nwg-look
