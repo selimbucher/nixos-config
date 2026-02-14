@@ -53,7 +53,6 @@
     };
   };
 
-    /*
   boot.plymouth = {
     enable = true;
     theme = "loader_2";
@@ -78,7 +77,6 @@
     "rd.udev.log_level=3"
     "udev.log_priority=3"
   ];
-  */
 
 
 
