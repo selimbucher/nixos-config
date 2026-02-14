@@ -6,8 +6,8 @@
     # nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";    
 
     desktop = {
-      url = "path:/home/selim/Documents/Coding/hyprland-widgets";
-      # url = "github:SlimmerCH/hyprland-widgets";
+      # url = "path:/home/selim/Documents/Coding/hyprland-widgets";
+      url = "github:SlimmerCH/hyprland-widgets";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
