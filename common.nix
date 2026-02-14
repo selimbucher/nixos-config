@@ -180,9 +180,11 @@
     where-is-my-sddm-theme
   ];
 
+  services.xserver.excludePackages = [ pkgs.xterm ];
+
   security.polkit.enable = true;
 
-
+  programs.steam.enable = true;
 
   programs.hyprland = {
     enable = true;

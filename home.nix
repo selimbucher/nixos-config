@@ -94,7 +94,6 @@
 
     inkscape
     obsidian
-    steam
     protonvpn-gui
     
     jetbrains-mono

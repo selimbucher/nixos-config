@@ -106,14 +106,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1771044199,
-        "narHash": "sha256-X2LiLgsSQI9Khof2oOl8PgHlvcvSrQ7JeFvx801l0vU=",
-        "path": "/home/selim/Documents/Coding/hyprland-widgets",
-        "type": "path"
+        "lastModified": 1771078292,
+        "narHash": "sha256-SABwouYg2t79ke5hPsMbrEIETRnCP6+IJ6BIZykiHtU=",
+        "owner": "SlimmerCH",
+        "repo": "hyprland-widgets",
+        "rev": "7363b2ebb28b82ad96b1a26478b6c029f43900cc",
+        "type": "github"
       },
       "original": {
-        "path": "/home/selim/Documents/Coding/hyprland-widgets",
-        "type": "path"
+        "owner": "SlimmerCH",
+        "repo": "hyprland-widgets",
+        "type": "github"
       }
     },
     "flake-compat": {
