@@ -85,6 +85,13 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.networkmanager.enable = true;
+  networking.firewall = {
+    enable = true;
+    allowedTCPPorts = [ 53317 51413 ];
+    allowedUDPPorts = [ 53317 51413 ];
+  };
+  networking.firewall.checkReversePath = false;  
+
   time.timeZone = "Europe/Amsterdam";
 
   fonts.packages = with pkgs; [
@@ -153,8 +160,6 @@
     ];
     initialPassword = "1234";
   };
-
-  # programs.firefox.enable = true;
 
   # List packages installed in system profile.
   environment.systemPackages = with pkgs; [
