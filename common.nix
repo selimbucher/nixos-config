@@ -34,13 +34,14 @@
     xkb.variant = "";   # Leave empty for default, or use "fr" for Swiss French
     desktopManager.xterm.enable = false;
   };
+
   services.displayManager = {
     enable = true;
 
     sddm = {
       enable = true;
       theme = "where_is_my_sddm_theme"; # Theme defaults to the Qt6 variant
-      wayland.enable = true;
+      wayland.enable = config.deviceConfig.sddmWayland;
       enableHidpi = true;
 
       extraPackages = with pkgs; [
