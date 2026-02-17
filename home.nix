@@ -86,6 +86,7 @@
     fastfetch
     sox
     playerctl
+    neovim
 
     whitesur-cursors
     nwg-look
