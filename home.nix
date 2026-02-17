@@ -92,6 +92,7 @@
 
     python3
     julia
+    ghc
 
     inkscape
     obsidian
