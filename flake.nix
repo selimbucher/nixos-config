@@ -7,7 +7,7 @@
 
     desktop = {
       # url = "path:/home/selim/Documents/Coding/hyprland-widgets";
-      url = "github:SlimmerCH/hyprland-widgets";
+      url = "github:selimbucher/hyprland-widgets";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -17,12 +17,12 @@
     };
     
     slimmer-icons = {
-      url = "github:SlimmerCH/Slimmer-icon-theme";
+      url = "github:selimbucher/WhiteSur-steam-icons";
       flake = false;
     };
 
     rofi-theme = {
-      url = "github:SlimmerCH/rofi-theme";
+      url = "github:selimbucher/rofi-theme";
       flake = false;
     };
     
