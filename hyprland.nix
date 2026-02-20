@@ -64,12 +64,15 @@
         "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:class ^(kitty)$"
       ];
 
-      layerrule = [
-        # "blur on, match:namespace gtk4-layer-shell"
-        # "ignore_alpha 1, match:namespace gtk4-layer-shell"
-        # "blur on, match:namespace rofi"
-        # "ignore_alpha 1, match:namespace rofi"
-      ];
+      /*
+      layerrule = {
+        name = "blur-desktop";
+        blur = true;
+        blur_popups = true;
+        ignore_alpha = 0.1;
+        "match:namespace" = "gtk4-layer-shell";
+      };
+      */
 
       "$terminal" = "kitty";
       "$fileManager" = "nautilus";
@@ -143,12 +146,13 @@
 
         blur = {
           enabled = false;
-          size = 7;
-          passes = 3;
+          size = 3;
+          passes = 2;
           vibrancy = 0.1696;
-          noise = 0.14;
-          contrast = 2;
+          noise = 0.02;
+          contrast = 1.4;
           ignore_opacity = true;
+          new_optimizations = true;
         };
       };
 
