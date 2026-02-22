@@ -269,6 +269,11 @@
     videos = "${config.home.homeDirectory}/Videos";
   };
 
+  home.shellAliases = {
+    rebuild = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
+    update = "nix flake update --flake /home/selim/.nixos";
+  };
+
   xdg.desktopEntries = {
     obsidian = {
       name = "Obsidian";
@@ -291,7 +296,7 @@
       name = "Upgrade Packages";
       terminal = false;
       icon = "system-software-update";
-      exec = "kitty --title \"Upgrade Flake Packages\" --hold sh -c \"nix flake update --flake /home/selim/.nixos\"";
+      exec = "kitty --title \"Upgrade Flake Packages\" --hold sh -c \"update --flake /home/selim/.nixos\"";
     };
     nwg-look = {
       name = "GTK Settings";
