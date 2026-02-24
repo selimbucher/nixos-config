@@ -171,7 +171,6 @@
   environment.systemPackages = with pkgs; [
     git
     kitty
-    swww
     wl-clipboard
     wl-clip-persist
     nautilus

@@ -12,7 +12,8 @@
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
-
+    swww
+    
     inputs.desktop.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     icon-library
@@ -95,6 +96,7 @@
     julia
     ghc
     duckdb
+    dnsutils
 
     inkscape
     obsidian

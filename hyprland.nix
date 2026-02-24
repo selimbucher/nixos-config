@@ -12,6 +12,7 @@
       # THIS FUCKING PLUGIN IN ASS CHEEKS - IT DOESNT WORK
     ];
     
+
     # Raw configuration for Monitor, HDR, and Color settings
     extraConfig = ''
       source = ~/.config/desktop/hypr.conf
@@ -26,6 +27,26 @@
       # These specific keys often require raw config because they are experimental
       # monitor = eDP-1, addreserved, 0, 0, 0, 0
       # debug:manual_crash = 0
+
+
+      submap = switch_sandbox
+
+      # Allow repeating TAB while holding ALT to cycle the menu
+      binde = ALT, TAB, exec, desktop-ctl apps open-next
+
+      # Capture the exact release of the Left Alt key using the 'rt' flags
+      bindrt = ALT, ALT_L, exec, desktop-ctl apps confirm
+      bindrt = ALT, ALT_L, submap, reset
+
+      # Provide a failsafe to abort if you change your mind
+      bindr = , escape, exec, desktop-ctl apps close
+      bindr = , escape, submap, reset
+
+      bindr = ALT, escape, exec, desktop-ctl apps close
+      bindr = ALT, escape, submap, reset
+
+      # Terminate the submap declaration
+      submap = reset
     '';
 
     xwayland.enable = true;
@@ -39,7 +60,7 @@
         "GDK_SCALE,2"
         "XCURSOR_SIZE,32"
         "HYPRCURSOR_SIZE,24"
-        "ENABLE_HDR_WSI,1" #
+        "ENABLE_HDR_WSI,1"
       ];
 
       windowrule = [
@@ -218,6 +239,9 @@
       };
 
       bind = [
+        "ALT, TAB, exec, desktop-ctl apps open-next"
+        "ALT, TAB, submap, switch_sandbox"
+
         "SUPER, period, exec, smile"
         ", section, togglespecialworkspace, magic"
         "SHIFT, section, movetoworkspace, special:magic"
