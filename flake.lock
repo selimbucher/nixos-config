@@ -106,8 +106,8 @@
         ]
       },
       "locked": {
-        "lastModified": 1771875601,
-        "narHash": "sha256-Ej7/+r/boL6V58o7hrSkcO/brKelOcWkO7T8FyUvaS0=",
+        "lastModified": 1771944967,
+        "narHash": "sha256-lGkud4w0w85BDsBxV63JtmRYTYCDKbi2gh7k1jqTBJU=",
         "path": "/home/selim/Documents/Coding/hyprland-widgets",
         "type": "path"
       },
@@ -542,11 +542,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1771369470,
-        "narHash": "sha256-0NBlEBKkN3lufyvFegY4TYv5mCNHbi5OmBDrzihbBMQ=",
+        "lastModified": 1771848320,
+        "narHash": "sha256-0MAd+0mun3K/Ns8JATeHT1sX28faLII5hVLq0L3BdZU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "0182a361324364ae3f436a63005877674cf45efb",
+        "rev": "2fc6539b481e1d2569f25f8799236694180c0993",
         "type": "github"
       },
       "original": {

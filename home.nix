@@ -43,6 +43,24 @@
     transmission_4-gtk
     snapshot
     evince
+    gnome-calculator
+    baobab
+    gnome-font-viewer
+    gnome-connections
+    simple-scan
+    gnome-weather
+    clairvoyant
+    collision
+    commit
+    gnome-decoder
+    dialect
+    forge-sparks
+    fretboard
+    hieroglyphic
+    keypunch
+    mousai
+    valuta
+
 
     #glib
 
@@ -85,6 +103,8 @@
       }))
     
     fastfetch
+    tetris
+
     sox
     playerctl
     neovim
@@ -102,7 +122,7 @@
     obsidian
     protonvpn-gui
     
-    jetbrains-mono
+    # jetbrains-mono
   ];
   
   home.pointerCursor = {

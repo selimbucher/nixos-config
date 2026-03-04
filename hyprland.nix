@@ -85,7 +85,7 @@
         "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:class ^(kitty)$"
       ];
 
-      
+      /*
       layerrule = {
         name = "blur-desktop";
         blur = true;
@@ -93,6 +93,7 @@
         ignore_alpha = 0.1;
         "match:namespace" = "^(gtk4-layer-shell|rofi)$";
       };
+      */
       
 
       "$terminal" = "kitty";
@@ -166,7 +167,7 @@
         };
 
         blur = {
-          enabled = true;
+          enabled = false;
           size = 3;
           passes = 2;
           vibrancy = 0.1696;

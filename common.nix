@@ -94,7 +94,7 @@
   time.timeZone = "Europe/Amsterdam";
 
   fonts.packages = with pkgs; [
-    quicksand
+    
     google-fonts 
     font-awesome
 ];
@@ -156,6 +156,7 @@
   services.gnome.evolution-data-server.enable = true;
   services.gnome.gnome-keyring.enable = true;
   programs.dconf.enable = true;
+  programs.gnome-disks.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
