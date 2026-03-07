@@ -29,7 +29,7 @@
       # debug:manual_crash = 0
 
 
-      submap = switch_sandbox
+      submap = app_switcher
 
       # Allow repeating TAB while holding ALT to cycle the menu
       binde = ALT, TAB, exec, desktop-ctl apps open-next
@@ -144,8 +144,8 @@
       };
 
       general = {
-        gaps_in = 5;
-        gaps_out = 10;
+        gaps_in = 2;
+        gaps_out = 4;
         border_size = 2;
         resize_on_border = false;
         allow_tearing = false;
@@ -241,7 +241,7 @@
 
       bind = [
         "ALT, TAB, exec, desktop-ctl apps open-next"
-        "ALT, TAB, submap, switch_sandbox"
+        "ALT, TAB, submap, app_switcher"
 
         "SUPER, period, exec, smile"
         ", section, togglespecialworkspace, magic"

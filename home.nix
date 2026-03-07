@@ -118,6 +118,8 @@
     duckdb
     dnsutils
 
+    jq
+
     inkscape
     obsidian
     protonvpn-gui
