@@ -148,6 +148,8 @@
   # AGS Requirements
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
+
+  services.gvfs.enable = true;
   
   # SSH
   # programs.ssh.startAgent = true;
@@ -183,6 +185,8 @@
     mission-center
 
     where-is-my-sddm-theme
+
+    gvfs
 
   ];
 
