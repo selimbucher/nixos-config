@@ -59,7 +59,6 @@
     hieroglyphic
     keypunch
     mousai
-    valuta
 
 
     #glib
