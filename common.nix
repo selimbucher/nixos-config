@@ -34,8 +34,7 @@
     xkb.variant = "";   # Leave empty for default, or use "fr" for Swiss French
     desktopManager.xterm.enable = false;
   };
-  services.xserver.displayManager.gdm.enable = true;
-  /*
+  # services.xserver.displayManager.gdm.enable = true;
   services.displayManager = {
     enable = true;
 
@@ -52,7 +51,7 @@
       ];
       
     };
-  };*/
+  };
 
   boot.plymouth = {
     enable = true;
