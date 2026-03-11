@@ -14,7 +14,7 @@
   home.packages = with pkgs; [
     swww
     
-    inputs.desktop.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     icon-library
 
@@ -62,12 +62,20 @@
 
 
     #glib
-
+    
+    
     (whitesur-gtk-theme.override {
       altVariants = [ "normal" ];
     })
+    
+    #candy-icons
 
-
+    #vimix-icon-theme
+    #papirus-icon-theme
+    #numix-icon-theme
+    #tela-icon-theme
+    #fluent-icon-theme
+    reversal-icon-theme
     
     (let
       base = pkgs.whitesur-icon-theme.override {
@@ -198,7 +206,7 @@
 
   home.activation = {
     createDefaultHyprTheme = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      themeFile="${config.home.homeDirectory}/.config/desktop/hypr.conf"
+      themeFile="${config.home.homeDirectory}/.config/kiwi-shell/hypr.conf"
       
       if [ ! -f "$themeFile" ]; then
         echo "Creating default Hyprland theme file..."

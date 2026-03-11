@@ -34,7 +34,8 @@
     xkb.variant = "";   # Leave empty for default, or use "fr" for Swiss French
     desktopManager.xterm.enable = false;
   };
-
+  services.xserver.displayManager.gdm.enable = true;
+  /*
   services.displayManager = {
     enable = true;
 
@@ -51,14 +52,14 @@
       ];
       
     };
-  };
+  };*/
 
   boot.plymouth = {
     enable = true;
-    theme = "loader_2";
+    theme = "spinner_alt";
     themePackages = [
       (pkgs.adi1090x-plymouth-themes.override {
-        selected_themes = [ "loader_2" ]; # <--- AND here (saves 500MB of space)
+        selected_themes = [ "spinner_alt" ]; # <--- AND here (saves 500MB of space)
       })
     ];
   };
@@ -168,6 +169,7 @@
       tree
     ];
     initialPassword = "1234";
+    shell = pkgs.bashInteractive;
   };
 
   # List packages installed in system profile.

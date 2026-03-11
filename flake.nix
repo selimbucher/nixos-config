@@ -5,9 +5,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     # nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";    
 
-    desktop = {
-      # url = "path:/home/selim/Documents/Coding/hyprland-widgets";
-      url = "github:selimbucher/hyprland-widgets";
+    kiwi = {
+      # url = "path:/home/selim/Documents/Coding/kiwi-shell";
+      url = "github:selimbucher/kiwi-shell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

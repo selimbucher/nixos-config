@@ -15,7 +15,7 @@
 
     # Raw configuration for Monitor, HDR, and Color settings
     extraConfig = ''
-      source = ~/.config/desktop/hypr.conf
+      source = ~/.config/kiwi-shell/hypr.conf
       general {
           col.active_border = $primaryColor
       }
@@ -32,17 +32,17 @@
       submap = app_switcher
 
       # Allow repeating TAB while holding ALT to cycle the menu
-      binde = ALT, TAB, exec, desktop-ctl apps open-next
+      binde = ALT, TAB, exec, kiwictl apps open-next
 
       # Capture the exact release of the Left Alt key using the 'rt' flags
-      bindrt = ALT, ALT_L, exec, desktop-ctl apps confirm
+      bindrt = ALT, ALT_L, exec, kiwictl apps confirm
       bindrt = ALT, ALT_L, submap, reset
 
       # Provide a failsafe to abort if you change your mind
-      bindr = , escape, exec, desktop-ctl apps close
+      bindr = , escape, exec, kiwictl apps close
       bindr = , escape, submap, reset
 
-      bindr = ALT, escape, exec, desktop-ctl apps close
+      bindr = ALT, escape, exec, kiwictl apps close
       bindr = ALT, escape, submap, reset
 
       # Terminate the submap declaration
@@ -112,12 +112,12 @@
         "hyprctl setcursor WhiteSur-cursors 24"
         "waycorner"
         "wl-clip-persist --clipboard regular"   #
-        "play --volume=0.45 .config/desktop/startup.mp3" #
+        "play --volume=0.45 .config/kiwi-shell/startup.mp3" #
       ];
 
       # Applications to run on every reload
       exec = [
-        "desktop"
+        "kiwi"
       ];
 
       gesture = [
@@ -240,7 +240,7 @@
       };
 
       bind = [
-        "ALT, TAB, exec, desktop-ctl apps open-next"
+        "ALT, TAB, exec, kiwictl apps open-next"
         "ALT, TAB, submap, app_switcher"
 
         "SUPER, period, exec, smile"
@@ -294,12 +294,12 @@
       ];
 
       bindel = [
-        ",XF86AudioRaiseVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+ && desktop-ctl show volume"
-        ",XF86AudioLowerVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%- && desktop-ctl show volume"
-        ",XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle && desktop-ctl show volume"
+        ",XF86AudioRaiseVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 7%+"
+        ",XF86AudioLowerVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 7%-"
+        ",XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
         ",XF86AudioMicMute, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
-        ",XF86MonBrightnessUp, exec, brightnessctl -e4 -n10 set 4%+ && desktop-ctl show brightness"
-        ",XF86MonBrightnessDown, exec, brightnessctl -e4 -n10 set 4%- && desktop-ctl show brightness"
+        ",XF86MonBrightnessUp, exec, brightnessctl -e4 -n10 set 4%+"
+        ",XF86MonBrightnessDown, exec, brightnessctl -e4 -n10 set 4%-"
       ];
 
       bindl = [

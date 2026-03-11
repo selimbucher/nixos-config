@@ -25,7 +25,7 @@
       "inputs": {
         "astal": "astal",
         "nixpkgs": [
-          "desktop",
+          "kiwi",
           "nixpkgs"
         ]
       },
@@ -79,7 +79,7 @@
     "astal": {
       "inputs": {
         "nixpkgs": [
-          "desktop",
+          "kiwi",
           "ags",
           "nixpkgs"
         ]
@@ -95,27 +95,6 @@
       "original": {
         "owner": "aylur",
         "repo": "astal",
-        "type": "github"
-      }
-    },
-    "desktop": {
-      "inputs": {
-        "ags": "ags",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1772938996,
-        "narHash": "sha256-JhbVvq0zqwCg4Q/4zcdy0VdovFyJLJV1e+Z8Gi6l5E8=",
-        "owner": "selimbucher",
-        "repo": "hyprland-widgets",
-        "rev": "25d9993401833cce467d16c5b62b1b7193abbad9",
-        "type": "github"
-      },
-      "original": {
-        "owner": "selimbucher",
-        "repo": "hyprland-widgets",
         "type": "github"
       }
     },
@@ -164,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1772845525,
-        "narHash": "sha256-Dp5Ir2u4jJDGCgeMRviHvEQDe+U37hMxp6RSNOoMMPc=",
+        "lastModified": 1773093840,
+        "narHash": "sha256-u/96NoAyN8BSRuM3ZimGf7vyYgXa3pLx4MYWjokuoH4=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "27b93804fbef1544cb07718d3f0a451f4c4cd6c0",
+        "rev": "bb014746edb2a98d975abde4dd40fa240de4cf86",
         "type": "github"
       },
       "original": {
@@ -527,6 +506,27 @@
         "type": "github"
       }
     },
+    "kiwi": {
+      "inputs": {
+        "ags": "ags",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1773215932,
+        "narHash": "sha256-4Z6c1tpEbDxu/ldgsKxre0BIKrnYgkWZCgPUVsHvq+U=",
+        "owner": "selimbucher",
+        "repo": "kiwi-shell",
+        "rev": "fb8a7cc106fb8566ae51511c7c5aa343f4ce8627",
+        "type": "github"
+      },
+      "original": {
+        "owner": "selimbucher",
+        "repo": "kiwi-shell",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1772542754,
@@ -545,11 +545,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1772773019,
-        "narHash": "sha256-E1bxHxNKfDoQUuvriG71+f+s/NT0qWkImXsYZNFFfCs=",
+        "lastModified": 1772963539,
+        "narHash": "sha256-9jVDGZnvCckTGdYT53d/EfznygLskyLQXYwJLKMPsZs=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "aca4d95fce4914b3892661bcb80b8087293536c6",
+        "rev": "9dcb002ca1690658be4a04645215baea8b95f31d",
         "type": "github"
       },
       "original": {
@@ -601,10 +601,10 @@
     "root": {
       "inputs": {
         "Hyprspace": "Hyprspace",
-        "desktop": "desktop",
         "home-manager": "home-manager",
         "hyprland": "hyprland",
         "hyprland-plugins": "hyprland-plugins",
+        "kiwi": "kiwi",
         "nixpkgs": "nixpkgs_2",
         "rofi-theme": "rofi-theme",
         "slimmer-icons": "slimmer-icons",
