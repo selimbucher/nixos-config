@@ -17,7 +17,7 @@
     extraConfig = ''
       source = ~/.config/kiwi-shell/hypr.conf
       general {
-          col.active_border = $primaryColor
+          col.active_border = $kiwiColorLight
       }
       
       # Monitor Configuration

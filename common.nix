@@ -163,7 +163,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
+    extraGroups = [ "wheel" "networkmanager"];
     packages = with pkgs; [
       tree
     ];

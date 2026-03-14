@@ -13,6 +13,7 @@
 
   home.packages = with pkgs; [
     swww
+    blueman
     
     inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
 
@@ -59,6 +60,8 @@
     hieroglyphic
     keypunch
     mousai
+
+    spotify
 
 
     #glib
@@ -213,7 +216,7 @@
         mkdir -p "$(dirname "$themeFile")"
         
         # We write a safe default color so Hyprland doesn't crash
-        echo '$primaryColor = rgba(169,206,195,0.7)' > "$themeFile"
+        echo '$kiwiColorLight = rgba(255, 255, 255, 0.7)' > "$themeFile"
       fi
     '';
   };
