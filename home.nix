@@ -114,6 +114,7 @@
     
     fastfetch
     tetris
+    obs-studio
 
     sox
     playerctl

@@ -256,7 +256,7 @@
         "$mainMod, A, togglefloating,"
         "SUPER_L, SUPER_L, exec, $menu"
         "$mainMod, P, pseudo,"
-        "$mainMod, Y, togglesplit,"
+        # "$mainMod, Y, togglesplit,"
         "$mainMod, W, exec, $webBrowser"
         "CTRL SHIFT, Escape, exec, $taskManager"
         "$mainMod, L, exec, $lock"
