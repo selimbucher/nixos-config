@@ -19,9 +19,6 @@
       general {
           col.active_border = $kiwiColorLight
       }
-      
-      # Monitor Configuration
-      monitor = ${osConfig.deviceConfig.monitor}
 
       # Experimental HDR/OLED settings
       # These specific keys often require raw config because they are experimental
@@ -63,6 +60,8 @@
         "ENABLE_HDR_WSI,1"
       ];
 
+      monitor = osConfig.deviceConfig.monitor;
+      
       windowrule = [
         "float 1, match:class .*"        
 

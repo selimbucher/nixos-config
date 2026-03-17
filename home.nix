@@ -115,6 +115,7 @@
     fastfetch
     tetris
     obs-studio
+    cutter
 
     sox
     playerctl
