@@ -113,7 +113,9 @@
         "wl-clip-persist --clipboard regular"   #
         "play --volume=0.45 .config/kiwi-shell/startup.mp3" #
         "kiwi"
-      ];
+      ] ++ osConfig.deviceConfig.extraExecOnce;
+
+      exec = [] ++ osConfig.deviceConfig.extraExec;
       
       gesture = [
         "3, horizontal, workspace"
@@ -154,7 +156,7 @@
         inactive_opacity = 1.0;
         
         shadow = {
-          enabled = false;
+          enabled = osConfig.deviceConfig.shadow;
           range = 10;
           render_power = 3;
           color = "0x70000000";
@@ -162,7 +164,7 @@
         };
 
         blur = {
-          enabled = false;
+          enabled = osConfig.deviceConfig.blur;
           size = 3;
           passes = 2;
           vibrancy = 0.1696;
