@@ -112,13 +112,9 @@
         "waycorner"
         "wl-clip-persist --clipboard regular"   #
         "play --volume=0.45 .config/kiwi-shell/startup.mp3" #
-      ];
-
-      # Applications to run on every reload
-      exec = [
         "kiwi"
       ];
-
+      
       gesture = [
         "3, horizontal, workspace"
         "3, down, dispatcher, hyprexpo:expo, on"
@@ -158,7 +154,7 @@
         inactive_opacity = 1.0;
         
         shadow = {
-          enabled = true;
+          enabled = false;
           range = 10;
           render_power = 3;
           color = "0x70000000";
@@ -188,7 +184,7 @@
         ];
         animation = [
           "global, 1, 10, default"
-          "border, 1, 5.39, easeOutQuint"
+          "border, 1, 1, almostLinear"
           "windows, 1, 4.79, easeOutQuint"
           "windowsIn, 1, 4.1, easeOutQuint, popin 87%"
           "windowsOut, 1, 1.49, linear, popin 87%"
@@ -227,7 +223,7 @@
         kb_layout = "ch";
         kb_variant = "de";
         follow_mouse = 1;
-        sensitivity = 0.25; # Updated
+        sensitivity = 0.25;
         touchpad = {
           natural_scroll = true;
         };

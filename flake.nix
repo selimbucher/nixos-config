@@ -68,8 +68,6 @@
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "backup";
             
-            # home-manager.sharedModules = [ inputs.desktop.homeManagerModules.default ];
-            
             home-manager.extraSpecialArgs = { 
               inherit inputs; 
               hostName = "laptop";

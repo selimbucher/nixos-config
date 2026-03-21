@@ -24,13 +24,14 @@
     gimp
     onlyoffice-desktopeditors
     libreoffice-fresh
-    vscode    
+    vscode
+    nwg-displays
 
     #(emacs-pgtk.pkgs.withPackages (epkgs: [ epkgs.doom-themes epkgs.treemacs ]))
     localsend
     rofi
     pavucontrol
-    swaynotificationcenter
+    #swaynotificationcenter
     libnotify
 
     showtime
@@ -149,7 +150,7 @@
 
   
   services.swaync = {
-    enable = true;
+    enable = false;
     # Optional: customize settings
     settings = {
       positionX = "center";
