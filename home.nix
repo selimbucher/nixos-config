@@ -61,6 +61,16 @@
     hieroglyphic
     keypunch
     mousai
+    (lutris.overrideAttrs (old: rec {
+      version = "0.5.22";
+      name = "lutris-${version}";
+      src = pkgs.fetchFromGitHub {
+        owner = "lutris";
+        repo = "lutris";
+        rev = "v${version}";
+        hash = "sha256-4mNknvfJQJEPZjQoNdKLQcW4CI93D6BUDPj8LtD940A=";
+      };
+    }))
 
     spotify
 
@@ -122,7 +132,6 @@
     playerctl
     neovim
 
-    whitesur-cursors
     nwg-look
 
     python3
@@ -143,8 +152,8 @@
   home.pointerCursor = {
     gtk.enable = true;
     x11.enable = true;  # Enable if you have XWayland apps
-    name = "WhiteSur-cursors";  # Replace with your desired theme name
-    package = pkgs.bibata-cursors;   # Replace with the package for that theme
+    name = "Capitaine Cursors - White";
+    package = pkgs.capitaine-cursors-themed;
     size = 24;
   };
 

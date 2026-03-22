@@ -7,9 +7,11 @@
     package = null;
 
     plugins = [
-      # inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprexpo
+      #inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprexpo
       # inputs.Hyprspace.packages.${pkgs.stdenv.hostPlatform.system}.Hyprspace
       # THIS FUCKING PLUGIN IN ASS CHEEKS - IT DOESNT WORK
+
+      #inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
     ];
     
 
@@ -55,7 +57,7 @@
 
       env = [
         "GDK_SCALE,2"
-        "XCURSOR_SIZE,32"
+        "XCURSOR_SIZE,24"
         "HYPRCURSOR_SIZE,24"
         "ENABLE_HDR_WSI,1"
       ];
@@ -89,7 +91,7 @@
         name = "blur-kiwi";
         blur = true;
         blur_popups = true;
-        ignore_alpha = 0.1;
+        ignore_alpha = 0.5;
         "match:namespace" = "^(gtk4-layer-shell|rofi)$";
       };
       
@@ -108,8 +110,7 @@
       exec-once = [
         "swww-daemon"
         "xsettingsd"
-        "hyprctl setcursor WhiteSur-cursors 24"
-        "waycorner"
+        "hyprctl setcursor 'Capitaine Cursors - White' 24"
         "wl-clip-persist --clipboard regular"   #
         "play --volume=0.45 .config/kiwi-shell/startup.mp3" #
         "kiwi"
@@ -237,12 +238,15 @@
       };
 
       bind = [
+        "$mainMod, mouse_down, workspace, e-1"
+        "$mainMod, mouse_up, workspace, e+1"
+
         "ALT, TAB, exec, kiwictl apps open-next"
         "ALT, TAB, submap, app_switcher"
 
         "SUPER, period, exec, smile"
-        ", section, togglespecialworkspace, magic"
-        "SHIFT, section, movetoworkspace, special:magic"
+        #", section, togglespecialworkspace, magic"
+        #"SHIFT, section, movetoworkspace, special:magic"
 
         ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
         "CTRL, Print, exec, grim - | wl-copy"
@@ -291,8 +295,8 @@
       ];
 
       bindel = [
-        ",XF86AudioRaiseVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 7%+"
-        ",XF86AudioLowerVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 7%-"
+        ",XF86AudioRaiseVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"
+        ",XF86AudioLowerVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
         ",XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
         ",XF86AudioMicMute, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
         ",XF86MonBrightnessUp, exec, brightnessctl -e4 -n10 set 4%+"
@@ -311,7 +315,6 @@
         "$mainMod, mouse:273, resizewindow"
       ];
       
-      # plugin = { ... };
     };
   };
 }
