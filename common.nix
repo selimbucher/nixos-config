@@ -10,6 +10,8 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  programs.nix-ld.enable = true;
+
   boot.loader.systemd-boot.enable = false;
   boot.loader = {
     grub = {
