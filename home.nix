@@ -145,6 +145,7 @@
     inkscape
     obsidian
     protonvpn-gui
+    blanket
     
     # jetbrains-mono
   ];

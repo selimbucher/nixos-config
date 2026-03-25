@@ -86,7 +86,7 @@
         "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:class ^(kitty)$"
       ];
 
-      
+      /*
       layerrule = {
         name = "blur-kiwi";
         blur = true;
@@ -94,7 +94,7 @@
         ignore_alpha = 0.5;
         "match:namespace" = "^(gtk4-layer-shell|rofi)$";
       };
-      
+      */
       
 
       "$terminal" = "kitty";
