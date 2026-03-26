@@ -126,7 +126,6 @@
     fastfetch
     tetris
     obs-studio
-    cutter
 
     sox
     playerctl
@@ -139,6 +138,7 @@
     ghc
     duckdb
     dnsutils
+    usbutils
 
     jq
 
@@ -148,8 +148,10 @@
     blanket
     
     # jetbrains-mono
+    openconnect
+    networkmanager-openconnect
   ];
-  
+
   home.pointerCursor = {
     gtk.enable = true;
     x11.enable = true;  # Enable if you have XWayland apps
