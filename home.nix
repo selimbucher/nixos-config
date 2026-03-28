@@ -74,6 +74,15 @@
 
     spotify
 
+    reaper
+    yabridge
+    yabridgectl
+    wineWow64Packages.staging
+    qpwgraph
+    winetricks
+    pipewire.jack # for path
+    samba          # provides ntlm_auth, Wine needs it
+    xdg-utils
 
     #glib
     
@@ -335,17 +344,22 @@
       mimeType = [ "x-scheme-handler/obsidian" ];
     };
     
-    rebuild = {
-      name = "NixOS Rebuild";
+    cockos-reaper = {
+      type = "Application";
+      name = "Reaper";
+      comment = "Reaper";
+      exec = "pw-jack reaper %F";
+      icon = "cockos-reaper";
       terminal = false;
-      icon = "system-software-update";
-      exec = "kitty --title \"NixOS Rebuild\" --hold sh -c \"sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}\"";
-    };
-    upgrade = {
-      name = "Upgrade Packages";
-      terminal = false;
-      icon = "system-software-update";
-      exec = "kitty --title \"Upgrade Flake Packages\" --hold sh -c \"update --flake /home/selim/.nixos\"";
+      categories = [ "Audio" "Video" "AudioVideo" "AudioVideoEditing" "Recorder" ];
+      mimeType = [
+        "application/x-reaper-project"
+        "application/x-reaper-project-backup"
+        "application/x-reaper-theme"
+      ];
+      settings = {
+        StartupWMClass = "REAPER";
+      };
     };
     nwg-look = {
       name = "GTK Settings";

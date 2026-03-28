@@ -65,7 +65,9 @@
       monitor = osConfig.deviceConfig.monitor;
       
       windowrule = [
-        "float 1, match:class .*"        
+        "float 1, match:class .*"
+
+        "center 1, match:title ^(REAPER Query)$"
 
         "float 1, match:class ^(io\\.missioncenter\\.MissionCenter)$"
         "size 1000 600, match:class ^(io\\.missioncenter\\.MissionCenter)$"

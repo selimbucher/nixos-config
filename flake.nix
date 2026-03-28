@@ -44,6 +44,11 @@
       inputs.hyprland.follows = "hyprland";
     };
 
+    yabridge-dev = {
+      url = "github:robbert-vdh/yabridge/new-wine10-embedding";
+      flake = false;
+    };
+
   };
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs: {
@@ -59,6 +64,21 @@
         };
         modules = [
           ./hosts/laptop/configuration.nix
+          
+          ({ ... }: {
+            nixpkgs.overlays = [
+              (final: prev: {
+                yabridge = prev.yabridge.overrideAttrs (_: {
+                  src = inputs.yabridge-dev // { name = "yabridge"; };
+                  patches = [];
+                });
+                yabridgectl = prev.yabridgectl.overrideAttrs (_: {
+                  src = inputs.yabridge-dev // { name = "yabridge"; };
+                  sourceRoot = "source/tools/yabridgectl";
+                });
+              })
+            ];
+          })
           
           home-manager.nixosModules.home-manager
           inputs.hyprland.nixosModules.default
@@ -88,6 +108,21 @@
         };
         modules = [
           ./hosts/desktop/configuration.nix
+          
+          ({ ... }: {
+            nixpkgs.overlays = [
+              (final: prev: {
+                yabridge = prev.yabridge.overrideAttrs (_: {
+                  src = inputs.yabridge-dev // { name = "yabridge"; };
+                  patches = [];
+                });
+                yabridgectl = prev.yabridgectl.overrideAttrs (_: {
+                  src = inputs.yabridge-dev // { name = "yabridge"; };
+                  sourceRoot = "source/tools/yabridgectl";
+                });
+              })
+            ];
+          })
           
           home-manager.nixosModules.home-manager
           {

@@ -141,8 +141,18 @@
 
   services.pipewire = {
     enable = true;
+    alsa.enable = true;
     pulse.enable = true;
+    jack.enable = true;
   };
+
+  security.rtkit.enable = true;
+
+  security.pam.loginLimits = [
+    { domain = "@audio"; item = "memlock"; type = "-"; value = "unlimited"; }
+    { domain = "@audio"; item = "rtprio";  type = "-"; value = "99"; }
+    { domain = "@audio"; item = "nice";    type = "-"; value = "-20"; }
+  ];
 
   # Enable touchpad support (enabled default in most desktopManager).
   services.libinput.enable = true;
@@ -165,7 +175,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "video"];
+    extraGroups = [ "wheel" "networkmanager" "video" "audio"];
     packages = with pkgs; [
       tree
     ];

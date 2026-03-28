@@ -630,7 +630,8 @@
         "nixpkgs": "nixpkgs_2",
         "rofi-theme": "rofi-theme",
         "slimmer-icons": "slimmer-icons",
-        "whitesur-src": "whitesur-src"
+        "whitesur-src": "whitesur-src",
+        "yabridge-dev": "yabridge-dev"
       }
     },
     "slimmer-icons": {
@@ -733,6 +734,23 @@
       "original": {
         "owner": "hyprwm",
         "repo": "xdg-desktop-portal-hyprland",
+        "type": "github"
+      }
+    },
+    "yabridge-dev": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1768160516,
+        "narHash": "sha256-qjyBnwdd/yRIiiAApHyxc/XkkEwB33YP0GpIjG4Upro=",
+        "owner": "robbert-vdh",
+        "repo": "yabridge",
+        "rev": "945528cd7f898d717d772b93f939343dad122d91",
+        "type": "github"
+      },
+      "original": {
+        "owner": "robbert-vdh",
+        "ref": "new-wine10-embedding",
+        "repo": "yabridge",
         "type": "github"
       }
     }
