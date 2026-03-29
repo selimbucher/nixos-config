@@ -61,6 +61,7 @@
     hieroglyphic
     keypunch
     mousai
+    file-roller
     (lutris.overrideAttrs (old: rec {
       version = "0.5.22";
       name = "lutris-${version}";
@@ -153,7 +154,7 @@
 
     inkscape
     obsidian
-    protonvpn-gui
+    proton-vpn
     blanket
     
     # jetbrains-mono
