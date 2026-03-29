@@ -77,11 +77,11 @@
     reaper
     yabridge
     yabridgectl
-    wineWow64Packages.staging
+    wineWowPackages.staging
     qpwgraph
     winetricks
     pipewire.jack # for path
-    samba          # provides ntlm_auth, Wine needs it
+    samba         # provides ntlm_auth, Wine needs it
     xdg-utils
 
     #glib
@@ -168,7 +168,6 @@
     package = pkgs.capitaine-cursors-themed;
     size = 24;
   };
-
   
   services.swaync = {
     enable = false;
@@ -242,6 +241,10 @@
         # We write a safe default color so Hyprland doesn't crash
         echo '$kiwiColorLight = rgba(255, 255, 255, 0.7)' > "$themeFile"
       fi
+    '';
+
+    setupYabridge = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      ${pkgs.yabridgectl}/bin/yabridgectl sync
     '';
   };
 
@@ -384,6 +387,7 @@
   # Ensure Qt apps (Crystal Dock) follow the system/GTK theme & icons
   home.sessionVariables = {
     QT_QPA_PLATFORMTHEME = "qt6ct";
+    LD_LIBRARY_PATH = "${pkgs.yabridge}/lib:$LD_LIBRARY_PATH";
   };
 
 
