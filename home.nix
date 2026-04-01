@@ -88,6 +88,11 @@
     samba         # provides ntlm_auth, Wine needs it
     xdg-utils
 
+    (writeShellScriptBin "reaper-launch" ''
+      WINEPREFIX="$HOME/.wine-ni" wineserver -k || true
+      exec pw-jack reaper "$@"
+    '')
+
     #glib
     
     
@@ -355,7 +360,7 @@
       type = "Application";
       name = "Reaper";
       comment = "Reaper";
-      exec = "pw-jack reaper %F";
+      exec = "reaper-launch";
       icon = "cockos-reaper";
       terminal = false;
       categories = [ "Audio" "Video" "AudioVideo" "AudioVideoEditing" "Recorder" ];
