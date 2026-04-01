@@ -14,8 +14,10 @@
   home.packages = with pkgs; [
     swww
     blueman
+    sl
     
     inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     icon-library
 
@@ -26,6 +28,7 @@
     libreoffice-fresh
     vscode
     nwg-displays
+    tree
 
     #(emacs-pgtk.pkgs.withPackages (epkgs: [ epkgs.doom-themes epkgs.treemacs ]))
     localsend

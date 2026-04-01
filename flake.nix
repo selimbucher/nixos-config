@@ -11,6 +11,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    native-instruments = {
+      url = "github:selimbucher/native-instruments";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     whitesur-src = {
       url = "github:vinceliuice/WhiteSur-icon-theme";
       flake = false;
