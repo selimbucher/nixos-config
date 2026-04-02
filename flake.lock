@@ -556,11 +556,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775068505,
-        "narHash": "sha256-AyLz7L94xoVxpnkpJFuDteoxyOe5P1lfNp5tGKWoWzc=",
+        "lastModified": 1775081496,
+        "narHash": "sha256-NweOqvck2dT5chKpo4FFilK2U8EYckZk/EsAi18k0mk=",
         "owner": "selimbucher",
         "repo": "native-instruments",
-        "rev": "6afc48a6f147ec761233d96dfc17341fdea0a3c6",
+        "rev": "9bcadb2119b5c697116345500a1b2c9de1590770",
         "type": "github"
       },
       "original": {

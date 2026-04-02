@@ -163,12 +163,18 @@
     inkscape
     obsidian
     proton-vpn
+
     blanket
     
     # jetbrains-mono
     openconnect
     networkmanager-openconnect
   ];
+
+  programs.thunderbird = {
+    enable = true;
+    profiles."main".isDefault = true;
+  };
 
   home.pointerCursor = {
     gtk.enable = true;
@@ -177,67 +183,6 @@
     package = pkgs.capitaine-cursors-themed;
     size = 24;
   };
-  
-  services.swaync = {
-    enable = false;
-    # Optional: customize settings
-    settings = {
-      positionX = "center";
-      positionY = "top";
-      timeout = 5;
-      timeout-low = 3;
-      timeout-critical = 0;
-      notification-window-width = 400;
-      control-center-width = 500;
-      control-center-height = 300;
-      fit-to-screen = true;
-      keyboard-shortcuts = true;
-      image-visibility = "when-available";
-      transition-time = 200;
-      hide-on-clear = true;
-      hide-on-action = true;
-      control-center-margin-top = 10;
-      control-center-margin-bottom = 10;
-      control-center-exclusive-zone= true;
-      
-      widgets = [
-        "title"
-        "dnd"
-        "notifications"
-      ];
-    };
-    
-    style = ''
-      * {
-        font-family: 'Quicksand';
-        border-radius: 12px;
-      }
-
-      .notification {
-        background: rgba(0, 0, 0, 0.9);
-        border-radius: 8px;
-        border: 1px solid #232323ff;
-        padding: 2px;
-      }
-
-      .notification-title {
-        margin-bottom: 12px;
-      }
-
-      .notification-content {
-        padding: 10px;
-      }
-      
-      .control-center {
-        background: rgba(0, 0, 0, 0.9);
-        transform: translateX(-460px);
-      }
-      .notification-image, .image {
-        margin-right: 12px;
-      }
-    '';
-  };
-    
 
   home.activation = {
     createDefaultHyprTheme = lib.hm.dag.entryAfter ["writeBoundary"] ''
