@@ -12,7 +12,7 @@
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
-    swww
+    awww
     blueman
     sl
     
@@ -85,7 +85,7 @@
     qpwgraph
     winetricks
     pipewire.jack # for path
-    samba         # provides ntlm_auth, Wine needs it
+    #samba         # provides ntlm_auth, Wine needs it
     xdg-utils
 
     (writeShellScriptBin "reaper-launch" ''

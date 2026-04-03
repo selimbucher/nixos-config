@@ -110,7 +110,7 @@
 
       # Standard startup applications
       exec-once = [
-        "swww-daemon"
+        "awww-daemon"
         "xsettingsd"
         "hyprctl setcursor 'Capitaine Cursors - White' 24"
         "wl-clip-persist --clipboard regular"   #
