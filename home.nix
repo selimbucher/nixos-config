@@ -15,6 +15,10 @@
     awww
     blueman
     sl
+
+    gparted
+    ntfs3g
+    arch-install-scripts
     
     inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
