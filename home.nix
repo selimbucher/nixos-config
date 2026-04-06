@@ -19,6 +19,7 @@
     gparted
     ntfs3g
     arch-install-scripts
+    gptfdisk
     
     inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
