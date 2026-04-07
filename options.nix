@@ -37,5 +37,11 @@
       description = "Whether to enable Hyprland window shadows.";
     };
 
+    scale = lib.mkOption {
+      type = lib.types.float;
+      default = 1.0;
+      description = "Monitor scale factor for HiDPI scaling (e.g. 2.0 for HiDPI).";
+    };
+
   };
 }

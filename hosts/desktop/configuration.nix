@@ -18,5 +18,6 @@
     extraExecOnce = [
       "steam -silent"
     ];
+    scale = 1.25;
   };
 }

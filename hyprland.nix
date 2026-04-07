@@ -56,7 +56,7 @@
       };
 
       env = [
-        "GDK_SCALE,2"
+        "GDK_SCALE,${toString osConfig.deviceConfig.scale}"
         "XCURSOR_SIZE,24"
         "HYPRCURSOR_SIZE,24"
         "ENABLE_HDR_WSI,1"
