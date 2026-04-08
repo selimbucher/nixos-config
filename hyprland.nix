@@ -65,16 +65,11 @@
       monitor = osConfig.deviceConfig.monitor;
       
       windowrule = [
-        "float 1, match:class .*"
-
         "center 1, match:title ^(REAPER Query)$"
 
         "float 1, match:class ^(io\\.missioncenter\\.MissionCenter)$"
         "size 1000 600, match:class ^(io\\.missioncenter\\.MissionCenter)$"
         "float 1, match:class ^(org\\.gnome\\.Calculator)$"
-        "float 1, match:class ^(kitty)$"
-        "float 1, match:class ^(org.gnome.Nautilus)$"
-        "float 1, match:class ^(\\.blueman-manager-wrapped)$"
         "float 1, move monitor_w-window_w-15 monitor_h-window_h-15, match:class ^(it.mijorus.smile)$"
         "float 1, match:class ^(gjs)$"
         
@@ -84,8 +79,6 @@
         
         "immediate 1, match:class ^(steam_app_.*)$"
         "fullscreen 1, match:class ^(steam_app_.*)$"
-
-        "move (cursor_x-(window_w*0.5)) (cursor_y-(window_h*0.5)) match:class ^(kitty)$"
       ];
 
       /*
@@ -210,7 +203,7 @@
       dwindle = {
         pseudotile = true;
         preserve_split = true;
-        smart_split = true;
+        smart_split = false;
       };
 
       master = {
