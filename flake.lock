@@ -650,18 +650,23 @@
         "native-instruments": "native-instruments",
         "nixpkgs": "nixpkgs_2",
         "rofi-theme": "rofi-theme",
-        "slimmer-icons": "slimmer-icons",
-        "whitesur-src": "whitesur-src"
+        "selim-icons": "selim-icons",
+        "whitesur-src": "whitesur-src_2"
       }
     },
-    "slimmer-icons": {
-      "flake": false,
+    "selim-icons": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "whitesur-src": "whitesur-src"
+      },
       "locked": {
-        "lastModified": 1773976791,
-        "narHash": "sha256-M4MOiVAEvvupgmhxTE4jKB42X9jLAPkxeL/sQV50uJ4=",
+        "lastModified": 1775729786,
+        "narHash": "sha256-G6B45RNCYINedIOIKziVHY2CQRkR9R6g3Pp2BmneUso=",
         "owner": "selimbucher",
         "repo": "WhiteSur-steam-icons",
-        "rev": "8f3439e30a58e442c3d1a6413695f8221e45d681",
+        "rev": "b47bb96f5a97261682218e5b809fea7d8b60cd2f",
         "type": "github"
       },
       "original": {
@@ -701,6 +706,22 @@
       }
     },
     "whitesur-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1766810369,
+        "narHash": "sha256-5AWyuqREKpgBCXPplpkdrcInDTZfjVIm/JtTleOmaNY=",
+        "owner": "vinceliuice",
+        "repo": "WhiteSur-icon-theme",
+        "rev": "bab5833b5cae200bccb786a2d3d6afa2201e7806",
+        "type": "github"
+      },
+      "original": {
+        "owner": "vinceliuice",
+        "repo": "WhiteSur-icon-theme",
+        "type": "github"
+      }
+    },
+    "whitesur-src_2": {
       "flake": false,
       "locked": {
         "lastModified": 1766810369,

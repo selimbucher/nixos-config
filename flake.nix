@@ -21,9 +21,9 @@
       flake = false;
     };
     
-    slimmer-icons = {
+    selim-icons = {
       url = "github:selimbucher/WhiteSur-steam-icons";
-      flake = false;
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     rofi-theme = {

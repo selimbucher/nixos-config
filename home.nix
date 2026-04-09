@@ -23,6 +23,7 @@
     
     inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
+    inputs.selim-icons.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     icon-library
 
@@ -115,37 +116,7 @@
     #fluent-icon-theme
     reversal-icon-theme
     
-    (let
-      base = pkgs.whitesur-icon-theme.override {
-        alternativeIcons = true;
-        boldPanelIcons = true;
-      };
-    in
-      base.overrideAttrs (oldAttrs: {
-        # You can set this to a static date or leave it as "latest"
-        version = "latest";
-        
-        # 1. Use the Flake input for the main source
-        # This points to the 'whitesur-src' defined in your flake.nix
-        src = inputs.whitesur-src;
-
-        # 2. Reference your personal source from inputs
-        # We use the variable directly here
-        myCustomIcons = inputs.slimmer-icons;
-
-        dontCheckForBrokenSymlinks = true;
-
-        postInstall = (oldAttrs.postInstall or "") + ''
-          echo "Overwriting icons with custom versions from Flake input..."
-          
-          # We use ${inputs.slimmer-icons} to get the path to the downloaded repo
-          cp -rf --no-preserve=mode ${inputs.slimmer-icons}/apps/* $out/share/icons/WhiteSur/apps/
-          
-          if [ -d "${inputs.slimmer-icons}/apps@2x" ]; then
-            cp -rf --no-preserve=mode ${inputs.slimmer-icons}/apps@2x/* $out/share/icons/WhiteSur/apps@2x/
-          fi
-        '';
-      }))
+    
     
     fastfetch
     tetris
