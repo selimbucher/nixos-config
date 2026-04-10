@@ -137,13 +137,13 @@
       };
 
       general = {
-        gaps_in = 2;
-        gaps_out = 4;
-        border_size = 2;
+        gaps_in = 1;
+        gaps_out = 2;
+        border_size = 1;
         resize_on_border = false;
         allow_tearing = false;
         layout = "dwindle";
-        "col.inactive_border" = "0xff444444";
+        "col.inactive_border" = "0x00000000";
       };
 
       decoration = {

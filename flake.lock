@@ -143,11 +143,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775143651,
-        "narHash": "sha256-S0RqAyDPMTcv9vASMaE8eY1QexFysAOdnxUxFHIPOyE=",
+        "lastModified": 1775683737,
+        "narHash": "sha256-oBYyowo6yfgb95Z78s3uTnAd9KkpJpwzjJbfnpLaM2Y=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "d166a078541982a76f14d3e06e9665fa5c9ed85e",
+        "rev": "7ba4ee4228ed36123c7cb75d50524b43514ef992",
         "type": "github"
       },
       "original": {
@@ -515,11 +515,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775594584,
-        "narHash": "sha256-/Y5uRQVIu4WVkE8bEc7/u1GUxabTZ6pZafe7yvpB5iw=",
+        "lastModified": 1775731119,
+        "narHash": "sha256-bC340mGhqLiDaTZDTlUBHoYK4nxQ4q8O2AkhXMnkpv8=",
         "owner": "selimbucher",
         "repo": "kiwi-shell",
-        "rev": "059aff6126933313c7157ed0b1be7ab3f2387375",
+        "rev": "9d3aa5325b534b7cd71eefb5bdcceb7441fff1a3",
         "type": "github"
       },
       "original": {
@@ -556,11 +556,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775130506,
-        "narHash": "sha256-lc0V2fSvp8jIxJ7AYGEiYVqm9WbOOy3zLClG7abDZv8=",
+        "lastModified": 1775172997,
+        "narHash": "sha256-8JAQN6lCb1WavZOhfINQ2LDgOnS2fe6m4ZqkZue7Xvg=",
         "owner": "selimbucher",
         "repo": "native-instruments",
-        "rev": "b020a381ce7484249f68ca3344ef002abdf6a0b1",
+        "rev": "1ddb1be598bd62ff11018b983235466c30e12bf1",
         "type": "github"
       },
       "original": {
@@ -587,11 +587,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1775036866,
-        "narHash": "sha256-ZojAnPuCdy657PbTq5V0Y+AHKhZAIwSIT2cb8UgAz/U=",
+        "lastModified": 1775423009,
+        "narHash": "sha256-vPKLpjhIVWdDrfiUM8atW6YkIggCEKdSAlJPzzhkQlw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6201e203d09599479a3b3450ed24fa81537ebc4e",
+        "rev": "68d8aa3d661f0e6bd5862291b5bb263b2a6595c9",
         "type": "github"
       },
       "original": {
@@ -662,11 +662,11 @@
         "whitesur-src": "whitesur-src"
       },
       "locked": {
-        "lastModified": 1775729786,
-        "narHash": "sha256-G6B45RNCYINedIOIKziVHY2CQRkR9R6g3Pp2BmneUso=",
+        "lastModified": 1775730942,
+        "narHash": "sha256-B2NVd61ddd9fWFy7WRuint2uLrcFjb72jjceYElZLy8=",
         "owner": "selimbucher",
         "repo": "WhiteSur-steam-icons",
-        "rev": "b47bb96f5a97261682218e5b809fea7d8b60cd2f",
+        "rev": "76b9e3da48f1826c1c3dc23cdd074fb02700d706",
         "type": "github"
       },
       "original": {
