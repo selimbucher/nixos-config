@@ -5,6 +5,7 @@
     ./hyprland.nix
     ./hyprlock.nix
     ./kitty.nix
+    inputs.kiwi.homeManagerModules.default
   ];
 
   home.username = "selim";
