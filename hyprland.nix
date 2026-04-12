@@ -107,7 +107,7 @@
         "xsettingsd"
         "hyprctl setcursor 'Capitaine Cursors - White' 24"
         "wl-clip-persist --clipboard regular"   #
-        "pw-play --volume=0.45 ~/.config/kiwi-shell/startup.mp3" #
+        "play --volume=0.45 ~/.config/kiwi-shell/startup.mp3" #
         "kiwi"
       ] ++ osConfig.deviceConfig.extraExecOnce;
 
@@ -249,6 +249,7 @@
         "$mainMod SHIFT, Q, exec, $fetchTerminal"
         "$mainMod, C, killactive,"
         "$mainMod, E, exec, $fileManager"
+        "$mainMod, I, exec, kiwi-settings"
         "$mainMod, A, togglefloating,"
         "SUPER_L, SUPER_L, exec, $menu"
         "$mainMod, P, pseudo,"
