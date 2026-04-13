@@ -49,7 +49,6 @@
     gnome-sound-recorder
     gnome-calendar
     smile
-    gcolor3
     loupe
     foliate
     transmission_4-gtk
@@ -229,10 +228,10 @@
     };
   };
   
-  programs.bash = {
+  programs.zsh = {
     enable = true;
-  
-    # This appends your custom PS1 directly to the .bashrc file
+    autosuggestion.enable = true;
+    syntaxHighlighting.enable = true;
     initExtra = ''
       PS1='❯ '
     '';

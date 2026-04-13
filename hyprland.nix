@@ -100,6 +100,7 @@
       "$fetchTerminal" = "kitty --class=fastfetch-terminal -e bash -c \"fastfetch; exec bash\"";
       "$lock" = "hyprlock";
       "$mainMod" = "SUPER";
+      "$editor" = "code";
 
       # Standard startup applications
       exec-once = [
@@ -250,10 +251,12 @@
         "$mainMod, C, killactive,"
         "$mainMod, E, exec, $fileManager"
         "$mainMod, I, exec, kiwi-settings"
+        "$mainMod, H, exec, $editor ~/.nixos"
         "$mainMod, A, togglefloating,"
         "SUPER_L, SUPER_L, exec, $menu"
         "$mainMod, P, pseudo,"
-        # "$mainMod, Y, togglesplit,"
+        "$mainMod, V, togglesplit"
+        "$mainMod, K, exec, kiwictl quit && kiwi"
         "$mainMod, W, exec, $webBrowser"
         "CTRL SHIFT, Escape, exec, $taskManager"
         "$mainMod, L, exec, $lock"
@@ -261,7 +264,6 @@
         "$mainMod SHIFT, R, exec, reboot"
         "$mainMod SHIFT, E, exit,"
         "$mainMod, F, fullscreen, 0"
-        "$mainMod, N, exec, swaync-client -t"
         "$mainMod, left, movefocus, l"
         "$mainMod, right, movefocus, r"
         "$mainMod, up, movefocus, u"

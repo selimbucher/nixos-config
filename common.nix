@@ -189,8 +189,10 @@
       tree
     ];
     initialPassword = "1234";
-    shell = pkgs.bashInteractive;
+    shell = pkgs.zsh;
   };
+
+  programs.zsh.enable = true;
 
   # List packages installed in system profile.
   environment.systemPackages = with pkgs; [
