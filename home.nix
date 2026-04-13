@@ -36,6 +36,7 @@
     vscode
     nwg-displays
     tree
+    uv
 
     #(emacs-pgtk.pkgs.withPackages (epkgs: [ epkgs.doom-themes epkgs.treemacs ]))
     localsend
@@ -320,6 +321,8 @@
     QT_QPA_PLATFORMTHEME = "qt6ct";
     LD_LIBRARY_PATH = "${pkgs.yabridge}/lib:$LD_LIBRARY_PATH";
   };
+
+  home.sessionPath = [ "$HOME/.kathara-env/bin" ];
 
 
 }

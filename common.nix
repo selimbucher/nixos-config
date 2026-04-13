@@ -166,6 +166,11 @@
   # Enable touchpad support (enabled default in most desktopManager).
   services.libinput.enable = true;
 
+  virtualisation.docker = {
+    enable = true;
+    enableOnBoot = true;
+  };
+
   # AGS Requirements
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
@@ -184,7 +189,7 @@
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio"];
+    extraGroups = [ "wheel" "docker" "networkmanager" "video" "audio"];
     packages = with pkgs; [
       tree
     ];
