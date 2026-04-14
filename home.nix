@@ -265,7 +265,7 @@
   home.shellAliases = {
     rebuild = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
     update = "nix flake update --flake /home/selim/.nixos";
-    kathara = "$HOME/.kathara-env/bin/python -m kathara";
+    # kathara = "$HOME/.kathara-env/bin/python -m kathara";
   };
 
   xdg.desktopEntries = {
