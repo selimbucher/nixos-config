@@ -256,7 +256,7 @@
         "SUPER_L, SUPER_L, exec, $menu"
         "$mainMod, P, pseudo,"
         "$mainMod, V, togglesplit"
-        "$mainMod, K, exec, kiwictl quit && kiwi"
+        "$mainMod, K, exec, kiwictl quit; kiwi"
         "$mainMod, W, exec, $webBrowser"
         "CTRL SHIFT, Escape, exec, $taskManager"
         "$mainMod, L, exec, $lock"
