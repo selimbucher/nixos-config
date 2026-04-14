@@ -56,7 +56,6 @@
       
 
       laptop = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         # Pass inputs AND hostname to all modules
         specialArgs = { 
           inherit inputs; 
@@ -86,7 +85,6 @@
 
 
       desktop = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         # Pass inputs AND hostname to all modules
         specialArgs = { 
           inherit inputs; 
