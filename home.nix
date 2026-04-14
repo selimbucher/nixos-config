@@ -236,6 +236,7 @@
     initContent = ''
       PS1='❯ '
     '';
+    dotDir = "${config.xdg.configHome}/zsh";
   };
 
   programs.direnv = {
