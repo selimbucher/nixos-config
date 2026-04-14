@@ -247,10 +247,11 @@
   
   xdg.enable = true;
   xdg.mime.enable = true;
-  
+
   xdg.userDirs = {
     enable = true;
     createDirectories = true;
+    setSessionVariables = false;
     
     desktop = "${config.home.homeDirectory}/Desktop";
     documents = "${config.home.homeDirectory}/Documents";
