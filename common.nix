@@ -92,6 +92,7 @@
     allowedUDPPorts = [ 53317 51413 ];
   };
   networking.firewall.checkReversePath = false;  
+  networking.networkmanager.plugins = [ pkgs.networkmanager-openconnect ];
 
   time.timeZone = "Europe/Amsterdam";
 

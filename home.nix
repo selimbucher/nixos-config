@@ -37,6 +37,7 @@
     nwg-displays
     tree
     uv
+    vim
 
     #(emacs-pgtk.pkgs.withPackages (epkgs: [ epkgs.doom-themes epkgs.treemacs ]))
     localsend
