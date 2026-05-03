@@ -95,6 +95,7 @@
     #samba         # provides ntlm_auth, Wine needs it
     xdg-utils
     a2jmidid
+    carla
 
     (writeShellScriptBin "reaper-launch" ''
       WINEPREFIX="$HOME/.wine-ni" wineserver -k || true

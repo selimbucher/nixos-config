@@ -149,7 +149,7 @@
   services.pipewire.extraConfig.pipewire."92-low-latency" = {
     "context.properties" = {
       "default.clock.rate" = 48000;
-      "default.clock.quantum" = 128;
+      "default.clock.quantum" = 192;
       "default.clock.min-quantum" = 64;
       "default.clock.max-quantum" = 256;
       "default.clock.force-quantum" = 128;

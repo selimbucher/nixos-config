@@ -234,6 +234,7 @@
       };
 
       bind = [
+        "CTRL, F12, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
         "$mainMod, mouse_down, workspace, e-1"
         "$mainMod, mouse_up, workspace, e+1"
 
