@@ -10,6 +10,12 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  nixpkgs.overlays = [
+    (final: prev: {
+      openldap = prev.openldap.overrideAttrs (_: { doCheck = false; });
+    })
+  ];
+
   programs.nix-ld.enable = true;
 
   boot.loader.systemd-boot.enable = false;
