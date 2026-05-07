@@ -7,14 +7,15 @@
 {
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-
-  nixpkgs.config.allowUnfree = true;
-
   nixpkgs.overlays = [
     (final: prev: {
-      openldap = prev.openldap.overrideAttrs (_: { doCheck = false; });
+      pkgsi686Linux = prev.pkgsi686Linux.extend (final': prev': {
+        openldap = prev'.openldap.overrideAttrs (_: { doCheck = false; });
+      });
     })
   ];
+
+  nixpkgs.config.allowUnfree = true;
 
   programs.nix-ld.enable = true;
 
