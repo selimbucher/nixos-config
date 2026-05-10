@@ -97,6 +97,7 @@
     xdg-utils
     a2jmidid
     carla
+    protontricks
 
     (writeShellScriptBin "reaper-launch" ''
       WINEPREFIX="$HOME/.wine-ni" wineserver -k || true
