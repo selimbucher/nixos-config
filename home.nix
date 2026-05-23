@@ -302,6 +302,15 @@
         StartupWMClass = "REAPER";
       };
     };
+    captureage = {
+      name = "CaptureAge";
+      icon = "captureage";
+      exec = "protontricks-launch --appid 813780 ${config.home.homeDirectory}/.steam/steam/steamapps/compatdata/813780/pfx/drive_c/users/steamuser/AppData/Local/Programs/CaptureAge/CaptureAge.exe";
+      type = "Application";
+      settings = {
+        "X-Kiwi-TitleMatch" = "^CaptureAge";
+      };
+    };
     nwg-look = {
       name = "GTK Settings";
       icon = "preferences-desktop-theme";

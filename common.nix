@@ -160,7 +160,7 @@
       "default.clock.quantum" = 192;
       "default.clock.min-quantum" = 64;
       "default.clock.max-quantum" = 256;
-      "default.clock.force-quantum" = 128;
+      "default.clock.force-quantum" = 64;
     };
   };
   security.rtkit.enable = true;
