@@ -150,6 +150,9 @@
     # jetbrains-mono
     openconnect
     networkmanager-openconnect
+
+    obs-studio
+    mailspring
   ];
 
   programs.thunderbird = {
