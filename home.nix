@@ -153,6 +153,7 @@
 
     obs-studio
     mailspring
+    en-croissant
   ];
 
   programs.thunderbird = {
