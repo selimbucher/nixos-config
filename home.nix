@@ -242,6 +242,8 @@
     syntaxHighlighting.enable = true;
     initContent = ''
       PS1='❯ '
+      unsetopt PROMPT_CR PROMPT_SP
+      precmd() { printf '\r\e[K' }
     '';
     dotDir = "${config.xdg.configHome}/zsh";
   };
