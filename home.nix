@@ -154,6 +154,16 @@
     obs-studio
     mailspring
     en-croissant
+
+    cargo
+    rustc
+    rustfmt
+    clippy
+    rust-analyzer
+    #gcc 
+    gnumake
+    clang
+    llvm
   ];
 
   programs.thunderbird = {
@@ -323,6 +333,18 @@
       exec = "nwg-look";
       type = "Application";
       categories = [ "GTK" "Settings" "DesktopSettings" ];
+    };
+    en-croissant = {
+      name = "En Croissant";
+      icon = "en-croissant";
+      exec = "en-croissant";
+      type = "Application";
+      terminal = false;
+      comment = "Ultimate Chess Toolkit";
+      categories = [ "Game" "BoardGame" ];
+      settings = {
+        StartupWMClass = "en-croissant";
+      };
     };
     /*
     "io.missioncenter.MissionCenter" = {
