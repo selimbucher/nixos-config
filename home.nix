@@ -285,9 +285,13 @@
 
   home.shellAliases = {
     rebuild = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
+    rb = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
+    nu = "nix flake update";
     update = "nix flake update --flake /home/selim/.nixos";
+    u = "nix flake update --flake /home/selim/.nixos";
     c = "cd ~/Documents/Code";
     gp = "git pull";
+    gs = "git status";
     ga = "git add .";
     gc = "git commit";
     gpsh = "git push";
