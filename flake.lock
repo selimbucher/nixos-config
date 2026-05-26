@@ -662,11 +662,11 @@
         "whitesur-src": "whitesur-src"
       },
       "locked": {
-        "lastModified": 1779803278,
-        "narHash": "sha256-okJg2TRluv477J0nIUFu5AmcDLv1+/c0ng3CE/44lgI=",
+        "lastModified": 1779811599,
+        "narHash": "sha256-rDOTWi33Oh2dIY+obZKwcgL0L/xz/nlRa4MLOsVxGbQ=",
         "owner": "selimbucher",
         "repo": "WhiteSur-steam-icons",
-        "rev": "4a025a1b775b969c2116dfb626d425dd956c0edd",
+        "rev": "b8d94786fab2fb294b44faffdf1acee96e2ba57c",
         "type": "github"
       },
       "original": {
