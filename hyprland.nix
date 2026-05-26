@@ -157,7 +157,6 @@
           range = 10;
           render_power = 3;
           color = "0x70000000";
-          ignore_window = true;
         };
 
         blur = {
@@ -202,7 +201,6 @@
       };
 
       dwindle = {
-        pseudotile = true;
         preserve_split = true;
         smart_split = false;
       };
@@ -214,7 +212,6 @@
       misc = {
         force_default_wallpaper = 1;
         disable_hyprland_logo = true;
-        vfr = true;
         focus_on_activate = true;
       };
 
@@ -256,7 +253,6 @@
         "$mainMod, A, togglefloating,"
         "SUPER_L, SUPER_L, exec, $menu"
         "$mainMod, P, pseudo,"
-        "$mainMod, V, togglesplit"
         "$mainMod, K, exec, kiwictl quit; kiwi"
         "$mainMod, W, exec, $webBrowser"
         "CTRL SHIFT, Escape, exec, $taskManager"
