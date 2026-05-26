@@ -287,9 +287,10 @@
     rebuild = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
     update = "nix flake update --flake /home/selim/.nixos";
     c = "cd ~/Documents/Code";
-    sync = "git pull --rebase && git push";
+    gp = "git pull";
     ga = "git add .";
     gc = "git commit";
+    gpsh = "git push";
     # kathara = "$HOME/.kathara-env/bin/python -m kathara";
   };
 
