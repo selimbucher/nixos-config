@@ -16,6 +16,8 @@
     ssh-hetzner     = "ssh root@${inputs.secrets.hetznerIp}";
     rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
     rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
+    update-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
+    uh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
   };
 
   home.sessionVariables = {
