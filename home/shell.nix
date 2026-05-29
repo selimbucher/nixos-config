@@ -11,6 +11,7 @@
     gs      = "git status";
     ga      = "git add .";
     gc      = "git commit";
+    gcl     = "git clone";
     gpsh    = "git push";
     ssh-hetzner     = "ssh root@${inputs.secrets.hetznerIp}";
     rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
