@@ -12,8 +12,9 @@
     ga      = "git add .";
     gc      = "git commit";
     gpsh    = "git push";
-    rbh     = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
+    ssh-hetzner     = "ssh root@${inputs.secrets.hetznerIp}";
     rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
+    rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
   };
 
   home.sessionVariables = {
