@@ -13,16 +13,22 @@
     gc      = "git commit";
     gcl     = "git clone";
     gpsh    = "git push";
-    ssh-hetzner     = "ssh root@${inputs.secrets.hetznerIp}";
-    rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
-    rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
-    update-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
-    uh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host root@${inputs.secrets.hetznerIp}";
+    ssh-hetzner     = "ssh hetzner";
+    rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
+    rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
+    update-hetzner  = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
+    uh              = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
   };
 
   home.sessionVariables = {
     QT_QPA_PLATFORMTHEME = "qt6ct";
     LD_LIBRARY_PATH = "${pkgs.yabridge}/lib:$LD_LIBRARY_PATH";
+  };
+
+  programs.ssh.matchBlocks."hetzner" = {
+    hostname = inputs.secrets.hetznerIp;
+    user = "root";
+    extraOptions.SetEnv = "TERM=xterm-256color";
   };
 
   programs.zsh = {
