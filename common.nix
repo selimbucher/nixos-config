@@ -27,38 +27,33 @@
       forceInstall = false;
       backgroundColor = "#000000";
       device = "nodev";
-      efiSupport= true;
+      efiSupport = true;
       useOSProber = false;
       theme = null;
     };
-
     timeout = 0;
   };
-  boot.loader.efi.canTouchEfiVariables = true; 
+  boot.loader.efi.canTouchEfiVariables = true;
 
-  
   services.xserver = {
     enable = true;
-    xkb.layout = "ch";  # "ch" is the code for Switzerland
-    xkb.variant = "";   # Leave empty for default, or use "fr" for Swiss French
+    xkb.layout = "ch";
+    xkb.variant = "";
     desktopManager.xterm.enable = false;
   };
-  # services.xserver.displayManager.gdm.enable = true;
+
   services.displayManager = {
     enable = true;
-
     sddm = {
       enable = true;
-      theme = "where_is_my_sddm_theme"; # Theme defaults to the Qt6 variant
+      theme = "where_is_my_sddm_theme";
       wayland.enable = config.deviceConfig.sddmWayland;
       enableHidpi = true;
-
       extraPackages = with pkgs; [
         qt6.qt5compat
         qt6.qtdeclarative
         qt6.qtsvg
       ];
-      
     };
   };
 
@@ -67,16 +62,13 @@
     theme = "spinner_alt";
     themePackages = [
       (pkgs.adi1090x-plymouth-themes.override {
-        selected_themes = [ "spinner_alt" ]; # <--- AND here (saves 500MB of space)
+        selected_themes = [ "spinner_alt" ];
       })
     ];
   };
 
-  # 1. Hides the "Stage 1" / "Stage 2" messages
   boot.consoleLogLevel = 0;
   boot.initrd.verbose = false;
-
-  # 2. The critical kernel parameters to hide text
   boot.kernelParams = [
     "quiet"
     "splash"
@@ -87,9 +79,6 @@
     "udev.log_priority=3"
   ];
 
-
-
-  # Use latest kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.networkmanager.enable = true;
@@ -98,38 +87,16 @@
     allowedTCPPorts = [ 53317 51413 ];
     allowedUDPPorts = [ 53317 51413 ];
   };
-  networking.firewall.checkReversePath = false;  
+  networking.firewall.checkReversePath = false;
   networking.networkmanager.plugins = [ pkgs.networkmanager-openconnect ];
 
   time.timeZone = "Europe/Amsterdam";
 
-  fonts.packages = with pkgs; [
-    
-    google-fonts 
-    font-awesome
-];
-
-  # 2. Set Quicksand as the default
-  fonts.fontconfig = {
-    enable = true;
-    defaultFonts = {
-      sansSerif = [ "Quicksand" ];
-      monospace = [ "DejaVu Sans Mono" ]; # Keep a good monospace font for terminal
-    };
-  };  
-
-# Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-  # Select internationalisation properties.
   i18n.defaultLocale = "en_US.UTF-8";
   console = {
     font = "Lat2-Terminus16";
     keyMap = "de_CH-latin1";
-    # useXkbConfig = true; # use xkb.options in tty.
   };
-
 
   hardware.bluetooth = {
     enable = true;
@@ -139,11 +106,9 @@
         Experimental = true;
         FastConnectable = false;
       };
-      Policy = {
-        AutoEnable = true;
-      };
+      Policy.AutoEnable = true;
     };
-  };  
+  };
 
   services.printing.enable = true;
 
@@ -163,15 +128,14 @@
       "default.clock.force-quantum" = 64;
     };
   };
-  security.rtkit.enable = true;
 
+  security.rtkit.enable = true;
   security.pam.loginLimits = [
     { domain = "@audio"; item = "memlock"; type = "-"; value = "unlimited"; }
     { domain = "@audio"; item = "rtprio";  type = "-"; value = "99"; }
     { domain = "@audio"; item = "nice";    type = "-"; value = "-20"; }
   ];
 
-  # Enable touchpad support (enabled default in most desktopManager).
   services.libinput.enable = true;
 
   virtualisation.docker = {
@@ -179,52 +143,37 @@
     enableOnBoot = true;
   };
 
-  # AGS Requirements
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
-
   services.gvfs.enable = true;
-  
-  # SSH
-  # programs.ssh.startAgent = true;
 
-  # Required for GNOME Calendar
   services.gnome.evolution-data-server.enable = true;
   services.gnome.gnome-keyring.enable = true;
   programs.dconf.enable = true;
   programs.gnome-disks.enable = true;
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.selim = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "docker" "networkmanager" "video" "audio"];
-    packages = with pkgs; [
-      tree
-    ];
+    extraGroups = [ "wheel" "docker" "networkmanager" "video" "audio" ];
+    packages = with pkgs; [ tree ];
     initialPassword = "1234";
     shell = pkgs.zsh;
   };
 
   programs.zsh.enable = true;
 
-  # List packages installed in system profile.
   environment.systemPackages = with pkgs; [
     git
     kitty
     wl-clipboard
     wl-clip-persist
     nautilus
-    brave
     slurp
     grim
-    direnv
     brightnessctl
     mission-center
-
     where-is-my-sddm-theme
-
     gvfs
-
   ];
 
   services.xserver.excludePackages = [ pkgs.xterm ];
@@ -238,25 +187,5 @@
     withUWSM = true;
   };
 
-  # Also add this to fix that portal warning in your logs
-  xdg.portal.config.common.default = "*";
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # This value being lower than the current NixOS release does NOT mean your system is
-  # out of date, out of support, or vulnerable.
-  #
-  # Do NOT change this value unless you have manually inspected all the changes it would make to your configuration,
-  # and migrated your data accordingly.
-  #
-  # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
-  system.stateVersion = "25.11"; # Did you read the comment?
-
+  system.stateVersion = "25.11";
 }
-

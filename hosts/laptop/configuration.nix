@@ -3,11 +3,11 @@
 {
   imports = [
     ../../options.nix
-    ./hardware-configuration.nix  # The hardware scan you just moved
-    ../../common.nix             # Your shared settings
+    ./hardware-configuration.nix
+    ../../common.nix
   ];
 
-  networking.hostName = "laptop"; # Unique name for this machine
+  networking.hostName = "laptop";
 
   deviceConfig = {
     monitor = [

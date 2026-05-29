@@ -52,37 +52,32 @@
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs:
     let
-      extraArgs = hostName: {
-        inherit inputs;
-        inherit hostName;
-        hetznerIp = inputs.secrets.hetznerIp;
-      };
-      hmConfig = hostName: {
+      mkHome = hostName: {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         home-manager.backupFileExtension = "backup";
-        home-manager.extraSpecialArgs = extraArgs hostName;
+        home-manager.extraSpecialArgs = { inherit inputs hostName; };
         home-manager.users.selim = import ./home.nix;
       };
     in {
       nixosConfigurations = {
 
         laptop = nixpkgs.lib.nixosSystem {
-          specialArgs = extraArgs "laptop";
+          specialArgs = { inherit inputs; hostName = "laptop"; };
           modules = [
             ./hosts/laptop/configuration.nix
             home-manager.nixosModules.home-manager
             inputs.hyprland.nixosModules.default
-            (hmConfig "laptop")
+            (mkHome "laptop")
           ];
         };
 
         desktop = nixpkgs.lib.nixosSystem {
-          specialArgs = extraArgs "desktop";
+          specialArgs = { inherit inputs; hostName = "desktop"; };
           modules = [
             ./hosts/desktop/configuration.nix
             home-manager.nixosModules.home-manager
-            (hmConfig "desktop")
+            (mkHome "desktop")
           ];
         };
 
