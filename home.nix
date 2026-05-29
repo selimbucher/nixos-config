@@ -1,4 +1,4 @@
-{ inputs, config, pkgs, lib, hostName, ... }:
+{ inputs, config, pkgs, lib, hostName, hetznerIp, ... }:
 
 {
   imports = [
@@ -9,7 +9,7 @@
   ];
 
   home.username = "selim";
-  home.homeDirectory = "/home/selim";
+  home.homeDirectory = "/home/${config.home.username}";
   home.stateVersion = "25.11";
 
   home.packages = with pkgs; [
@@ -284,18 +284,19 @@
   };
 
   home.shellAliases = {
-    rebuild = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
-    rb = "sudo nixos-rebuild switch --flake /home/selim/.nixos#${hostName}";
+    rebuild = "sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
+    rb = "sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
     nu = "nix flake update";
-    update = "nix flake update --flake /home/selim/.nixos";
-    u = "nix flake update --flake /home/selim/.nixos";
+    update = "nix flake update --flake ${config.home.homeDirectory}/.nixos";
+    u = "nix flake update --flake ${config.home.homeDirectory}/.nixos";
     c = "cd ~/Documents/Code";
     gp = "git pull";
     gs = "git status";
     ga = "git add .";
     gc = "git commit";
     gpsh = "git push";
-    # kathara = "$HOME/.kathara-env/bin/python -m kathara";
+    rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner#hetzner --target-host root@${hetznerIp}";
+    rbh = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner#hetzner --target-host root@${hetznerIp}";
   };
 
   xdg.desktopEntries = {

@@ -3,7 +3,8 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    # nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";    
+
+    secrets.url = "git+ssh://git@github.com/selimbucher/nixos-secrets";
 
     kiwi = {
       # url = "path:/home/selim/Documents/Coding/kiwi-shell";
@@ -20,7 +21,7 @@
       url = "github:vinceliuice/WhiteSur-icon-theme";
       flake = false;
     };
-    
+
     selim-icons = {
       url = "github:selimbucher/WhiteSur-steam-icons";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -30,7 +31,7 @@
       url = "github:selimbucher/rofi-theme";
       flake = false;
     };
-    
+
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -38,77 +39,53 @@
 
     hyprland.url = "github:hyprwm/Hyprland/v0.55.2";
 
-
     hyprland-plugins = {
       url = "github:hyprwm/hyprland-plugins";
       inputs.hyprland.follows = "hyprland";
     };
-    
+
     Hyprspace = {
       url = "github:KZDKM/Hyprspace";
       inputs.hyprland.follows = "hyprland";
     };
-
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }@inputs: {
-    nixosConfigurations = {
-      
-
-      laptop = nixpkgs.lib.nixosSystem {
-        # Pass inputs AND hostname to all modules
-        specialArgs = { 
-          inherit inputs; 
-          hostName = "laptop"; 
-        };
-        modules = [
-          ./hosts/laptop/configuration.nix
-
-          
-          home-manager.nixosModules.home-manager
-          inputs.hyprland.nixosModules.default
-
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.backupFileExtension = "backup";
-            
-            home-manager.extraSpecialArgs = { 
-              inherit inputs; 
-              hostName = "laptop";
-            };
-            
-            home-manager.users.selim = import ./home.nix;
-          }
-        ];
+  outputs = { self, nixpkgs, home-manager, ... }@inputs:
+    let
+      extraArgs = hostName: {
+        inherit inputs;
+        inherit hostName;
+        hetznerIp = inputs.secrets.hetznerIp;
       };
-
-
-      desktop = nixpkgs.lib.nixosSystem {
-        # Pass inputs AND hostname to all modules
-        specialArgs = { 
-          inherit inputs; 
-          hostName = "desktop"; 
-        };
-        modules = [
-          ./hosts/desktop/configuration.nix
-          
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.backupFileExtension = "backup";
-            
-            home-manager.extraSpecialArgs = { 
-              inherit inputs; 
-              hostName = "desktop";
-            };
-            
-            home-manager.users.selim = import ./home.nix;
-          }
-        ];
+      hmConfig = hostName: {
+        home-manager.useGlobalPkgs = true;
+        home-manager.useUserPackages = true;
+        home-manager.backupFileExtension = "backup";
+        home-manager.extraSpecialArgs = extraArgs hostName;
+        home-manager.users.selim = import ./home.nix;
       };
+    in {
+      nixosConfigurations = {
 
+        laptop = nixpkgs.lib.nixosSystem {
+          specialArgs = extraArgs "laptop";
+          modules = [
+            ./hosts/laptop/configuration.nix
+            home-manager.nixosModules.home-manager
+            inputs.hyprland.nixosModules.default
+            (hmConfig "laptop")
+          ];
+        };
+
+        desktop = nixpkgs.lib.nixosSystem {
+          specialArgs = extraArgs "desktop";
+          modules = [
+            ./hosts/desktop/configuration.nix
+            home-manager.nixosModules.home-manager
+            (hmConfig "desktop")
+          ];
+        };
+
+      };
     };
-  };
 }

@@ -98,6 +98,26 @@
         "type": "github"
       }
     },
+    "disko": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1779699611,
+        "narHash": "sha256-EcCaSTKnmg2o4wLKaN1aqQFomwyhO7ik0bX9COdyCas=",
+        "owner": "nix-community",
+        "repo": "disko",
+        "rev": "5ba0c9555c28685e57fa54c7a25e42c7efdbfc8d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "disko",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -643,6 +663,7 @@
     "root": {
       "inputs": {
         "Hyprspace": "Hyprspace",
+        "disko": "disko",
         "home-manager": "home-manager",
         "hyprland": "hyprland",
         "hyprland-plugins": "hyprland-plugins",
@@ -650,8 +671,24 @@
         "native-instruments": "native-instruments",
         "nixpkgs": "nixpkgs_2",
         "rofi-theme": "rofi-theme",
+        "secrets": "secrets",
         "selim-icons": "selim-icons",
         "whitesur-src": "whitesur-src_2"
+      }
+    },
+    "secrets": {
+      "locked": {
+        "lastModified": 1780065585,
+        "narHash": "sha256-neypl4Ykv18fHs70p+EM1528JGq+QPxhApQOfJER8FU=",
+        "ref": "refs/heads/main",
+        "rev": "0012ed3dd3cd22afcb2c6d2f931bdda3814eb2dd",
+        "revCount": 1,
+        "type": "git",
+        "url": "ssh://git@github.com/selimbucher/nixos-secrets"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com/selimbucher/nixos-secrets"
       }
     },
     "selim-icons": {
