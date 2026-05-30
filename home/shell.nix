@@ -13,11 +13,10 @@
     gc      = "git commit";
     gcl     = "git clone";
     gpsh    = "git push";
-    ssh-hetzner     = "ssh hetzner";
     rebuild-hetzner = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
     rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
-    update-hetzner  = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
-    uh              = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
+    update-hetzner  = "nix flake update --flake ${config.home.homeDirectory}/.hetzner";
+    uh              = "nix flake update --flake ${config.home.homeDirectory}/.hetzner";
   };
 
   home.sessionVariables = {
@@ -25,11 +24,16 @@
     LD_LIBRARY_PATH = "${pkgs.yabridge}/lib:$LD_LIBRARY_PATH";
   };
 
-  programs.ssh.matchBlocks."hetzner" = {
-    hostname = inputs.secrets.hetznerIp;
-    user = "root";
-    extraOptions.SetEnv = "TERM=xterm-256color";
-  };
+  programs.ssh = {
+    enable = true;
+    matchBlocks."hetzner" = {
+      hostname = inputs.secrets.hetznerIp;
+      user = "root";
+      extraOptions = {
+        SetEnv = "TERM=xterm-256color";
+      };
+    };
+};
 
   programs.zsh = {
     enable = true;
