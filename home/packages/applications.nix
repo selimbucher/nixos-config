@@ -71,5 +71,6 @@
     mailspring
     en-croissant
     brave
+    geary
   ];
 }

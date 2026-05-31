@@ -73,5 +73,23 @@
       categories = [ "Game" "BoardGame" ];
       settings.StartupWMClass = "en-croissant";
     };
+
+    "org.gnome.Geary" = {
+      name = "Geary";
+      genericName = "Email";
+      comment = "Send and receive email";
+      exec = "geary %U";
+      icon = "org.gnome.Geary";
+      terminal = false;
+      type = "Application";
+      categories = [ "GNOME" "GTK" "Network" "Email" ];
+      mimeType = [ "x-scheme-handler/mailto" ];
+      settings = {
+        Keywords = "Mail;E-mail;email;IMAP;GMail;Yahoo;Hotmail;Outlook;";
+        StartupNotify = "true";
+        StartupWMClass = "geary";
+      };
+    };
+
   };
 }
