@@ -12,5 +12,6 @@
     libnotify
     openconnect
     networkmanager-openconnect
+    xkill
   ];
 }

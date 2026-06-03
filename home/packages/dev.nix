@@ -18,5 +18,6 @@
     llvm
     uv
     neovim
+    nodejs
   ];
 }
