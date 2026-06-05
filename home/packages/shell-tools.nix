@@ -13,5 +13,6 @@
     openconnect
     networkmanager-openconnect
     xkill
+    hyprpicker
   ];
 }
