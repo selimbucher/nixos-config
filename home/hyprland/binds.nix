@@ -30,7 +30,8 @@
     "$mainMod, W, exec, $webBrowser"
     "CTRL SHIFT, Escape, exec, $taskManager"
     "$mainMod, L, exec, $lock"
-    "$mainMod, X, exec, hyprpicker"
+    "$mainMod, X, exec, hyprpicker -a"
+    "$mainMod SHIFT, X, exec, hyprpicker -a -f hsl"
 
     "$mainMod SHIFT, P, exec, poweroff"
     "$mainMod SHIFT, R, exec, reboot"
