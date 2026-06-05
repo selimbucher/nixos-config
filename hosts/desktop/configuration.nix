@@ -8,6 +8,7 @@
   ];
   
   networking.hostName = "desktop";
+
   deviceConfig = {
     sddmWayland = false;
     monitor = [
@@ -19,5 +20,6 @@
       "steam -silent"
     ];
     scale = 1.25;
+    jackBufferSize = 64;
   };
 }

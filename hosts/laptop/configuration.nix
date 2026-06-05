@@ -17,5 +17,6 @@
     ];
     blur = false;
     scale = 2.0;
+    jackBufferSize = 128;
   };
 }

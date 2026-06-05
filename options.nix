@@ -43,5 +43,11 @@
       description = "Monitor scale factor for HiDPI scaling (e.g. 2.0 for HiDPI).";
     };
 
+    jackBufferSize = lib.mkOption {
+      type = lib.types.int;
+      default = 128;
+      description = "Buffer size for Jack.";
+    };
+
   };
 }
