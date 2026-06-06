@@ -72,5 +72,6 @@
     en-croissant
     brave
     geary
+    gnome-text-editor
   ];
 }
