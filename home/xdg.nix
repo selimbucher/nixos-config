@@ -9,10 +9,18 @@
 
   xdg.portal = {
     enable = true;
-    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    extraPortals = [
+      pkgs.xdg-desktop-portal-gtk
+      pkgs.xdg-desktop-portal-hyprland
+    ];
     config = {
-      common.default = [ "gtk" ];
-      hyprland.default = [ "hyprland" "gtk" ];
+      common = {
+        default = [ "gtk" ]; # Forces all undefined portal requests to use GTK
+        "org.freedesktop.impl.portal.FileChooser" = [ "gtk" ];
+      };
+      hyprland = {
+        default = [ "gtk" "hyprland" ];
+      };
     };
   };
 

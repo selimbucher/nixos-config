@@ -174,6 +174,8 @@
     mission-center
     where-is-my-sddm-theme
     gvfs
+    nautilus
+    brave
   ];
 
   services.xserver.excludePackages = [ pkgs.xterm ];
