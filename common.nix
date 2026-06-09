@@ -136,6 +136,7 @@
     { domain = "@audio"; item = "nice";    type = "-"; value = "-20"; }
   ];
 
+  services.flatpak.enable = true;
   services.libinput.enable = true;
 
   virtualisation.docker = {

@@ -14,5 +14,7 @@
     networkmanager-openconnect
     xkill
     hyprpicker
+    pi-coding-agent
+    gocryptfs
   ];
 }
