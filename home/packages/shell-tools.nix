@@ -16,5 +16,6 @@
     hyprpicker
     pi-coding-agent
     gocryptfs
+    claude-code
   ];
 }
