@@ -7,6 +7,10 @@
     source = inputs.rofi-theme;
   };
 
+  xdg.configFile."uwsm/env".text = ''
+    export AQ_NO_MODIFIERS=1
+  '';
+
   xdg.portal = {
     enable = true;
     extraPortals = [
