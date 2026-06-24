@@ -73,5 +73,6 @@
     brave
     geary
     gnome-text-editor
+    thunderbird
   ];
 }
