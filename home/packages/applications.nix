@@ -74,5 +74,6 @@
     geary
     gnome-text-editor
     thunderbird
+    prismlauncher
   ];
 }
