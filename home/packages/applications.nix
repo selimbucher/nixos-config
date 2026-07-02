@@ -68,7 +68,6 @@
     obsidian
     proton-vpn
     blanket
-    mailspring
     en-croissant
     brave
     geary

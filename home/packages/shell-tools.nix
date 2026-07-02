@@ -17,5 +17,6 @@
     pi-coding-agent
     gocryptfs
     claude-code
+    codex
   ];
 }

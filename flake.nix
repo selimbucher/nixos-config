@@ -3,6 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Stable, intentionally un-followed: activitywatch is broken/uncached on
+    # unstable (aw-webui CI failure) but prebuilt & cached on stable.
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.05";
 
     secrets.url = "git+ssh://git@github.com/selimbucher/nixos-secrets";
 
