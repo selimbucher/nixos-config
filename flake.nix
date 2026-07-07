@@ -45,10 +45,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    claude-desktop-bin = {
+      url = "github:patrickjaja/claude-desktop-bin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     hyprland.url = "github:hyprwm/Hyprland/v0.55.4";
 
     hyprland-plugins = {
-      url = "github:hyprwm/hyprland-plugins";
+      # Pinned to the rev hyprpm blesses for Hyprland v0.55.4 (see hyprpm.toml);
+      # master chases Hyprland git and breaks the build against release tags.
+      url = "github:hyprwm/hyprland-plugins/3aa21f2e0ca72412f1b434c3126f8f1fec3c716c";
       inputs.hyprland.follows = "hyprland";
     };
 

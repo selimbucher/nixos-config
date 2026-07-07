@@ -8,9 +8,6 @@
     "$mainMod, mouse_down, workspace, e-1"
     "$mainMod, mouse_up, workspace, e+1"
 
-    "ALT, TAB, exec, kiwictl apps open-next"
-    "ALT, TAB, submap, app_switcher"
-
     "SUPER, period, exec, smile"
     #", section, togglespecialworkspace, magic"
     #"SHIFT, section, movetoworkspace, special:magic"

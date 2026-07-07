@@ -11,7 +11,7 @@
       # inputs.Hyprspace.packages.${pkgs.stdenv.hostPlatform.system}.Hyprspace
       # THIS FUCKING PLUGIN IN ASS CHEEKS - IT DOESNT WORK
 
-      #inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
+      inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
     ];
     
 
@@ -20,25 +20,6 @@
       general {
           col.active_border = $kiwiColorLight
       }
-
-      submap = app_switcher
-
-      # Allow repeating TAB while holding ALT to cycle the menu
-      binde = ALT, TAB, exec, kiwictl apps open-next
-
-      # Capture the exact release of the Left Alt key using the 'rt' flags
-      bindrt = ALT, ALT_L, exec, kiwictl apps confirm
-      bindrt = ALT, ALT_L, submap, reset
-
-      # Provide a failsafe to abort if you change your mind
-      bindr = , escape, exec, kiwictl apps close
-      bindr = , escape, submap, reset
-
-      bindr = ALT, escape, exec, kiwictl apps close
-      bindr = ALT, escape, submap, reset
-
-      # Terminate the submap declaration
-      submap = reset
     '';
 
     xwayland.enable = true;
@@ -72,6 +53,11 @@
         
         "immediate 1, match:class ^(steam_app_.*)$"
         "fullscreen 1, match:class ^(steam_app_.*)$"
+
+        # no title bars on games and shell popups
+        "hyprbars:no_bar 1, match:class ^(steam_app_.*)$"
+        "hyprbars:no_bar 1, match:class ^(gjs)$"
+        "hyprbars:no_bar 1, match:class ^(it.mijorus.smile)$"
       ];
 
       /*
@@ -126,6 +112,37 @@
         allow_tearing = false;
         layout = "dwindle";
         "col.inactive_border" = "0x00000000";
+      };
+
+      # macOS-like title bars (hyprbars plugin)
+      plugin = {
+        hyprbars = {
+          bar_height = 26;
+          bar_color = "rgb(2d2d2d)";
+          "col.text" = "rgb(e8e8e8)";
+          bar_text_size = 10;
+          bar_text_font = "Rubik";
+          bar_text_align = "center";
+          bar_buttons_alignment = "left";
+          bar_part_of_window = true;
+          bar_precedence_over_border = true;
+          bar_padding = 8;
+          bar_button_padding = 6;
+          # like macOS: plain circles, glyphs only appear on hover
+          icon_on_hover = true;
+          inactive_button_color = "rgb(4d4d4d)";
+          on_double_click = "hyprctl dispatch fullscreen 1";
+
+          # traffic lights (leftmost first): close, minimize, zoom.
+          # minimize targets kiwi-shell's special:minimized workspace, so the
+          # dock dims the window's dot and can restore it (dock icon click,
+          # alt-tab confirm, or any activation of the window)
+          hyprbars-button = [
+            "rgb(ff5f57), 12, ×, hyprctl dispatch killactive, rgb(7d0f10)"
+            "rgb(febc2e), 12, −, hyprctl dispatch movetoworkspacesilent special:minimized, rgb(90591d)"
+            "rgb(28c840), 12, +, hyprctl dispatch fullscreen 1, rgb(0e650e)"
+          ];
+        };
       };
 
       decoration = {
