@@ -16,6 +16,7 @@
       "DP-1, 3840x2160@30, 1440x0, 2"
     ];
     blur = false;
+    shadow = true;
     scale = 2.0;
     jackBufferSize = 128;
   };

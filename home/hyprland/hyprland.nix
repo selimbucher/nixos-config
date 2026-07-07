@@ -14,13 +14,14 @@
       inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
     ];
     
-
+    /*
     extraConfig = ''
       source = ~/.config/kiwi-shell/hypr.conf
       general {
           col.active_border = $kiwiColorLight
       }
     '';
+    */
 
     xwayland.enable = true;
     
@@ -39,18 +40,17 @@
       monitor = osConfig.deviceConfig.monitor;
       
       windowrule = [
+        "float 1, match:class .*"
+
         "center 1, match:title ^(REAPER Query)$"
 
-        "float 1, match:class ^(io\\.missioncenter\\.MissionCenter)$"
         "size 1000 600, match:class ^(io\\.missioncenter\\.MissionCenter)$"
-        "float 1, match:class ^(org\\.gnome\\.Calculator)$"
         "float 1, move monitor_w-window_w-15 monitor_h-window_h-15, match:class ^(it.mijorus.smile)$"
-        "float 1, match:class ^(gjs)$"
-        
-        "tile 1, match:class ^(brave-browser)$"
-        "tile 1, match:class ^(code)$"
-        "tile 1, match:class ^(obsidian)$"
-        
+
+        #"tile 1, match:class ^(brave-browser)$"
+        #"tile 1, match:class ^(code)$"
+        #"tile 1, match:class ^(obsidian)$"
+
         "immediate 1, match:class ^(steam_app_.*)$"
         "fullscreen 1, match:class ^(steam_app_.*)$"
 
@@ -105,13 +105,21 @@
       };
 
       general = {
+        border_size = 0;
+        # small gaps for tiled windows (hyprland defaults are 5/20)
         gaps_in = 1;
         gaps_out = 2;
+        # windows-like resizing by dragging window edges/corners
+        # (works with border_size = 0 — the grab zone extends past the window edge)
+        resize_on_border = true;
+        extend_border_grab_area = 12;
+        hover_icon_on_border = true;
+        /*
         border_size = 1;
-        resize_on_border = false;
         allow_tearing = false;
         layout = "dwindle";
         "col.inactive_border" = "0x00000000";
+        */
       };
 
       # macOS-like title bars (hyprbars plugin)
@@ -137,10 +145,12 @@
           # minimize targets kiwi-shell's special:minimized workspace, so the
           # dock dims the window's dot and can restore it (dock icon click,
           # alt-tab confirm, or any activation of the window)
+          # icon font+scale are hardcoded in hyprbars (sans @ 62% of button
+          # size), so clarity comes from heavy glyphs and larger buttons
           hyprbars-button = [
-            "rgb(ff5f57), 12, ×, hyprctl dispatch killactive, rgb(7d0f10)"
-            "rgb(febc2e), 12, −, hyprctl dispatch movetoworkspacesilent special:minimized, rgb(90591d)"
-            "rgb(28c840), 12, +, hyprctl dispatch fullscreen 1, rgb(0e650e)"
+            "rgb(ff5f57), 12, ✖, hyprctl dispatch killactive, rgb(7d0f10)"
+            "rgb(febc2e), 12, ▬, hyprctl dispatch movetoworkspacesilent special:minimized, rgb(90591d)"
+            "rgb(28c840), 12, ✚, hyprctl dispatch fullscreen 1, rgb(0e650e)"
           ];
         };
       };
