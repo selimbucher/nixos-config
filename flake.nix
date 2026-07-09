@@ -30,11 +30,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    rofi-theme = {
-      url = "github:selimbucher/rofi-theme";
-      flake = false;
-    };
-
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";

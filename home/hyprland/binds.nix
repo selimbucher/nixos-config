@@ -21,7 +21,6 @@
     "$mainMod, I, exec, kiwi-settings"
     "$mainMod, H, exec, $editor ~/.nixos"
     "$mainMod, A, togglefloating,"
-    "SUPER_L, SUPER_L, exec, $menu"
     "$mainMod, P, pseudo,"
     "$mainMod, K, exec, kiwictl quit; kiwi"
     "$mainMod, W, exec, $webBrowser"

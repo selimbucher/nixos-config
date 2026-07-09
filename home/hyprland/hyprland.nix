@@ -66,14 +66,13 @@
         blur = true;
         blur_popups = true;
         ignore_alpha = 0.5;
-        "match:namespace" = "^(gtk4-layer-shell|rofi)$";
+        "match:namespace" = "^(gtk4-layer-shell)$";
       };
       */
       
 
       "$terminal" = "kitty";
       "$fileManager" = "nautilus";
-      "$menu" = "~/.config/rofi/toggle.sh";
       "$webBrowser" = "brave";
       "$taskManager" = "missioncenter";
       "$fetchTerminal" = "kitty --class=fastfetch-terminal -e bash -c \"fastfetch; exec bash\"";
