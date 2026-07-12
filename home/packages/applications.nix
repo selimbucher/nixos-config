@@ -4,7 +4,6 @@
     inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
     inputs.claude-desktop-bin.packages.${pkgs.stdenv.hostPlatform.system}.default
 
-    blueman
     gparted
     ntfs3g
     arch-install-scripts
