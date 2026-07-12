@@ -48,7 +48,17 @@
 
   services.displayManager = {
     enable = true;
-    gdm.enable = true;
+    sddm = {
+      enable = true;
+      theme = "where_is_my_sddm_theme";
+      wayland.enable = config.deviceConfig.sddmWayland;
+      enableHidpi = true;
+      extraPackages = with pkgs; [
+        qt6.qt5compat
+        qt6.qtdeclarative
+        qt6.qtsvg
+      ];
+    };
   };
 
   boot.plymouth = {
@@ -167,6 +177,7 @@
     grim
     brightnessctl
     mission-center
+    where-is-my-sddm-theme
     gvfs
     nautilus
     brave
