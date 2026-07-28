@@ -39,9 +39,10 @@ in
       exec ${wineNi}/bin/wine "$@"
     '')
 
+    # Kept as an alias for muscle memory — reaper-logged (home/apps/
+    # reaper-tools.nix) cleans ALL ~/.wine* prefixes and captures crash logs.
     (writeShellScriptBin "reaper-launch" ''
-      WINEPREFIX="$HOME/.wine-ni" ${wineNi}/bin/wineserver -k || true
-      exec pw-jack reaper "$@"
+      exec reaper-logged "$@"
     '')
   ];
 }

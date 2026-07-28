@@ -35,7 +35,7 @@
       type = "Application";
       name = "Reaper";
       comment = "Reaper";
-      exec = "reaper-launch";
+      exec = "reaper-logged";
       icon = "cockos-reaper";
       terminal = false;
       categories = [ "Audio" "Video" "AudioVideo" "AudioVideoEditing" "Recorder" ];

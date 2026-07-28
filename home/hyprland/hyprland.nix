@@ -67,7 +67,7 @@
         if osConfig.deviceConfig.blur then [
           "blur 1, match:namespace ^(gtk4-layer-shell)$"
           "blur_popups 1, match:namespace ^(gtk4-layer-shell)$"
-          "ignore_alpha 0.5, match:namespace ^(gtk4-layer-shell)$"
+          "ignore_alpha 0.2, match:namespace ^(gtk4-layer-shell)$"
         ] else [ ];
 
 
@@ -168,10 +168,12 @@
 
         blur = {
           enabled = osConfig.deviceConfig.blur;
-          size = 3;
+          # size 3 / passes 2 was imperceptible behind the shell's 55-86%-opaque
+          # dark panels — this is a proper macOS-style frost
+          size = 2;
           passes = 2;
           vibrancy = 0.1696;
-          noise = 0.02;
+          noise = 0.01;
           contrast = 1.4;
           ignore_opacity = true;
           new_optimizations = true;
