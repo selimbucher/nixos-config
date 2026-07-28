@@ -1,4 +1,8 @@
 { inputs, pkgs, config, ... }:
+let
+  demucs = pkgs.callPackage ../../pkgs/demucs.nix { };
+  basic-pitch = pkgs.callPackage ../../pkgs/basic-pitch.nix { };
+in
 {
   home.packages = with pkgs; [
     inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
@@ -74,5 +78,9 @@
     gnome-text-editor
     thunderbird
     prismlauncher
+    transcribe
+    demucs
+    basic-pitch
+    (pkgs.callPackage ../../pkgs/stem2midi.nix { inherit demucs basic-pitch; })
   ];
 }
