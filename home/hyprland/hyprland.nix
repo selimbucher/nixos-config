@@ -60,16 +60,16 @@
         "hyprbars:no_bar 1, match:class ^(it.mijorus.smile)$"
       ];
 
-      /*
-      layerrule = {
-        name = "blur-kiwi";
-        blur = true;
-        blur_popups = true;
-        ignore_alpha = 0.5;
-        "match:namespace" = "^(gtk4-layer-shell)$";
-      };
-      */
-      
+      # kiwi-shell (bar + dock) blur, gated on deviceConfig.blur. Disabling
+      # decoration.blur only stops window blur — layer surfaces keep blurring
+      # unless the rule itself is omitted, so drop it entirely when blur is off.
+      layerrule =
+        if osConfig.deviceConfig.blur then [
+          "blur 1, match:namespace ^(gtk4-layer-shell)$"
+          "blur_popups 1, match:namespace ^(gtk4-layer-shell)$"
+          "ignore_alpha 0.5, match:namespace ^(gtk4-layer-shell)$"
+        ] else [ ];
+
 
       "$terminal" = "kitty";
       "$fileManager" = "nautilus";

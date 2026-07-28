@@ -11,6 +11,14 @@
 let
   py = python3Packages;
 
+  # nixpkgs' mir-eval fails its matplotlib image-comparison tests (test_display.py)
+  # under newer matplotlib — pixel-diff baselines, not a correctness issue. Skip
+  # that one file; the numeric test suite still runs. The check pushd's into
+  # tests/, so the path is relative to that dir.
+  mir-eval = py.mir-eval.overridePythonAttrs (old: {
+    disabledTestPaths = (old.disabledTestPaths or [ ]) ++ [ "test_display.py" ];
+  });
+
   pretty-midi = py.buildPythonPackage rec {
     pname = "pretty-midi";
     version = "0.2.11";

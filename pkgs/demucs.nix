@@ -20,8 +20,8 @@ let
     version = "1.8.4";
     format = "wheel";
     src = fetchurl {
-      url = "https://files.pythonhosted.org/packages/21/ab/61087872800c15f91c5e50c5331b139c4b55b62cbb3fbd25aeb87052e752/lameenc-1.8.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl";
-      hash = "sha256-DltGqOTr891JWvwF/I782iTqwXs4bixgsNLnCNJmwVQ=";
+      url = "https://files.pythonhosted.org/packages/36/d6/224f9055296dfd16e44da364220167c2612402906fcc53e9e882d6bc72cc/lameenc-1.8.4-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl";
+      hash = "sha256-xlJ6iuisB4AQof7MaXFF574bsWPNUJK1wy1DMrZDCIY=";
     };
     nativeBuildInputs = [ autoPatchelfHook ];
     buildInputs = [ stdenv.cc.cc.lib ];
@@ -35,8 +35,8 @@ let
     version = "0.2.1";
     format = "wheel";
     src = fetchurl {
-      url = "https://files.pythonhosted.org/packages/2b/d4/7953118678e8a8fe939d1bf18daa52a16baf9dadfe97bc62aa208fb3f57b/sphn-0.2.1-cp313-cp313-manylinux_2_24_x86_64.whl";
-      hash = "sha256-iQPVgeC/k+/Xd+BC5BSjZMfqgE+YZGktOvZZnDFf8ZI=";
+      url = "https://files.pythonhosted.org/packages/91/73/bffe894f8f06ac5c38a20be99c2854afb43492e0fc193a90f4c62d0813e7/sphn-0.2.1-cp314-cp314-manylinux_2_24_x86_64.whl";
+      hash = "sha256-p5MEBHLkA5/QWuTTPHXD9R7qdflMr8nlSk6kz230gNc=";
     };
     nativeBuildInputs = [ autoPatchelfHook ];
     buildInputs = [ stdenv.cc.cc.lib zlib ];
@@ -60,6 +60,7 @@ py.buildPythonApplication rec {
     einops
     huggingface-hub
     julius
+    numpy
     pyyaml
     safetensors
     torch
