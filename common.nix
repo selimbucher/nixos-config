@@ -41,6 +41,27 @@
   # false: bootctl must not put itself ahead of rEFInd in the boot order
   boot.loader.efi.canTouchEfiVariables = false;
 
+  # Per-machine ESP fixups so a fresh device needs no manual bootloader work:
+  # bootctl silently skips installing the loader binary when a foreign EFI/BOOT
+  # fallback exists, and rEFInd would list the raw kernels in EFI/nixos as
+  # (initrd-less, panicking) boot entries.
+  boot.loader.systemd-boot.extraInstallCommands = ''
+    esp="${config.boot.loader.efi.efiSysMountPoint}"
+    ${pkgs.coreutils}/bin/mkdir -p "$esp/EFI/systemd"
+    ${pkgs.coreutils}/bin/cp \
+      ${config.systemd.package}/lib/systemd/boot/efi/systemd-bootx64.efi \
+      "$esp/EFI/systemd/systemd-bootx64.efi"
+    conf="$esp/EFI/refind/refind.conf"
+    if [ -f "$conf" ]; then
+      if ${pkgs.gnugrep}/bin/grep -q '^dont_scan_dirs' "$conf"; then
+        ${pkgs.gnused}/bin/sed -i \
+          '/^dont_scan_dirs/{/EFI\/nixos/!s|$|,EFI/nixos|}' "$conf"
+      else
+        echo 'dont_scan_dirs EFI/nixos' >> "$conf"
+      fi
+    fi
+  '';
+
   services.xserver = {
     enable = true;
     xkb.layout = "ch";
