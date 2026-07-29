@@ -403,17 +403,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1778609347,
-        "narHash": "sha256-VTRC7MN4HReathEqTEAGtTb6X6fjFXLhK4/+jZHTl1Q=",
+        "lastModified": 1785082040,
+        "narHash": "sha256-dLAwup4XzcAo4xo+BcVcNXNMXUnoHsY4X3HrZ17jgPs=",
         "owner": "hyprwm",
         "repo": "hyprland-plugins",
-        "rev": "3aa21f2e0ca72412f1b434c3126f8f1fec3c716c",
+        "rev": "81516add9b432b6ffc9f0906b92c9302c479c236",
         "type": "github"
       },
       "original": {
         "owner": "hyprwm",
         "repo": "hyprland-plugins",
-        "rev": "3aa21f2e0ca72412f1b434c3126f8f1fec3c716c",
+        "rev": "81516add9b432b6ffc9f0906b92c9302c479c236",
         "type": "github"
       }
     },

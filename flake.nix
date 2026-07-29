@@ -53,9 +53,9 @@
     hyprland.url = "github:hyprwm/Hyprland/v0.56.1";
 
     hyprland-plugins = {
-      # Pinned to the rev hyprpm blesses for Hyprland v0.55.4 (see hyprpm.toml);
-      # master chases Hyprland git and breaks the build against release tags.
-      url = "github:hyprwm/hyprland-plugins/3aa21f2e0ca72412f1b434c3126f8f1fec3c716c";
+      # Pin the rev matching the Hyprland release above (hyprpm.toml's
+      # commit_pins, or master HEAD when no pin is blessed yet).
+      url = "github:hyprwm/hyprland-plugins/81516add9b432b6ffc9f0906b92c9302c479c236";
       inputs.hyprland.follows = "hyprland";
     };
 
