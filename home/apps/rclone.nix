@@ -2,11 +2,11 @@
 # on the hetzner box), auto-mounted at ~/Drive with full VFS caching so it
 # behaves like a local folder.
 #
-# The password is NOT in the store: rclone-config.service reads it from
-# ~/.secrets/drive-webdav-pass at activation (plaintext; rclone obscures it on
-# inject). Bootstrap on a new machine:
-#   install -dm700 ~/.secrets && printf '%s' '<password>' > ~/.secrets/drive-webdav-pass
-{ config, ... }:
+# The password comes from the private nixos-secrets flake (like hetznerIp), so
+# a fresh machine needs no bootstrap. writeText puts it in the store —
+# acceptable on these single-user hosts; rclone-config.service obscures it
+# into rclone.conf at activation.
+{ inputs, config, pkgs, ... }:
 {
   programs.rclone = {
     enable = true;
@@ -17,7 +17,7 @@
         vendor = "rclone";
         user = "selim";
       };
-      secrets.pass = "${config.home.homeDirectory}/.secrets/drive-webdav-pass";
+      secrets.pass = "${pkgs.writeText "drive-webdav-pass" inputs.secrets.driveWebdavPass}";
       mounts."" = {
         mountPoint = "${config.home.homeDirectory}/Drive";
       };

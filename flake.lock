@@ -777,11 +777,11 @@
     },
     "secrets": {
       "locked": {
-        "lastModified": 1780065585,
-        "narHash": "sha256-neypl4Ykv18fHs70p+EM1528JGq+QPxhApQOfJER8FU=",
+        "lastModified": 1785334388,
+        "narHash": "sha256-J0F9SaLhuguVlRRpkZffxw40mgDDBH/EATq0aN6ArsY=",
         "ref": "refs/heads/main",
-        "rev": "0012ed3dd3cd22afcb2c6d2f931bdda3814eb2dd",
-        "revCount": 1,
+        "rev": "5c41c99fc7e25f3c7a975f3438427b11951b93c8",
+        "revCount": 2,
         "type": "git",
         "url": "ssh://git@github.com/selimbucher/nixos-secrets"
       },
