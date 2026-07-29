@@ -19,6 +19,7 @@
       };
       secrets.pass = "${pkgs.writeText "drive-webdav-pass" inputs.secrets.driveWebdavPass}";
       mounts."" = {
+        enable = true;
         mountPoint = "${config.home.homeDirectory}/Drive";
       };
     };
