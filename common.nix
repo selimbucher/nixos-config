@@ -5,6 +5,8 @@
 { config, lib, pkgs, inputs, ... }:
 
 {
+  imports = [ inputs.qylock.nixosModules.default ];
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   nixpkgs.overlays = [
@@ -23,21 +25,14 @@
 
   programs.nix-ld.enable = true;
 
-  boot.loader.systemd-boot.enable = false;
-  boot.loader = {
-    grub = {
-      enable = true;
-      splashImage = null;
-      forceInstall = false;
-      backgroundColor = "#000000";
-      device = "nodev";
-      efiSupport = true;
-      useOSProber = false;
-      theme = null;
-    };
-    timeout = 0;
+  # rEFInd (on the ESP) chainloads systemd-boot; timeout 0 = invisible.
+  boot.loader.timeout = 0;
+  boot.loader.systemd-boot = {
+    enable = true;
+    configurationLimit = 5; # keep the ESP from filling up
   };
-  boot.loader.efi.canTouchEfiVariables = true;
+  # false: bootctl must not put itself ahead of rEFInd in the boot order
+  boot.loader.efi.canTouchEfiVariables = false;
 
   services.xserver = {
     enable = true;
@@ -50,15 +45,34 @@
     enable = true;
     sddm = {
       enable = true;
-      theme = "where_is_my_sddm_theme";
       wayland.enable = config.deviceConfig.sddmWayland;
+      # weston never shows the cursor (i915 cursor-plane issue); kwin does
+      wayland.compositor = "kwin";
       enableHidpi = true;
+      # greeter cursor; without an explicit theme SDDM shows none
+      settings.Theme = {
+        CursorTheme = "Capitaine Cursors - White";
+        CursorSize = 24;
+      };
       extraPackages = with pkgs; [
         qt6.qt5compat
         qt6.qtdeclarative
         qt6.qtsvg
       ];
     };
+  };
+
+  programs.qylock = {
+    enable = true;
+    theme = "last-of-us";
+    quickshell.enable = false;
+  };
+
+  # xcursor's default search path (/usr/share/icons) doesn't exist on NixOS
+  systemd.services.display-manager.environment = {
+    XCURSOR_PATH = "/run/current-system/sw/share/icons";
+    XCURSOR_THEME = "Capitaine Cursors - White";
+    XCURSOR_SIZE = "24";
   };
 
   boot.plymouth = {
@@ -109,6 +123,10 @@
       General = {
         Experimental = true;
         FastConnectable = false;
+        # AirPods (and other Apple devices) periodically re-key their
+        # Just-Works pairing; the default "never" makes bluez refuse the
+        # re-pair and silently drop the bond (device flips to Paired: no).
+        JustWorksRepairing = "always";
       };
       Policy.AutoEnable = true;
     };
@@ -145,8 +163,11 @@
 
   virtualisation.docker = {
     enable = true;
-    enableOnBoot = true;
+    enableOnBoot = false; # starts on first use; restart=always containers won't autostart
   };
+
+  # don't block boot ~4.5s waiting for the network
+  systemd.services.NetworkManager-wait-online.enable = false;
 
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
@@ -177,7 +198,7 @@
     grim
     brightnessctl
     mission-center
-    where-is-my-sddm-theme
+    capitaine-cursors-themed # cursor theme for the SDDM greeter
     gvfs
     nautilus
     brave

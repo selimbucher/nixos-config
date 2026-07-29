@@ -9,18 +9,13 @@
 
   networking.hostName = "laptop";
 
-  # --- Boot-time hardware timeout fixes (see `journalctl -b` on this host) ---
+  # --- Corsair MP600 CORE XT boot stalls (real fix: disable VMD in BIOS) ---
+  boot.kernelParams = [
+    "nvme_core.default_ps_max_latency_us=0" # APST deep sleep it never wakes from
+    "nvme_core.io_timeout=10" # dropped irq behind VMD: poll after 10s, not 30s
+  ];
 
-  # Corsair MP600 CORE XT (Phison) stalls on NVMe I/O during boot because it
-  # enters an APST deep power state it doesn't wake from cleanly, costing ~30s
-  # in "nvme nvme0: ... timeout, completion polled" waits. Disabling APST is the
-  # standard fix. Tradeoff: slightly higher SSD idle power draw (~0.5-1W).
-  boot.kernelParams = [ "nvme_core.default_ps_max_latency_us=0" ];
-
-  # Meteor Lake (Core Ultra 7 155H) iGPU waits ~18s for the i915 GSC proxy to
-  # bind, then errors ("GSC proxy component didn't bind"). The mei_gsc_proxy
-  # component must be present alongside i915 (loaded in initrd) so it binds in
-  # time instead of timing out.
+  # i915's GSC proxy must bind in initrd or boot waits ~18s for it
   boot.initrd.kernelModules = [ "mei" "mei_me" "mei_gsc" "mei_gsc_proxy" ];
 
   deviceConfig = {

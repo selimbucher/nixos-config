@@ -9,6 +9,7 @@
   
   networking.hostName = "desktop";
 
+
   deviceConfig = {
     sddmWayland = false;
     monitor = [
