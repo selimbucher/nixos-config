@@ -50,19 +50,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    hyprland.url = "github:hyprwm/Hyprland/v0.56.1";
-
-    hyprland-plugins = {
-      # Pin the rev matching the Hyprland release above (hyprpm.toml's
-      # commit_pins, or master HEAD when no pin is blessed yet).
-      url = "github:hyprwm/hyprland-plugins/81516add9b432b6ffc9f0906b92c9302c479c236";
-      inputs.hyprland.follows = "hyprland";
-    };
-
-    Hyprspace = {
-      url = "github:KZDKM/Hyprspace";
-      inputs.hyprland.follows = "hyprland";
-    };
   };
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs:

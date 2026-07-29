@@ -7,11 +7,9 @@
     configType = "hyprlang";
 
     plugins = [
-      #inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprexpo
-      # inputs.Hyprspace.packages.${pkgs.stdenv.hostPlatform.system}.Hyprspace
-      # THIS FUCKING PLUGIN IN ASS CHEEKS - IT DOESNT WORK
-
-      inputs.hyprland-plugins.packages.${pkgs.stdenv.hostPlatform.system}.hyprbars
+      # From nixpkgs so the plugin is always built against pkgs.hyprland —
+      # never mix in the hyprland flake or its plugins repo (ABI mismatch).
+      pkgs.hyprlandPlugins.hyprbars
     ];
     
     /*

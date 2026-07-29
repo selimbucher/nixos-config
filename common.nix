@@ -5,12 +5,7 @@
 { config, lib, pkgs, inputs, ... }:
 
 {
-  imports = [
-    inputs.qylock.nixosModules.default
-    # All hosts must run the flake's Hyprland — hyprbars is built against it,
-    # and mixing it with nixpkgs' Hyprland gives a plugin version mismatch.
-    inputs.hyprland.nixosModules.default
-  ];
+  imports = [ inputs.qylock.nixosModules.default ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
