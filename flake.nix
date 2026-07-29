@@ -82,7 +82,6 @@
           modules = [
             ./hosts/laptop/configuration.nix
             home-manager.nixosModules.home-manager
-            inputs.hyprland.nixosModules.default
             (mkHome "laptop")
           ];
         };

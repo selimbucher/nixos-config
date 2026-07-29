@@ -5,7 +5,12 @@
 { config, lib, pkgs, inputs, ... }:
 
 {
-  imports = [ inputs.qylock.nixosModules.default ];
+  imports = [
+    inputs.qylock.nixosModules.default
+    # All hosts must run the flake's Hyprland — hyprbars is built against it,
+    # and mixing it with nixpkgs' Hyprland gives a plugin version mismatch.
+    inputs.hyprland.nixosModules.default
+  ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
@@ -32,35 +37,18 @@
 
   programs.nix-ld.enable = true;
 
-  # rEFInd (on the ESP) chainloads systemd-boot; timeout 0 = invisible.
+  # Plain systemd-boot, invisible (timeout 0; hold Space for the generation
+  # menu). Boots standalone via the EFI/BOOT fallback on a fresh machine; if
+  # rEFInd is installed on the ESP it detects systemd-boot and acts as the
+  # visible menu in front (add `dont_scan_dirs EFI/nixos` to refind.conf so it
+  # doesn't also list the raw kernels).
   boot.loader.timeout = 0;
   boot.loader.systemd-boot = {
     enable = true;
     configurationLimit = 5; # keep the ESP from filling up
   };
-  # false: bootctl must not put itself ahead of rEFInd in the boot order
+  # Never reorder EFI boot entries (rEFInd must stay first where it exists).
   boot.loader.efi.canTouchEfiVariables = false;
-
-  # Per-machine ESP fixups so a fresh device needs no manual bootloader work:
-  # bootctl silently skips installing the loader binary when a foreign EFI/BOOT
-  # fallback exists, and rEFInd would list the raw kernels in EFI/nixos as
-  # (initrd-less, panicking) boot entries.
-  boot.loader.systemd-boot.extraInstallCommands = ''
-    esp="${config.boot.loader.efi.efiSysMountPoint}"
-    ${pkgs.coreutils}/bin/mkdir -p "$esp/EFI/systemd"
-    ${pkgs.coreutils}/bin/cp \
-      ${config.systemd.package}/lib/systemd/boot/efi/systemd-bootx64.efi \
-      "$esp/EFI/systemd/systemd-bootx64.efi"
-    conf="$esp/EFI/refind/refind.conf"
-    if [ -f "$conf" ]; then
-      if ${pkgs.gnugrep}/bin/grep -q '^dont_scan_dirs' "$conf"; then
-        ${pkgs.gnused}/bin/sed -i \
-          '/^dont_scan_dirs/{/EFI\/nixos/!s|$|,EFI/nixos|}' "$conf"
-      else
-        echo 'dont_scan_dirs EFI/nixos' >> "$conf"
-      fi
-    fi
-  '';
 
   services.xserver = {
     enable = true;
