@@ -9,6 +9,13 @@
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 14d";
+  };
+  nix.optimise.automatic = true; # dedupe the store via hardlinks
+
   nixpkgs.overlays = [
     (final: prev: {
       pkgsi686Linux = prev.pkgsi686Linux.extend (final': prev': {
