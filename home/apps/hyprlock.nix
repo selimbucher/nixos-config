@@ -1,7 +1,6 @@
 { config, pkgs, ... }:
 
 {
-  # Ensure Hyprlock program is enabled
   programs.hyprlock.enable = true;
 
   programs.hyprlock.settings = {
@@ -32,30 +31,26 @@
 
     "input-field" = [{
       monitor = "";
-      size = "70%, 14%";
+      size = "20%, 5%";
       outline_thickness = 0;
-      inner_color = "rgba(0, 0, 0, 0.0)";
-
-      # --- Add these lines to force transparency in all states ---
+      inner_color = "rgba(255, 255, 255, 0.1)";
       check_color = "rgba(0, 0, 0, 0.0)";
-      fail_color = "rgba(0, 0, 0, 0.0)";    # This overrides your orange/pink gradient
+      fail_color = "rgba(0, 0, 0, 0.0)";
       clear_color = "rgba(0, 0, 0, 0.0)";
-      capslock_color = "rgba(0, 0, 0, 0.0)";
-      # ---------------------------------------------------------
+      capslock_color = "rgba(255, 255, 255, 0.1)";
 
       font_color = "rgb(255, 255, 255)";
-      fade_on_empty = false;
-      rounding = 50;
+      fade_on_empty = true;
+      rounding = 100;
 
-      font_family = "Rubik";
-      placeholder_text = "";
-      fail_text = "";
+      font_family = "Quicksand";
+      placeholder_text = "Enter Password";
+      fail_text = "Enter Password";
 
-      dots_text_format = "*";
-      dots_size = 1;
-      dots_spacing = 0.15;
+      dots_size = 0.3;
+      dots_spacing = 0.35;
 
-      position = "0.5%, -5%";
+      position = "0.5%, -2%";
       halign = "center";
       valign = "center";
     }];
@@ -64,24 +59,22 @@
       # TIME
       {
         monitor = "";
-        # Since we removed the $font variable, we hardcode the font name
         text = "$TIME";
-        font_family = "Quicksand"; 
-        font_size = 140;
-        position = "0, -140";
+        font_family = "Quicksand ExtraBold"; 
+        font_size = 148;
+        position = "0, -11%";
         halign = "center";
         valign = "top";
       }
       # DATE
       {
         monitor = "";
-        text = "cmd[update:60000] date +\"%A, %d %B %Y\"";
-        font_size = 25;
-        font_family = "Quicksand"; # Hardcoded font name
-        
-        position = "-35, 50";
-        halign = "right";
-        valign = "bottom";
+        text = "cmd[update:60000] date +\"%A, %d %B\"";
+        font_size = 32;
+        font_family = "Quicksand SemiBold";
+        position = "0, -10%";
+        halign = "center";
+        valign = "top";
       }
     ];
   };
