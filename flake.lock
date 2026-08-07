@@ -88,17 +88,14 @@
     },
     "claude-desktop-bin": {
       "inputs": {
-        "flake-utils": "flake-utils_2",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "upstream": "upstream"
       },
       "locked": {
-        "lastModified": 1785267559,
-        "narHash": "sha256-/904DjIWb55XnzvAqwTpFHoFcM44Mi8v3X54WocjON8=",
+        "lastModified": 1785412079,
+        "narHash": "sha256-BxTUNq99pLhXQnpHn12qns3wojka78x5o+o5qkcLLuE=",
         "owner": "patrickjaja",
         "repo": "claude-desktop-bin",
-        "rev": "14cfa439c9b424e1d0296d969131f4bf89461dcd",
+        "rev": "0897cd7b6ed08a1e3774a92e5ad31beed52ceb21",
         "type": "github"
       },
       "original": {
@@ -168,11 +165,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785306346,
-        "narHash": "sha256-DScBkW0fOgpGPK2trNoX3ryLTlaC14+gglFo/BhGJ4g=",
+        "lastModified": 1785531816,
+        "narHash": "sha256-vkMnV0JIyw+g/NmcfoajlGaAO+9a0ezia+FZohQJrik=",
         "owner": "nix-community",
         "repo": "home-manager",
-        "rev": "e705714e918c3b11affcdd15db2cbe3a070420a0",
+        "rev": "bf9ce9fec78f95f374e8dd3b503863a3ec128ebe",
         "type": "github"
       },
       "original": {
@@ -191,11 +188,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785294530,
-        "narHash": "sha256-TVS+7TXbVJH+e4vF13DLaCy4ph9B28FpyZ3t0nC+3QA=",
+        "lastModified": 1785459716,
+        "narHash": "sha256-6cOfoZnE7jtaVkTQCsTrdePNA6sa8GDqycjHFNZxEKA=",
         "owner": "selimbucher",
         "repo": "kiwi-shell",
-        "rev": "4db25b9c6cc902b907e2d26be5266df2ccb5a0fd",
+        "rev": "f497581148961f552f29c804787d156fdbfe3e00",
         "type": "github"
       },
       "original": {
@@ -232,11 +229,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775172997,
-        "narHash": "sha256-8JAQN6lCb1WavZOhfINQ2LDgOnS2fe6m4ZqkZue7Xvg=",
+        "lastModified": 1785451014,
+        "narHash": "sha256-yRrXpHV7ufqbq5P+MSCplV/oLECwiac4coqqUk+hEdQ=",
         "owner": "selimbucher",
         "repo": "native-instruments",
-        "rev": "1ddb1be598bd62ff11018b983235466c30e12bf1",
+        "rev": "856d6656b484e663e9592286deca19cbccc799c2",
         "type": "github"
       },
       "original": {
@@ -247,11 +244,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1785090369,
-        "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4=",
+        "lastModified": 1785692966,
+        "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "624af665418d3c65d544145b4d34ad696439570e",
+        "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
         "type": "github"
       },
       "original": {
@@ -273,6 +270,22 @@
       "original": {
         "owner": "NixOS",
         "ref": "nixos-25.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1785692966,
+        "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -305,7 +318,7 @@
         "home-manager": "home-manager",
         "kiwi": "kiwi",
         "native-instruments": "native-instruments",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs": "nixpkgs_2",
         "nixpkgs-stable": "nixpkgs-stable",
         "qylock": "qylock",
         "secrets": "secrets",
@@ -391,6 +404,25 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "upstream": {
+      "inputs": {
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1785778547,
+        "narHash": "sha256-nI18XdKLq4yazrGHPOSYgHDyu/fwJehf+Zvz0ye2VTs=",
+        "owner": "patrickjaja",
+        "repo": "claude-desktop-extra",
+        "rev": "31f71d2f8e664cab6e087b49a552c24f805d8cbb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "patrickjaja",
+        "repo": "claude-desktop-extra",
         "type": "github"
       }
     },

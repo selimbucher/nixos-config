@@ -21,12 +21,6 @@
       pkgsi686Linux = prev.pkgsi686Linux.extend (final': prev': {
         openldap = prev'.openldap.overrideAttrs (_: { doCheck = false; });
       });
-      # Backport of the 0.56.1 fix for scrambled `hyprctl binds -j` JSON
-      # (kiwi-shell's launcher bind needs to parse it). Drop when nixpkgs
-      # ships hyprland >= 0.56.1.
-      hyprland = prev.hyprland.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [ ./patches/hyprland-binds-json.patch ];
-      });
     })
     inputs.claude-code-nix.overlays.default
   ];
@@ -47,6 +41,10 @@
   boot.loader.systemd-boot = {
     enable = true;
     configurationLimit = 5; # keep the ESP from filling up
+    # bootctl over varlink (systemd 261 / nixpkgs 26.11) is no longer
+    # graceful-by-default on update, so the rEFInd-owned EFI/BOOT fallback
+    # ("no version info found" -> ESRCH) hard-fails the switch without this.
+    graceful = true;
   };
   # Never reorder EFI boot entries (rEFInd must stay first where it exists).
   boot.loader.efi.canTouchEfiVariables = false;

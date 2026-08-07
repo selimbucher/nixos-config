@@ -1,0 +1,3 @@
+# `nix build` output symlinks — GC roots, never belong in the repo
+/result
+/result-*

@@ -6,6 +6,19 @@
     package = null; # System package is handled in common.nix
     configType = "hyprlang";
 
+    # MUST stay false while common.nix sets programs.hyprland.withUWSM = true.
+    # home-manager's systemd integration injects
+    #   exec-once = ... && systemctl --user stop hyprland-session.target && systemctl --user start ...
+    # and hyprland-session.target has PropagatesStopTo=graphical-session.target.
+    # Under uwsm that "stop" cascades and kills the session that is starting:
+    #   stop hyprland-session.target
+    #     -> stops graphical-session.target        (PropagatesStopTo)
+    #     -> stops wayland-session@hyprland.target (BindsTo=graphical-session.target)
+    #     -> stops wayland-wm@hyprland.service     (BindsTo=wayland-session@)
+    # i.e. Hyprland kills its own compositor ~1s after init => SDDM login bounces.
+    # uwsm does the dbus/activation-env finalize itself, so this adds nothing.
+    systemd.enable = false;
+
     plugins = [
       # From nixpkgs so the plugin is always built against pkgs.hyprland —
       # never mix in the hyprland flake or its plugins repo (ABI mismatch).
