@@ -1,86 +1,95 @@
-{ inputs, pkgs, osConfig, ... }:
+{ inputs, lib, pkgs, osConfig, ... }:
 
+let
+  inherit (lib.generators) mkLuaInline;
+
+  mainMod = "SUPER";
+
+  # hl.bind(<keys>, <dispatcher>[, <opts>]).
+  # `keys` is a plain string (rendered as a lua string literal), `dispatcher`
+  # is raw lua — a call into hl.dsp.* that returns an HL.Dispatcher.
+  bind = keys: dispatcher: { _args = [ keys (mkLuaInline dispatcher) ]; };
+  bindOpts = opts: keys: dispatcher: { _args = [ keys (mkLuaInline dispatcher) opts ]; };
+
+  # hyprlang bind flag suffixes, as hl.bind option tables
+  locked = bindOpts { locked = true; };                     # bindl
+  lockedRepeat = bindOpts { locked = true; repeating = true; }; # bindel
+  mouse = bindOpts { mouse = true; };                       # bindm
+
+  exec = cmd: "hl.dsp.exec_cmd(${cmd})";
+  # shell command as a lua literal; `var` forms reference the locals declared
+  # in hyprland.nix (terminal, editor, ...)
+  sh = cmd: exec (builtins.toJSON cmd);
+  var = name: exec name;
+
+  # SUPER+1..0 -> workspace 1..10, SUPER+SHIFT+1..0 -> move window there
+  workspaceBinds = lib.concatMap (i:
+    let
+      key = toString (lib.mod i 10); # 10 lives on the 0 key
+      ws = toString i;
+    in [
+      (bind "${mainMod} + ${key}" ''hl.dsp.focus({ workspace = "${ws}" })'')
+      (bind "${mainMod} + SHIFT + ${key}" ''hl.dsp.window.move({ workspace = "${ws}" })'')
+    ]) (lib.range 1 10);
+in
 {
-  wayland.windowManager.hyprland.settings = {    
+  # Unlike hyprlang there is no bind/bindl/bindel/bindm split — every bind is
+  # hl.bind() and the flags move into the trailing options table.
+  wayland.windowManager.hyprland.settings.bind = [
+    (bind "CTRL + F12" (sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"))
+    (bind "${mainMod} + mouse_down" ''hl.dsp.focus({ workspace = "e-1" })'')
+    (bind "${mainMod} + mouse_up" ''hl.dsp.focus({ workspace = "e+1" })'')
 
-    bind = [
-    "CTRL, F12, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
-    "$mainMod, mouse_down, workspace, e-1"
-    "$mainMod, mouse_up, workspace, e+1"
+    (bind "SUPER + period" (sh "smile"))
 
-    "SUPER, period, exec, smile"
-    #", section, togglespecialworkspace, magic"
-    #"SHIFT, section, movetoworkspace, special:magic"
+    (bind "Print" (sh ''grim -g "$(slurp)" - | wl-copy''))
+    (bind "CTRL + Print" (sh "grim - | wl-copy"))
+    (bind "${mainMod} + Q" (var "terminal"))
+    (bind "${mainMod} + SHIFT + Q" (var "fetchTerminal"))
+    (bind "${mainMod} + C" "hl.dsp.window.close()")
+    (bind "${mainMod} + E" (var "fileManager"))
+    (bind "${mainMod} + I" (sh "kiwi-settings"))
+    (bind "${mainMod} + H" ''hl.dsp.exec_cmd(editor .. " ~/.nixos")'')
+    (bind "${mainMod} + A" ''hl.dsp.window.float({ action = "toggle" })'')
+    (bind "${mainMod} + P" "hl.dsp.window.pseudo()")
+    (bind "${mainMod} + K" (sh "kiwictl quit; kiwi"))
+    (bind "${mainMod} + W" (var "webBrowser"))
+    (bind "CTRL + SHIFT + Escape" (var "taskManager"))
+    (bind "${mainMod} + L" (var "lock"))
+    (bind "${mainMod} + X" (sh "hyprpicker -a"))
+    (bind "${mainMod} + SHIFT + X" (sh "hyprpicker -a -f hsl"))
 
-    ", Print, exec, grim -g \"$(slurp)\" - | wl-copy"
-    "CTRL, Print, exec, grim - | wl-copy"
-    "$mainMod, Q, exec, $terminal"
-    "$mainMod SHIFT, Q, exec, $fetchTerminal"
-    "$mainMod, C, killactive,"
-    "$mainMod, E, exec, $fileManager"
-    "$mainMod, I, exec, kiwi-settings"
-    "$mainMod, H, exec, $editor ~/.nixos"
-    "$mainMod, A, togglefloating,"
-    "$mainMod, P, pseudo,"
-    "$mainMod, K, exec, kiwictl quit; kiwi"
-    "$mainMod, W, exec, $webBrowser"
-    "CTRL SHIFT, Escape, exec, $taskManager"
-    "$mainMod, L, exec, $lock"
-    "$mainMod, X, exec, hyprpicker -a"
-    "$mainMod SHIFT, X, exec, hyprpicker -a -f hsl"
+    (bind "${mainMod} + SHIFT + P" (sh "poweroff"))
+    (bind "${mainMod} + SHIFT + R" (sh "reboot"))
+    (bind "${mainMod} + SHIFT + E" "hl.dsp.exit()")
+    (bind "${mainMod} + F" ''hl.dsp.window.fullscreen({ mode = "fullscreen" })'')
 
-    "$mainMod SHIFT, P, exec, poweroff"
-    "$mainMod SHIFT, R, exec, reboot"
-    "$mainMod SHIFT, E, exit,"
-    "$mainMod, F, fullscreen, 0"
-    "$mainMod, left, movefocus, l"
-    "$mainMod, right, movefocus, r"
-    "$mainMod, up, movefocus, u"
-    "$mainMod, down, movefocus, d"
-    "$mainMod, 1, workspace, 1"
-    "$mainMod, 2, workspace, 2"
-    "$mainMod, 3, workspace, 3"
-    "$mainMod, 4, workspace, 4"
-    "$mainMod, 5, workspace, 5"
-    "$mainMod, 6, workspace, 6"
-    "$mainMod, 7, workspace, 7"
-    "$mainMod, 8, workspace, 8"
-    "$mainMod, 9, workspace, 9"
-    "$mainMod, 0, workspace, 10"
-    "$mainMod SHIFT, 1, movetoworkspace, 1"
-    "$mainMod SHIFT, 2, movetoworkspace, 2"
-    "$mainMod SHIFT, 3, movetoworkspace, 3"
-    "$mainMod SHIFT, 4, movetoworkspace, 4"
-    "$mainMod SHIFT, 5, movetoworkspace, 5"
-    "$mainMod SHIFT, 6, movetoworkspace, 6"
-    "$mainMod SHIFT, 7, movetoworkspace, 7"
-    "$mainMod SHIFT, 8, movetoworkspace, 8"
-    "$mainMod SHIFT, 9, movetoworkspace, 9"
-    "$mainMod SHIFT, 0, movetoworkspace, 10"
-    "$mainMod, S, togglespecialworkspace, magic"
-    "$mainMod SHIFT, S, movetoworkspace, special:magic"
-    ];
+    (bind "${mainMod} + left" ''hl.dsp.focus({ direction = "left" })'')
+    (bind "${mainMod} + right" ''hl.dsp.focus({ direction = "right" })'')
+    (bind "${mainMod} + up" ''hl.dsp.focus({ direction = "up" })'')
+    (bind "${mainMod} + down" ''hl.dsp.focus({ direction = "down" })'')
+  ]
+  ++ workspaceBinds
+  ++ [
+    (bind "${mainMod} + S" ''hl.dsp.workspace.toggle_special("magic")'')
+    (bind "${mainMod} + SHIFT + S" ''hl.dsp.window.move({ workspace = "special:magic" })'')
 
-    bindel = [
-    ",XF86AudioRaiseVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"
-    ",XF86AudioLowerVolume, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-    ",XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
-    ",XF86AudioMicMute, exec, wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
-    ",XF86MonBrightnessUp, exec, brightnessctl -e4 -n10 set 4%+"
-    ",XF86MonBrightnessDown, exec, brightnessctl -e4 -n10 set 4%-"
-    ];
+    # bindel — volume/brightness, held down, works on the lock screen
+    (lockedRepeat "XF86AudioRaiseVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"))
+    (lockedRepeat "XF86AudioLowerVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"))
+    (lockedRepeat "XF86AudioMute" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
+    (lockedRepeat "XF86AudioMicMute" (sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"))
+    (lockedRepeat "XF86MonBrightnessUp" (sh "brightnessctl -e4 -n10 set 4%+"))
+    (lockedRepeat "XF86MonBrightnessDown" (sh "brightnessctl -e4 -n10 set 4%-"))
 
-    bindl = [
-    ", XF86AudioNext, exec, playerctl next"
-    ", XF86AudioPause, exec, playerctl play-pause"
-    ", XF86AudioPlay, exec, playerctl play-pause"
-    ", XF86AudioPrev, exec, playerctl previous"
-    ];
+    # bindl — media keys, work on the lock screen
+    (locked "XF86AudioNext" (sh "playerctl next"))
+    (locked "XF86AudioPause" (sh "playerctl play-pause"))
+    (locked "XF86AudioPlay" (sh "playerctl play-pause"))
+    (locked "XF86AudioPrev" (sh "playerctl previous"))
 
-    bindm = [
-    "$mainMod, mouse:272, movewindow"
-    "$mainMod, mouse:273, resizewindow"
-    ];
-      
-  };
+    # bindm — drag to move / resize
+    (mouse "${mainMod} + mouse:272" "hl.dsp.window.drag()")
+    (mouse "${mainMod} + mouse:273" "hl.dsp.window.resize()")
+  ];
 }

@@ -20,9 +20,9 @@
 
   deviceConfig = {
     monitor = [
-      "eDP-1, 2880x1800@120, 0x0, 2, bitdepth, 10"
-      "HDMI-A-1, 2560x1440@60, -304x-1152, 1.25"
-      "DP-1, 3840x2160@30, 1440x0, 2"
+      { output = "eDP-1";    mode = "2880x1800@120"; position = "0x0";        scale = "2"; bitdepth = 10; }
+      { output = "HDMI-A-1"; mode = "2560x1440@60";  position = "-304x-1152"; scale = "1.25"; }
+      { output = "DP-1";     mode = "3840x2160@30";  position = "1440x0";     scale = "2"; }
     ];
     blur = false;
     shadow = true;

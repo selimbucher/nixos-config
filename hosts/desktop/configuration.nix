@@ -13,10 +13,10 @@
   deviceConfig = {
     sddmWayland = false;
     monitor = [
-      "DP-2, 2560x1440@240, 0x0, 1.25, bitdepth, 10"
-      "DP-3, 2560x1440@240, 2048x0, 1.25, bitdepth, 10"
-      "HDMI-A-1, 3840x2160@60, 4096x0, 1"
-      ];
+      { output = "DP-2";     mode = "2560x1440@240"; position = "0x0";    scale = "1.25"; bitdepth = 10; }
+      { output = "DP-3";     mode = "2560x1440@240"; position = "2048x0"; scale = "1.25"; bitdepth = 10; }
+      { output = "HDMI-A-1"; mode = "3840x2160@60";  position = "4096x0"; scale = "1"; }
+    ];
     blur = true;
     extraExecOnce = [
       "steam -silent"

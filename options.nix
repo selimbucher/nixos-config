@@ -2,9 +2,21 @@
   options.deviceConfig = {
     
     monitor = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
+      type = lib.types.listOf (lib.types.attrsOf lib.types.anything);
       default = [];
-      description = "Hyprland monitor strings for this device.";
+      example = [{
+        output = "DP-2";
+        mode = "2560x1440@240";
+        position = "0x0";
+        scale = "1.25";
+        bitdepth = 10;
+      }];
+      description = ''
+        Hyprland monitor specs for this device. One attrset per monitor,
+        passed straight to hl.monitor() in the lua config — `output` is
+        required, mode/position/scale are strings (they accept keywords
+        like "preferred"/"auto" as well as literal values).
+      '';
     };
 
     sddmWayland = lib.mkOption {
