@@ -10,7 +10,7 @@
     secrets.url = "git+ssh://git@github.com/selimbucher/nixos-secrets";
 
     kiwi = {
-      # url = "path:/home/selim/Documents/Coding/kiwi-shell";
+      # url = "path:/home/selim/Documents/Code/kiwi-shell";
       url = "github:selimbucher/kiwi-shell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
