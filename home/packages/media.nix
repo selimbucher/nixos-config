@@ -14,6 +14,14 @@ let
   # Set WINEPREFIX yourself for anything that touches a plugin prefix:
   #   WINEPREFIX=~/.wine-ni wine ~/Downloads/Native\ Access.exe
   wine = pkgs.wineWow64Packages.yabridge;
+
+  # The gecko/mono MSI installers matching this nixpkgs' wine — the same
+  # fetchurls the wine build itself would embed with embedInstallers = true.
+  # Importing sources.nix directly keeps the versions in lockstep with wine
+  # across nixpkgs bumps, without overriding wine (which would lose the
+  # cache.nixos.org hit and force a local ~1h wine-staging build).
+  # wineWow64Packages.staging is built from the `unstable` source set.
+  wineAddonSources = import "${pkgs.path}/pkgs/applications/emulators/wine/sources.nix" { inherit pkgs; };
 in
 {
   home.packages = with pkgs; [
@@ -43,6 +51,26 @@ in
     # needs no pinning: it resolves WINE="${WINE:-wine}" from PATH, and this
     # is the only wine there.
     wine
+
+    # Installs wine-gecko (32+64) and wine-mono into a prefix. Run once per
+    # prefix (and again after a nixpkgs wine bump changes the MSI versions):
+    #   WINEPREFIX=~/.wine-ni wine-install-addons
+    # Needed because wine here is the stock cached build without
+    # embedInstallers, so wineboot has no MSIs to auto-install on prefix
+    # creation. Dropping the MSIs in ~/.cache/wine did NOT work (wineboot -u
+    # ignored them); direct msiexec /i is the verified method.
+    (writeShellScriptBin "wine-install-addons" ''
+      set -eu
+      : "''${WINEPREFIX:?set WINEPREFIX to the target prefix, e.g. ~/.wine-ni}"
+      for msi in ${wineAddonSources.unstable.gecko32} \
+                 ${wineAddonSources.unstable.gecko64} \
+                 ${wineAddonSources.unstable.mono}; do
+        echo "installing ''${msi##*/} into $WINEPREFIX"
+        ${wine}/bin/msiexec /i "$msi"
+      done
+      ${wine}/bin/wineserver -w
+      echo "done"
+    '')
 
     # Kept under its own name because pkgs/reaper-tools/reaper-rescue.sh
     # invokes it directly when killing wedged plugin hosts.

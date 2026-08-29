@@ -23,25 +23,15 @@
 # prefix backups taken before the first wine-11 start.
 final: prev: {
   wineWow64Packages = prev.wineWow64Packages // {
-    # 11.14 at time of writing.
-    #
-    # embedInstallers symlinks the wine-gecko and wine-mono MSIs into
-    # $out/share/wine/{gecko,mono}, the directory wineboot searches when it
-    # creates or updates a prefix. Without it NO prefix on this machine gets an
-    # HTML engine (~/.wine-spectrasonics had only the 60K npmshtml.dll shim),
-    # so anything rendering into an embedded IE/MSHTML control draws nothing —
-    # JUCE's WebBrowserComponent, which is what plugin "activate / sign in"
-    # panels are built from. Dropping the MSIs in ~/.cache/wine does not work:
-    # wineboot -u ignored them there, only a manual msiexec /i installed them.
-    #
-    # Cost: wine is no longer a cache hit, so this is a local wine-staging
-    # build (and a yabridge rebuild after it, since yabridge follows this
-    # attribute). Same 11.14 source, so the wineserver protocol version is
-    # unchanged and the ~/.wine* prefixes are not migrated or touched.
-    #
-    # Existing prefixes do not pick gecko up retroactively — run
-    # `WINEPREFIX=~/.wine-<name> wineboot -u` once per prefix after rebuilding.
-    yabridge = prev.wineWow64Packages.staging.override { embedInstallers = true; };
+    # 11.14 at time of writing. Deliberately NOT overridden (e.g. with
+    # embedInstallers): any .override makes this a non-Hydra derivation and
+    # forces a local ~1h wine-staging build plus a yabridge rebuild. The
+    # gecko/mono MSIs that embedInstallers would have baked in (needed for an
+    # HTML engine in the prefixes — JUCE WebBrowserComponent sign-in panels
+    # draw nothing without one) are installed per-prefix instead via the
+    # wine-install-addons script in home/packages/media.nix, which pulls the
+    # exact MSI versions this wine expects from nixpkgs' own sources.nix.
+    yabridge = prev.wineWow64Packages.staging;
   };
 
   yabridge = prev.yabridge.overrideAttrs (old: {
