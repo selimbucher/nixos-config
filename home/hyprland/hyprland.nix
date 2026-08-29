@@ -123,6 +123,7 @@
           resize_on_border = true;
           extend_border_grab_area = 12;
           hover_icon_on_border = true;
+          allow_tearing = true;      # makes your existing `immediate = true` rule actually work
         };
 
         decoration = {
@@ -164,6 +165,7 @@
           force_default_wallpaper = 1;
           disable_hyprland_logo = true;
           focus_on_activate = true;
+          vrr = 2;                   # fullscreen-only — avoids OLED desktop flicker/brightness shifts
         };
 
         input = {
@@ -262,4 +264,10 @@
       end
     '';
   };
+
+  # Polkit authentication agent — Hyprland ships none, so without this every
+  # polkit-gated GUI action (GNOME Disks, GParted, virt-manager, ...) fails
+  # with an authentication error instead of showing a password dialog.
+  # Runs as a user service bound to graphical-session.target.
+  services.hyprpolkitagent.enable = true;
 }

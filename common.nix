@@ -23,6 +23,7 @@
       });
     })
     inputs.claude-code-nix.overlays.default
+    (import ./overlays/yabridge-wine11.nix)
   ];
 
   nixpkgs.config.allowUnfree = true;
@@ -160,9 +161,13 @@
     "context.properties" = {
       "default.clock.rate" = 48000;
       "default.clock.quantum" = config.deviceConfig.jackBufferSize;
-      "default.clock.min-quantum" = 64;
-      "default.clock.max-quantum" = 256;
-      "default.clock.force-quantum" = config.deviceConfig.jackBufferSize;
+      "default.clock.min-quantum" = config.deviceConfig.jackBufferSize;
+      # max-quantum IS the pin: default.clock.force-quantum is NOT a config
+      # property (runtime metadata only — pipewire silently ignores it here;
+      # verified 2026-08-17 when vesktop's 512-sample request dragged the
+      # graph to 256 and brought the M4 follower-resync dropouts back).
+      # min = max = jackBufferSize means no client request can move it.
+      "default.clock.max-quantum" = config.deviceConfig.jackBufferSize;
     };
   };
 
@@ -224,6 +229,8 @@
   security.polkit.enable = true;
 
   programs.steam.enable = true;
+
+  programs.gamemode.enable = true;
 
   programs.hyprland = {
     enable = true;

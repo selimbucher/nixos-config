@@ -1,18 +1,25 @@
 { pkgs, ... }:
 let
-  # yabridge is hard-pinned to this exact wine build. ANYTHING that touches the
-  # ~/.wine-ni prefix (plugin installers, wineserver, winetricks) must use this
-  # same wine — a prefix has one wineserver and it speaks one protocol version,
-  # so mixing this with wine64Packages.staging (11.12) triggers the
-  # "server uses a different version" error. Never point 11.12 at ~/.wine-ni.
-  wineNi = pkgs.wineWow64Packages.yabridge;
+  # The single wine for the whole stack: the wow64 wine-staging build that
+  # yabridge is compiled against (overlays/yabridge-wine11.nix). Being the
+  # ONLY wine on PATH is what keeps a foreign build off the plugin prefixes —
+  # that used to be a comment plus a second, deliberately 64-bit-only package;
+  # now it is structural. A prefix has one wineserver speaking one protocol
+  # version, and a different wine booting a prefix upgrades/corrupts it (that
+  # is what broke the ROLI prefix in July).
+  #
+  # This build is wow64, so 32-bit installers work — the old interactive
+  # `wine` (wine64Packages.staging) could not run them at all.
+  #
+  # Set WINEPREFIX yourself for anything that touches a plugin prefix:
+  #   WINEPREFIX=~/.wine-ni wine ~/Downloads/Native\ Access.exe
+  wine = pkgs.wineWow64Packages.yabridge;
 in
 {
   home.packages = with pkgs; [
     reaper
     yabridge
     yabridgectl
-    wine64Packages.staging   # interactive wine — for NON-plugin prefixes only
     qpwgraph
     winetricks
     pipewire.jack
@@ -22,21 +29,25 @@ in
     protontricks
     sox
 
-    # yabridge's pinned wine, exposed under distinct names so it can coexist
-    # with the interactive `wine` (11.12) on PATH. Use these for ANY prefix
-    # that yabridge hosts plugins from — set WINEPREFIX yourself:
-    #   WINEPREFIX=~/.wine-ni wine-yabridge ~/Downloads/Native\ Access.exe
-    (writeShellScriptBin "wine-yabridge" ''
-      exec ${wineNi}/bin/wine "$@"
-    '')
-    (writeShellScriptBin "wineserver-yabridge" ''
-      exec ${wineNi}/bin/wineserver "$@"
-    '')
+    # Room EQ Wizard — room measurement with the UMIK-1 (serial 7203116; cal
+    # files live in ~/Documents/UMIK-1). Unfree, which common.nix already
+    # allows. Pin matters: this is the no-JRE upstream build and nixpkgs wraps
+    # it with openjdk 8, which is the only runtime it works against.
+    #
+    # In Preferences -> Soundcard pick the raw ALSA devices (UMIK1 [plughw:2,0]
+    # in, M4 [plughw:4,0] out), NOT "Default Device" — the PipeWire bridge
+    # negotiates 16-bit, the direct devices give 24.
+    roomeqwizard
 
-    # Convenience shortcut for the main plugin prefix (~/.wine-ni).
-    (writeShellScriptBin "wine-ni" ''
-      export WINEPREFIX="$HOME/.wine-ni"
-      exec ${wineNi}/bin/wine "$@"
+    # Provides wine, wineserver, winecfg, wineboot, winedump. winetricks
+    # needs no pinning: it resolves WINE="${WINE:-wine}" from PATH, and this
+    # is the only wine there.
+    wine
+
+    # Kept under its own name because pkgs/reaper-tools/reaper-rescue.sh
+    # invokes it directly when killing wedged plugin hosts.
+    (writeShellScriptBin "wineserver-yabridge" ''
+      exec ${wine}/bin/wineserver "$@"
     '')
 
     # Kept as an alias for muscle memory — reaper-logged (home/apps/

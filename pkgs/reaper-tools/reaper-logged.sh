@@ -19,8 +19,8 @@ mkdir -p "$SESSIONS"
 TS="$(date +%Y-%m-%d_%H%M%S)"
 LOG="$SESSIONS/$TS-reaper.log"
 
-# keep the newest 20 sessions (2 files each)
-ls -1t "$SESSIONS" 2>/dev/null | tail -n +41 | while IFS= read -r f; do
+# keep the newest 20 sessions (2 files each; current-* symlinks are kept)
+ls -1t "$SESSIONS" 2>/dev/null | grep -v '^current-' | tail -n +41 | while IFS= read -r f; do
   rm -f "$SESSIONS/$f"
 done
 
@@ -31,6 +31,12 @@ reaper-rescue --cleanup-only >>"$LOG" 2>&1
 # All yabridge debug output plus everything the plugins and Wine print.
 # Bump YABRIDGE_DEBUG_LEVEL to 1 or 2 here when hunting a specific bug.
 export YABRIDGE_DEBUG_FILE="$SESSIONS/$TS-yabridge.log"
+
+# Stable names for the live session logs. reaper-crashwatch's wedge watchdog
+# follows current-yabridge.log with tail -F; retargeting the symlink on a new
+# session makes tail reopen it automatically.
+ln -sfn "$TS-yabridge.log" "$SESSIONS/current-yabridge.log"
+ln -sfn "$TS-reaper.log" "$SESSIONS/current-reaper.log"
 
 # pw-jack only matters if REAPER's audio system is set to JACK (it routes the
 # JACK API to PipeWire); with the current ALSA backend it is a no-op but kept
