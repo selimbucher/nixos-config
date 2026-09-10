@@ -240,6 +240,15 @@ in
       # when the last goes), 32 slots, and getFactory() called twice on an
       # instance unregisters the old factory first. Candidate for upstream.
       ./patches/yabridge-ara-factory-slot-sharing.patch
+      # yabridge-ara-head-tail-any-thread.patch (ours, 2026-09-10): the fork
+      # runs every ARA document-controller call REAPER makes on the plugin's
+      # GUI thread. ARA exempts getPlaybackRegionHeadAndTailTime(), "callable
+      # from any audio rendering thread", and REAPER asks it once per block
+      # per item from its render threads. Hopping those onto the GUI thread
+      # tied the audio path to that thread (the 09-08 wedge: media thread
+      # parked on it while Melodyne sat in a popup loop) and flooded it with
+      # work (the 09-10 frozen editor). Answer it on the receiving thread.
+      ./patches/yabridge-ara-head-tail-any-thread.patch
     ];
   });
 }

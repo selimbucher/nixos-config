@@ -1,0 +1,36 @@
+diff --git a/src/wine-host/bridges/vst3.cpp b/src/wine-host/bridges/vst3.cpp
+index 893a0b8..887a80c 100644
+--- a/src/wine-host/bridges/vst3.cpp
++++ b/src/wine-host/bridges/vst3.cpp
+@@ -2754,10 +2754,17 @@ void Vst3Bridge::run() {
+             if (!dc || !dc->dc_instance)
+                 return YaAra::GetPlaybackRegionHeadAndTailTime::Response{};
+             const auto playback_region_ref = r.playback_region_ref;
+-            return dc_call(
+-                dc,
+-                [&](auto* iface, auto dcr)
+-                    -> YaAra::GetPlaybackRegionHeadAndTailTime::Response {
++            // Not `dc_call()`: ARA documents this one as callable "either
++            // from the model thread or from any (realtime or offline) audio
++            // rendering thread", and hosts query it per audio block from
++            // their render threads. Hopping it onto the GUI thread made the
++            // audio path depend on the plugin's GUI thread: one hop per block
++            // per instance, stalled by any nested message loop the plugin
++            // runs, and enough queued work to starve its own windows.
++            return [&]() -> YaAra::GetPlaybackRegionHeadAndTailTime::Response {
++                auto* iface = dc->dc_instance->documentControllerInterface;
++                auto dcr = dc->dc_instance->documentControllerRef;
++                {
+                     ARA::ARATimeDuration head = 0.0, tail = 0.0;
+                     iface->getPlaybackRegionHeadAndTailTime(
+                         dcr,
+@@ -2765,7 +2772,8 @@ void Vst3Bridge::run() {
+                             playback_region_ref),
+                         &head, &tail);
+                     return {.head_time = head, .tail_time = tail};
+-                });
++                }
++            }();
+         },
+         [&](const YaAra::StoreObjectsToArchive& r)
+             -> YaAra::StoreObjectsToArchive::Response {
