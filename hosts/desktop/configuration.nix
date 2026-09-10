@@ -31,6 +31,18 @@
     KERNEL=="hidraw*", ATTRS{idVendor}=="0168", ATTRS{idProduct}=="0821", TAG+="uaccess"
   '';
 
+  # MediaTek MT7921 Bluetooth (USB 0e8d:0608, the on-board Wi-Fi/BT combo).
+  # btusb autosuspends it after 2s idle and the firmware then never wakes for
+  # the MX Master 3S's BLE reconnect advertisements, so the mouse "randomly"
+  # fails to connect until something pokes the controller (reboot, or a
+  # host-initiated `bluetoothctl connect`). Diagnosed 2026-09-08:
+  # power/runtime_status=suspended while the mouse couldn't connect; a direct
+  # connect flipped it to active and worked instantly.
+  # A udev ATTR{power/control}="on" rule does NOT work here: the USB device
+  # enumerates in the initrd ~5s before btusb loads, and btusb_probe() then
+  # calls usb_enable_autosuspend() which resets control back to "auto"
+  # (verified 2026-09-09). Disabling it at the driver level is race-free.
+  boot.extraModprobeConfig = "options btusb enable_autosuspend=0";
 
   deviceConfig = {
     sddmWayland = false;

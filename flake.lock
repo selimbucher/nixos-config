@@ -73,11 +73,11 @@
         "systems": "systems"
       },
       "locked": {
-        "lastModified": 1786384113,
-        "narHash": "sha256-Spc+2E3qAl6x16nW6dnrsu5Fx+YBitEi3Caxpea5wqQ=",
+        "lastModified": 1788552094,
+        "narHash": "sha256-fdD1tF+RjJME8DRMI/dz2lBuFQ8SvyPCF8tVVZ02OvQ=",
         "owner": "sadjow",
         "repo": "claude-code-nix",
-        "rev": "e54a54c423925d7b309231f7c58867ccb81e96f3",
+        "rev": "ac5abfc00fe9226e9d116f8e2fbb69ae26775ea3",
         "type": "github"
       },
       "original": {
@@ -170,11 +170,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786402167,
-        "narHash": "sha256-g6TJIgl77xBd/6JjkqzxMOJohM1byJ5CU0MVIwo+TdQ=",
+        "lastModified": 1789054774,
+        "narHash": "sha256-J5jwdxQ6a83/1WSGIu3Q9dC1nrEGgQCEGhvDD9L609c=",
         "owner": "selimbucher",
         "repo": "kiwi-shell",
-        "rev": "42c9427d0cba0ae21271a3bc8c9d9f08adcc2395",
+        "rev": "2c60ab334aa7a78f1e4b568c615d115748240cbe",
         "type": "github"
       },
       "original": {
@@ -211,11 +211,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1785838855,
-        "narHash": "sha256-0Cxn3DFBbk69dlSu2oSfLJix8EWB4Auv3yefKJhyJHw=",
+        "lastModified": 1789059054,
+        "narHash": "sha256-EG5Qo2sczrbcYV756V5Idnx7EoBSXTuSKVOtRFBUAnM=",
         "owner": "selimbucher",
         "repo": "native-instruments",
-        "rev": "06a2e9c6117111e156f1f179ea995a787b3dafe7",
+        "rev": "f96e3bcab9317f764d79b9f87b2c60f99978a650",
         "type": "github"
       },
       "original": {

@@ -1,0 +1,84 @@
+wineserver: batch inproc mutex abandonment to avoid O(mutexes) ioctl storms on every thread exit.
+
+--- a/server/inproc_sync.c
++++ b/server/inproc_sync.c
+@@ -198,12 +198,77 @@
+     close( sync->fd );
+ }
+ 
+-void abandon_inproc_mutexes( thread_id_t tid )
++/* Batched mutex abandonment: the straightforward implementation issues one
++ * NTSYNC_IOC_MUTEX_KILL ioctl per live mutex on EVERY thread exit, which is
++ * O(mutexes) work serialized in wineserver.  Applications that create and
++ * join thousands of short-lived threads while owning thousands of mutexes
++ * (e.g. Spectrasonics Omnisphere on patch loads: ~7000 thread exits against
++ * ~3000+ mutexes) turn this into tens of seconds of 100% wineserver CPU.
++ *
++ * Instead, collect dead thread ids and periodically make a single pass that
++ * reads each mutex's owner and only kills matches.  The batch is flushed
++ * when it reaches ABANDON_BATCH_MAX entries or after a short timeout.
++ *
++ * tid-reuse safety: alloc_ptid() only recycles a freed ptid after at least
++ * 256 other entries have been freed (num_free_ptids >= 256 in process.c),
++ * so with ABANDON_BATCH_MAX = 128 a pending dead tid can never be handed to
++ * a new thread before the flush runs.
++ *
++ * Semantic difference: waiters on a genuinely abandoned mutex may observe
++ * WAIT_ABANDONED up to 250ms later than before.  Abandonment is an error
++ * recovery path; the delay is considered acceptable.
++ */
++#define ABANDON_BATCH_MAX 128
++static thread_id_t pending_dead_tids[ABANDON_BATCH_MAX];
++static unsigned int num_pending_dead_tids;
++static struct timeout_user *abandon_flush_timeout;
++
++static void flush_abandoned_inproc_mutexes( void *private )
+ {
+     struct inproc_sync *mutex;
++    unsigned int i;
++
++    abandon_flush_timeout = NULL;
++    if (!num_pending_dead_tids) return;
+ 
+     LIST_FOR_EACH_ENTRY( mutex, &inproc_mutexes, struct inproc_sync, entry )
+-        ioctl( mutex->fd, NTSYNC_IOC_MUTEX_KILL, &tid );
++    {
++        struct ntsync_mutex_args args = {0};
++        /* EOWNERDEAD means it is already abandoned; other failures: skip */
++        if (ioctl( mutex->fd, NTSYNC_IOC_MUTEX_READ, &args ) < 0 || !args.owner) continue;
++        for (i = 0; i < num_pending_dead_tids; i++)
++        {
++            if (args.owner == pending_dead_tids[i])
++            {
++                ioctl( mutex->fd, NTSYNC_IOC_MUTEX_KILL, &args.owner );
++                break;
++            }
++        }
++    }
++    num_pending_dead_tids = 0;
++}
++
++void abandon_inproc_mutexes( thread_id_t tid )
++{
++    unsigned int i;
++
++    for (i = 0; i < num_pending_dead_tids; i++)
++        if (pending_dead_tids[i] == tid) return;
++
++    pending_dead_tids[num_pending_dead_tids++] = tid;
++
++    if (num_pending_dead_tids >= ABANDON_BATCH_MAX)
++    {
++        if (abandon_flush_timeout)
++        {
++            remove_timeout_user( abandon_flush_timeout );
++            abandon_flush_timeout = NULL;
++        }
++        flush_abandoned_inproc_mutexes( NULL );
++    }
++    else if (!abandon_flush_timeout)
++        abandon_flush_timeout = add_timeout_user( -TICKS_PER_SEC / 4,
++                                                  flush_abandoned_inproc_mutexes, NULL );
+ }
+ 
+ static int get_obj_inproc_sync( struct object *obj, int *type )

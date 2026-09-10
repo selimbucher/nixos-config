@@ -1,0 +1,189 @@
+--- a/src/plugin/bridges/clap.cpp
++++ b/src/plugin/bridges/clap.cpp
+@@ -103,14 +103,15 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          audio_ports =
+-                             plugin_proxy.host_extensions_.audio_ports]() {
+-                            audio_ports->rescan(host, request.flags);
+-                        })
+-                        .wait();
++                             plugin_proxy.host_extensions_.audio_ports,
++                         flags = request.flags]() {
++                            audio_ports->rescan(host, flags);
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -119,14 +120,14 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          audio_ports_config = plugin_proxy.host_extensions_
+                                                   .audio_ports_config]() {
+                             audio_ports_config->rescan(host);
+-                        })
+-                        .wait();
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -184,13 +185,23 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // NOTE: Not awaited. These are void notifications, so
++                    //       we acknowledge immediately and let the host run
++                    //       the callback whenever its main thread is free.
++                    //       Blocking here until the callback ran deadlocks:
++                    //       if our main thread is currently inside a blocking
++                    //       plugin call (e.g. clap_plugin_state::save() for an
++                    //       undo point), and the Wine-side main thread is
++                    //       parked inside a mutually recursive send waiting
++                    //       for this Ack (e.g. FabFilter Pro-L 2 firing
++                    //       clap_host_latency.changed() from a GUI click),
++                    //       then neither side can ever make progress.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          latency = plugin_proxy.host_extensions_.latency]() {
+                             latency->changed(host);
+-                        })
+-                        .wait();
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -199,14 +210,14 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          note_name =
+                              plugin_proxy.host_extensions_.note_name]() {
+                             note_name->changed(host);
+-                        })
+-                        .wait();
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -233,14 +244,15 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          note_ports =
+-                             plugin_proxy.host_extensions_.note_ports]() {
+-                            note_ports->rescan(host, request.flags);
+-                        })
+-                        .wait();
++                             plugin_proxy.host_extensions_.note_ports,
++                         flags = request.flags]() {
++                            note_ports->rescan(host, flags);
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -249,18 +261,19 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, plugin_proxy = &plugin_proxy,
++                        [plugin_proxy = &plugin_proxy,
+                          host = plugin_proxy.host_,
+-                         params = plugin_proxy.host_extensions_.params]() {
++                         params = plugin_proxy.host_extensions_.params,
++                         flags = request.flags]() {
+                             // Parameter information is cached and fetched in
+                             // bulk as an optimization
+                             plugin_proxy->clear_param_info_cache();
+ 
+-                            params->rescan(host, request.flags);
+-                        })
+-                        .wait();
++                            params->rescan(host, flags);
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -269,14 +282,15 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
+-                         params = plugin_proxy.host_extensions_.params]() {
+-                            params->clear(host, request.param_id,
+-                                          request.flags);
+-                        })
+-                        .wait();
++                        [host = plugin_proxy.host_,
++                         params = plugin_proxy.host_extensions_.params,
++                         param_id = request.param_id,
++                         flags = request.flags]() {
++                            params->clear(host, param_id, flags);
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -285,13 +299,13 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          state = plugin_proxy.host_extensions_.state]() {
+                             state->mark_dirty(host);
+-                        })
+-                        .wait();
++                        });
+ 
+                     return Ack{};
+                 },
+@@ -300,14 +314,14 @@
+                     const auto& [plugin_proxy, _] =
+                         get_proxy(request.owner_instance_id);
+ 
++                    // Not awaited: see the deadlock NOTE at latency::host::Changed.
+                     run_on_main_thread(
+                         plugin_proxy,
+-                        [&, host = plugin_proxy.host_,
++                        [host = plugin_proxy.host_,
+                          voice_info =
+                              plugin_proxy.host_extensions_.voice_info]() {
+                             voice_info->changed(host);
+-                        })
+-                        .wait();
++                        });
+ 
+                     return Ack{};
+                 },

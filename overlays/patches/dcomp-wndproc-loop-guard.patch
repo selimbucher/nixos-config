@@ -1,0 +1,174 @@
+diff --git a/dlls/dcomp/device.c b/dlls/dcomp/device.c
+index 394d37d..072f4f1 100644
+--- a/dlls/dcomp/device.c
++++ b/dlls/dcomp/device.c
+@@ -4939,6 +4939,34 @@ static void dcomp_target_flush_present(struct dcomp_target *target, struct dcomp
+     target->last_present_qpc = dcomp_qpc_now();
+ }
+ 
++
++/* Break wndproc forward loops (stack overflow with JUCE 8 + PACE-wrapped
++ * plugins): several parties subclass the same HWND (the application, copy
++ * protection, this dll and dcomp).  The "original" procedures they save are
++ * user32 winproc handles rather than raw function pointers, so identity
++ * checks cannot detect a cycle in the chain, and one message can forward
++ * around the ring forever until the stack overflows.  Cap the same-window
++ * forward nesting depth; legitimate nesting never comes close. */
++static LRESULT dcomp_guarded_forward(WNDPROC proc, HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
++{
++    UINT_PTR depth = (UINT_PTR)GetPropW(hwnd, L"__wine_dcomp_fwd_depth");
++    LRESULT ret;
++
++    if (!proc)
++        return DefWindowProcW(hwnd, msg, wparam, lparam);
++    if (depth >= 32)
++    {
++        static unsigned int loop_count;
++        if (++loop_count <= 3 || !(loop_count % 1000))
++            ERR("Breaking wndproc forward loop on %p (msg %#x, #%u).\n", hwnd, msg, loop_count);
++        return DefWindowProcW(hwnd, msg, wparam, lparam);
++    }
++    SetPropW(hwnd, L"__wine_dcomp_fwd_depth", (HANDLE)(depth + 1));
++    ret = CallWindowProcW(proc, hwnd, msg, wparam, lparam);
++    SetPropW(hwnd, L"__wine_dcomp_fwd_depth", (HANDLE)depth);
++    return ret;
++}
++
+ /* Phase 5: WndProc subclass — suppresses WM_ERASEBKGND to prevent white-on-open.
+  * WM_PAINT is forwarded to the original WndProc so that VSTGUI can call
+  * BeginDraw → Render → EndDraw → Commit in response to paint requests. */
+@@ -4966,7 +4994,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+             if (++orphan_forward_count <= 3 || !(orphan_forward_count % 1000))
+                 FIXME("Forwarding message %#x for orphaned subclass on hwnd %p to %p #%u.\n",
+                         msg, hwnd, real, orphan_forward_count);
+-            return CallWindowProcW(real, hwnd, msg, wparam, lparam);
++            return dcomp_guarded_forward(real, hwnd, msg, wparam, lparam);
+         }
+         return DefWindowProcW(hwnd, msg, wparam, lparam);
+     }
+@@ -5054,7 +5082,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+             if (!target->covers_window)
+             {
+                 LRESULT ret = orig_wndproc
+-                        ? CallWindowProcW(orig_wndproc, hwnd, msg, wparam, lparam)
++                        ? dcomp_guarded_forward(orig_wndproc, hwnd, msg, wparam, lparam)
+                         : DefWindowProcW(hwnd, msg, wparam, lparam);
+ 
+                 dcomp_target_composite_tree(target, FALSE);
+@@ -5088,12 +5116,12 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+         target->orig_wndproc = NULL;
+         if (!orig_wndproc)
+             return DefWindowProcW(hwnd, msg, wparam, lparam);
+-        return CallWindowProcW(orig_wndproc, hwnd, msg, wparam, lparam);
++        return dcomp_guarded_forward(orig_wndproc, hwnd, msg, wparam, lparam);
+     }
+ 
+     if (!orig_wndproc)
+         return DefWindowProcW(hwnd, msg, wparam, lparam);
+-    return CallWindowProcW(orig_wndproc, hwnd, msg, wparam, lparam);
++    return dcomp_guarded_forward(orig_wndproc, hwnd, msg, wparam, lparam);
+ }
+ 
+ static HRESULT STDMETHODCALLTYPE dcomp_device_Commit(IDCompositionDevice *iface)
+diff --git a/dlls/dxgi/factory.c b/dlls/dxgi/factory.c
+index 33c3775..fe2b9b6 100644
+--- a/dlls/dxgi/factory.c
++++ b/dlls/dxgi/factory.c
+@@ -519,6 +519,34 @@ static void dcomp_restore_parent_clip(HWND hwnd)
+     }
+ }
+ 
++
++/* Break wndproc forward loops (stack overflow with JUCE 8 + PACE-wrapped
++ * plugins): several parties subclass the same HWND (the application, copy
++ * protection, this dll and dcomp).  The "original" procedures they save are
++ * user32 winproc handles rather than raw function pointers, so identity
++ * checks cannot detect a cycle in the chain, and one message can forward
++ * around the ring forever until the stack overflows.  Cap the same-window
++ * forward nesting depth; legitimate nesting never comes close. */
++static LRESULT dcomp_guarded_forward(WNDPROC proc, HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
++{
++    UINT_PTR depth = (UINT_PTR)GetPropW(hwnd, L"__wine_dcomp_fwd_depth");
++    LRESULT ret;
++
++    if (!proc)
++        return DefWindowProcW(hwnd, msg, wparam, lparam);
++    if (depth >= 32)
++    {
++        static unsigned int loop_count;
++        if (++loop_count <= 3 || !(loop_count % 1000))
++            ERR("Breaking wndproc forward loop on %p (msg %#x, #%u).\n", hwnd, msg, loop_count);
++        return DefWindowProcW(hwnd, msg, wparam, lparam);
++    }
++    SetPropW(hwnd, L"__wine_dcomp_fwd_depth", (HANDLE)(depth + 1));
++    ret = CallWindowProcW(proc, hwnd, msg, wparam, lparam);
++    SetPropW(hwnd, L"__wine_dcomp_fwd_depth", (HANDLE)depth);
++    return ret;
++}
++
+ /* Lightweight subclass for DComp popup windows (menus, tooltips).
+  * Only blocks WM_ERASEBKGND and re-blits composition content on WM_PAINT.
+  * NO timer, NO periodic Present â avoids dual-swapchain
+@@ -607,7 +635,7 @@ static LRESULT CALLBACK dcomp_popup_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+             }
+ 
+             dcomp_restore_parent_clip(hwnd);
+-            result = orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++            result = orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                          : DefWindowProcW(hwnd, msg, wparam, lparam);
+             RemovePropW(hwnd, L"__wine_dcomp_orig_wndproc");
+             RemovePropW(hwnd, L"__wine_dcomp_subclass_proc");
+@@ -618,7 +646,7 @@ static LRESULT CALLBACK dcomp_popup_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+         }
+     }
+ 
+-    return orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++    return orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                 : DefWindowProcW(hwnd, msg, wparam, lparam);
+ }
+ 
+@@ -655,7 +683,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+              * our blit) so the swapchain content stays on top of whatever
+              * the app painted. */
+             if (orig)
+-                CallWindowProcW(orig, hwnd, msg, wparam, lparam);
++                dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam);
+             else
+                 DefWindowProcW(hwnd, msg, wparam, lparam);
+ 
+@@ -699,7 +727,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+         case WM_WINDOWPOSCHANGED:
+         {
+             const WINDOWPOS *wp = (const WINDOWPOS *)lparam;
+-            LRESULT result = orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++            LRESULT result = orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                                   : DefWindowProcW(hwnd, msg, wparam, lparam);
+             /* Only reblit when the window was actually moved, resized, or shown.
+              * Pure Z-order changes (e.g. popup menu appearing above) do not
+@@ -718,7 +746,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+         case WM_CHILDACTIVATE:
+         case WM_MOUSEACTIVATE:
+         {
+-            LRESULT result = orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++            LRESULT result = orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                                   : DefWindowProcW(hwnd, msg, wparam, lparam);
+             dcomp_reblit_comp_buffer(hwnd, msg == WM_ACTIVATE ? "activate" :
+                     msg == WM_SHOWWINDOW ? "showwindow" :
+@@ -739,7 +767,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+             if (sc)
+                 d3d11_swapchain_from_IDXGISwapChain4(sc)->target_hwnd = NULL;
+             dcomp_restore_parent_clip(hwnd);
+-            result = orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++            result = orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                          : DefWindowProcW(hwnd, msg, wparam, lparam);
+             RemovePropW(hwnd, L"__wine_dcomp_orig_wndproc");
+             RemovePropW(hwnd, L"__wine_dcomp_subclass_proc");
+@@ -750,7 +778,7 @@ static LRESULT CALLBACK dcomp_target_wndproc(HWND hwnd, UINT msg, WPARAM wparam,
+         }
+     }
+ 
+-    return orig ? CallWindowProcW(orig, hwnd, msg, wparam, lparam)
++    return orig ? dcomp_guarded_forward(orig, hwnd, msg, wparam, lparam)
+                 : DefWindowProcW(hwnd, msg, wparam, lparam);
+ }
+ 

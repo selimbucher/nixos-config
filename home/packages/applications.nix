@@ -78,6 +78,7 @@ in
     gnome-text-editor
     thunderbird
     prismlauncher
+    r2modman
     transcribe
     demucs
     basic-pitch

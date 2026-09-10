@@ -1,0 +1,170 @@
+mutual-recursion: reuse pooled sending threads in fork() instead of spawning a Wine thread per mutually recursive call (Omnisphere: thousands of performEdit callbacks per preset load).
+
+--- a/src/common/mutual-recursion.h
++++ b/src/common/mutual-recursion.h
+@@ -16,9 +16,14 @@
+ 
+ #pragma once
+ 
++#include <condition_variable>
++#include <functional>
+ #include <future>
++#include <memory>
++#include <mutex>
+ #include <optional>
+ #include <type_traits>
++#include <vector>
+ 
+ #ifdef __WINE__
+ #include "../wine-host/use-linux-asio.h"
+@@ -96,9 +101,17 @@
+         auto work_guard = asio::make_work_guard(*current_io_context);
+ 
+         // We will call the function from another thread so we can handle calls
+-        // to `handle()`/`maybe_handle()` from this thread
++        // to `handle()`/`maybe_handle()` from this thread.
++        //
++        // PERF (yabridge-fork): this used to construct a fresh `Thread` for
++        // every call. Under Wine a full thread spawn+join+exit cycle costs
++        // hundreds of microseconds to milliseconds of serialized wineserver
++        // work, and plugins like Omnisphere perform thousands of mutually
++        // recursive host callbacks (`performEdit()`, one per parameter) during
++        // a single preset load, freezing the host for many seconds. Dispatch
++        // to a small pool of reusable sending threads instead.
+         std::promise<Result> response_promise{};
+-        Thread sending_thread([&]() {
++        run_on_pooled_thread([&]() {
+             const Result response = fn();
+ 
+             // Stop accepting additional work to be run from the calling thread
+@@ -106,12 +119,17 @@
+             // the other side). By resetting the work guard we do not cancel any
+             // pending tasks, but `current_io_context->run()` will stop blocking
+             // eventually.
+-            std::lock_guard lock(mutual_recursion_contexts_mutex_);
+-            work_guard.reset();
+-            mutual_recursion_contexts_.erase(std::find(
+-                mutual_recursion_contexts_.begin(),
+-                mutual_recursion_contexts_.end(), current_io_context));
+-
++            {
++                std::lock_guard lock(mutual_recursion_contexts_mutex_);
++                work_guard.reset();
++                mutual_recursion_contexts_.erase(std::find(
++                    mutual_recursion_contexts_.begin(),
++                    mutual_recursion_contexts_.end(), current_io_context));
++            }
++
++            // NOTE: this must be the last statement that touches anything
++            //       captured by reference: as soon as the promise is set,
++            //       `fork()` may return and destroy its locals
+             response_promise.set_value(response);
+         });
+ 
+@@ -174,8 +192,106 @@
+         return do_call_response.get();
+     }
+ 
++    /**
++     * Joins all pooled sending threads. Any pending `fork()` calls must have
++     * returned before the helper is destroyed, same as with the previous
++     * thread-per-call implementation where `fork()` joined its own thread.
++     */
++    ~MutualRecursionHelper() {
++        for (auto& worker : thread_pool_) {
++            {
++                std::lock_guard lock(worker->mutex);
++                worker->shutdown = true;
++            }
++            worker->cv.notify_one();
++        }
++        // The `Thread` destructors implicitly join, like `std::jthread`
++        thread_pool_.clear();
++    }
++
+    private:
+     /**
++     * A reusable sending thread for `fork()`, see the perf note there.
++     */
++    struct PooledWorker {
++        std::mutex mutex;
++        std::condition_variable cv;
++        /** The task to run. Empty when the worker is idle. */
++        std::function<void()> task;
++        bool shutdown = false;
++        /**
++         * The actual thread. Started in `run_on_pooled_thread()` after the
++         * rest of the struct has been initialized, joined on destruction.
++         */
++        Thread thread;
++    };
++
++    /**
++     * Runs `task` on an idle pooled worker thread, spawning a new worker only
++     * when all existing ones are busy (i.e. once per level of concurrent or
++     * nested mutual recursion, instead of once per call).
++     */
++    void run_on_pooled_thread(std::function<void()> task) {
++        PooledWorker* worker = nullptr;
++        {
++            std::lock_guard lock(thread_pool_mutex_);
++            if (!idle_workers_.empty()) {
++                worker = idle_workers_.back();
++                idle_workers_.pop_back();
++            }
++        }
++
++        if (!worker) {
++            auto new_worker = std::make_unique<PooledWorker>();
++            worker = new_worker.get();
++            worker->thread = Thread([this, worker]() { worker_loop(worker); });
++
++            std::lock_guard lock(thread_pool_mutex_);
++            thread_pool_.push_back(std::move(new_worker));
++        }
++
++        {
++            std::lock_guard lock(worker->mutex);
++            worker->task = std::move(task);
++        }
++        worker->cv.notify_one();
++    }
++
++    void worker_loop(PooledWorker* worker) {
++        std::unique_lock lock(worker->mutex);
++        while (true) {
++            worker->cv.wait(
++                lock, [&]() { return worker->task || worker->shutdown; });
++            if (worker->shutdown) {
++                return;
++            }
++
++            std::function<void()> task = std::move(worker->task);
++            worker->task = {};
++
++            lock.unlock();
++            task();
++            lock.lock();
++
++            // Mark ourselves as idle again so the next `fork()` reuses this
++            // thread. Lock order note: `run_on_pooled_thread()` never holds
++            // `thread_pool_mutex_` while taking a worker's mutex, so taking
++            // `thread_pool_mutex_` while holding our own mutex here is safe.
++            std::lock_guard pool_lock(thread_pool_mutex_);
++            idle_workers_.push_back(worker);
++        }
++    }
++
++    /**
++     * All pooled sending threads ever spawned by `fork()`. Only grows to the
++     * maximum level of concurrent/nested mutual recursion (usually 1-2).
++     */
++    std::vector<std::unique_ptr<PooledWorker>> thread_pool_;
++    /** The subset of `thread_pool_` that is currently idle. */
++    std::vector<PooledWorker*> idle_workers_;
++    std::mutex thread_pool_mutex_;
++
++    /**
+      * These IO contexts will let us call functions from the thread that's
+      * currently calling `fork()` while we're waiting for the passed function to
+      * return. We need an entire stack of these to be able to support deeply

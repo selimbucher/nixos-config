@@ -1,0 +1,528 @@
+diff --git a/src/common/communication/clap.h b/src/common/communication/clap.h
+index f0718caf..95ae239c 100644
+--- a/src/common/communication/clap.h
++++ b/src/common/communication/clap.h
+@@ -153,6 +153,11 @@ class ClapSockets final : public Sockets {
+         plugin_host_main_thread_callback_.connect();
+     }
+ 
++    void abort_connect() override {
++        host_plugin_main_thread_control_.abort_connect();
++        plugin_host_main_thread_callback_.abort_connect();
++    }
++
+     void close() override {
+         // Manually close all sockets so we break out of any blocking operations
+         // that may still be active
+diff --git a/src/common/communication/common.h b/src/common/communication/common.h
+index 6f49d4ca..fa5ac5a0 100644
+--- a/src/common/communication/common.h
++++ b/src/common/communication/common.h
+@@ -334,6 +334,12 @@ class Sockets {
+      */
+     virtual void connect() = 0;
+ 
++    /**
++     * Mute-not-takedown: abort a blocking `connect()` from another thread so
++     * that it throws instead of waiting forever for a host that already died.
++     */
++    virtual void abort_connect() = 0;
++
+     /**
+      * Shut down and close all sockets. Called during the destructor and also
+      * explicitly called when shutting down a plugin in a group host process.
+@@ -395,6 +401,18 @@ class SocketHandler {
+      * Close the socket. Both sides that are actively listening will be thrown a
+      * `std::system_error` when this happens.
+      */
++    /**
++     * Mute-not-takedown: make a blocking `connect()` on the accepting side
++     * fail. Called from the host process watchdog when the Wine plugin host
++     * dies before the sockets are connected.
++     */
++    void abort_connect() {
++        if (acceptor_) {
++            std::error_code err;
++            acceptor_->close(err);
++        }
++    }
++
+     void close() {
+         // The shutdown can fail when the socket is already closed
+         std::error_code err;
+@@ -604,6 +622,18 @@ class AdHocSocketHandler {
+      * Close the socket. Both sides that are actively listening will be thrown a
+      * `std::system_error` when this happens.
+      */
++    /**
++     * Mute-not-takedown: make a blocking `connect()` on the accepting side
++     * fail. Called from the host process watchdog when the Wine plugin host
++     * dies before the sockets are connected.
++     */
++    void abort_connect() {
++        if (acceptor_) {
++            std::error_code err;
++            acceptor_->close(err);
++        }
++    }
++
+     void close() {
+         // The shutdown can fail when the socket is already closed
+         std::error_code err;
+diff --git a/src/common/communication/vst2.h b/src/common/communication/vst2.h
+index 56953cf0..8215520a 100644
+--- a/src/common/communication/vst2.h
++++ b/src/common/communication/vst2.h
+@@ -381,6 +381,14 @@ class Vst2Sockets final : public Sockets {
+         host_plugin_control_.connect();
+     }
+ 
++    void abort_connect() override {
++        host_plugin_dispatch_.abort_connect();
++        plugin_host_callback_.abort_connect();
++        host_plugin_parameters_.abort_connect();
++        host_plugin_process_replacing_.abort_connect();
++        host_plugin_control_.abort_connect();
++    }
++
+     void close() override {
+         // Manually close all sockets so we break out of any blocking operations
+         // that may still be active
+diff --git a/src/common/communication/vst3.h b/src/common/communication/vst3.h
+index 7fa2c7e9..256193b3 100644
+--- a/src/common/communication/vst3.h
++++ b/src/common/communication/vst3.h
+@@ -84,6 +84,11 @@ class Vst3Sockets final : public Sockets {
+         plugin_host_callback_.connect();
+     }
+ 
++    void abort_connect() override {
++        host_plugin_control_.abort_connect();
++        plugin_host_callback_.abort_connect();
++    }
++
+     void close() override {
+         // Manually close all sockets so we break out of any blocking operations
+         // that may still be active
+diff --git a/src/plugin/bridges/clap.h b/src/plugin/bridges/clap.h
+index 564e046a..21a73a70 100644
+--- a/src/plugin/bridges/clap.h
++++ b/src/plugin/bridges/clap.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <atomic>
++#include <system_error>
+ #include <shared_mutex>
+ #include <thread>
+ 
+@@ -111,8 +113,17 @@ class ClapPluginBridge : PluginBridge<ClapSockets<std::jthread>> {
+      */
+     template <typename T>
+     typename T::Response send_main_thread_message(const T& object) {
+-        return sockets_.host_plugin_main_thread_control_.send_message(
+-            object, std::pair<ClapLogger&, bool>(logger_, true));
++        using Response = typename T::Response;
++        if (host_connection_lost_) {
++            return Response{};
++        }
++        try {
++            return sockets_.host_plugin_main_thread_control_.send_message(
++                object, std::pair<ClapLogger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return Response{};
++        }
+     }
+ 
+     /**
+@@ -121,8 +132,17 @@ class ClapPluginBridge : PluginBridge<ClapSockets<std::jthread>> {
+      */
+     template <typename T>
+     typename T::Response send_audio_thread_message(const T& object) {
+-        return sockets_.send_audio_thread_control_message(
+-            object, std::pair<ClapLogger&, bool>(logger_, true));
++        using Response = typename T::Response;
++        if (host_connection_lost_) {
++            return Response{};
++        }
++        try {
++            return sockets_.send_audio_thread_control_message(
++                object, std::pair<ClapLogger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return Response{};
++        }
+     }
+ 
+     /**
+@@ -136,9 +156,17 @@ class ClapPluginBridge : PluginBridge<ClapSockets<std::jthread>> {
+     typename T::Response& receive_audio_thread_message_into(
+         const T& object,
+         typename T::Response& response_object) {
+-        return sockets_.receive_audio_thread_control_message_into(
+-            object, response_object,
+-            std::pair<ClapLogger&, bool>(logger_, true));
++        if (host_connection_lost_) {
++            return response_object;
++        }
++        try {
++            return sockets_.receive_audio_thread_control_message_into(
++                object, response_object,
++                std::pair<ClapLogger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return response_object;
++        }
+     }
+ 
+     // TODO: Do we need this for CLAP? If we do, update the docstring
+@@ -222,6 +250,30 @@ class ClapPluginBridge : PluginBridge<ClapSockets<std::jthread>> {
+      * The logging facility used for this instance of yabridge. Wraps around
+      * `PluginBridge::generic_logger`.
+      */
++    /**
++     * Mute-not-takedown: called the first time a socket operation fails
++     * because the Wine plugin host went away. See `Vst3PluginBridge`.
++     */
++    void handle_lost_connection(const std::string& what) noexcept {
++        if (host_connection_lost_.exchange(true)) {
++            return;
++        }
++        logger_.log("");
++        logger_.log("ERROR: Lost the connection to the Wine plugin host (" +
++                    what + ").");
++        logger_.log("       This plugin is now muted and every call to it "
++                    "returns a default;");
++        logger_.log("       remove or reload it to recover. yabridge would "
++                    "previously have");
++        logger_.log("       terminated the host application here.");
++        logger_.log("");
++    }
++
++    /**
++     * Whether the Wine plugin host has died, see `handle_lost_connection()`.
++     */
++    std::atomic_bool host_connection_lost_{false};
++
+     ClapLogger logger_;
+ 
+    private:
+diff --git a/src/plugin/bridges/common.h b/src/plugin/bridges/common.h
+index 676ecce0..fec92666 100644
+--- a/src/plugin/bridges/common.h
++++ b/src/plugin/bridges/common.h
+@@ -393,7 +393,13 @@ class PluginBridge {
+                         "see the error.",
+                         info_.native_library_path_);
+ 
+-                    std::terminate();
++                    // Mute-not-takedown: instead of terminating the whole
++                    // host application, abort the blocking `connect()` below.
++                    // That makes the bridge constructor throw, which the
++                    // module entry points already turn into a failed plugin
++                    // load.
++                    sockets_.abort_connect();
++                    return;
+                 }
+ 
+                 std::this_thread::sleep_for(20ms);
+diff --git a/src/plugin/bridges/vst2.cpp b/src/plugin/bridges/vst2.cpp
+index dc2e86fc..ed798f18 100644
+--- a/src/plugin/bridges/vst2.cpp
++++ b/src/plugin/bridges/vst2.cpp
+@@ -617,9 +617,18 @@ intptr_t Vst2PluginBridge::dispatch(AEffect* /*plugin*/,
+     // and loading plugin state it's much better to have bitsery or our
+     // receiving function temporarily allocate a large enough buffer rather than
+     // to have a bunch of allocated memory sitting around doing nothing.
+-    return sockets_.host_plugin_dispatch_.send_event(
+-        converter, std::pair<Vst2Logger&, bool>(logger_, true), opcode, index,
+-        value, data, option);
++    if (host_connection_lost_) {
++        return 0;
++    }
++    try {
++        return sockets_.host_plugin_dispatch_.send_event(
++            converter, std::pair<Vst2Logger&, bool>(logger_, true), opcode,
++            index, value, data, option);
++    } catch (const std::system_error& error) {
++        // Mute-not-takedown: the Wine plugin host died, keep the host alive
++        handle_lost_connection(error.what());
++        return 0;
++    }
+ }
+ 
+ template <typename T, bool replacing>
+@@ -692,12 +701,31 @@ void Vst2PluginBridge::do_process(T** inputs, T** outputs, int sample_frames) {
+     // After writing audio to the shared memory buffers, we'll send the
+     // processing request parameters to the Wine plugin host so it can start
+     // processing audio. This is why we don't need any explicit synchronisation.
+-    sockets_.host_plugin_process_replacing_.send(request);
+-
+-    // From the Wine side we'll send a zero byte struct back as an
+-    // acknowledgement that audio processing has finished. At this point the
+-    // audio will have been written to our buffers.
+-    sockets_.host_plugin_process_replacing_.receive_single<Ack>();
++    // Mute-not-takedown: a dead Wine plugin host produces silence instead of
++    // an exception escaping through the host's audio callback
++    const auto output_silence = [&]() {
++        if constexpr (replacing) {
++            for (int channel = 0; channel < plugin_.numOutputs; channel++) {
++                std::fill_n(outputs[channel], sample_frames, T(0));
++            }
++        }
++    };
++    if (host_connection_lost_) {
++        output_silence();
++        return;
++    }
++    try {
++        sockets_.host_plugin_process_replacing_.send(request);
++
++        // From the Wine side we'll send a zero byte struct back as an
++        // acknowledgement that audio processing has finished. At this point
++        // the audio will have been written to our buffers.
++        sockets_.host_plugin_process_replacing_.receive_single<Ack>();
++    } catch (const std::system_error& error) {
++        handle_lost_connection(error.what());
++        output_silence();
++        return;
++    }
+ 
+     for (int channel = 0; channel < plugin_.numOutputs; channel++) {
+         const T* output_channel =
+@@ -775,12 +803,22 @@ float Vst2PluginBridge::get_parameter(AEffect* /*plugin*/, int index) {
+ 
+     // Prevent race conditions from `getParameter()` and `setParameter()` being
+     // called at the same time since  they share the same socket
+-    {
++    if (host_connection_lost_) {
++        return 0.0f;
++    }
++    try {
+         std::lock_guard lock(parameters_mutex_);
+         sockets_.host_plugin_parameters_.send(request);
+ 
+         response =
+             sockets_.host_plugin_parameters_.receive_single<ParameterResult>();
++    } catch (const std::system_error& error) {
++        // Mute-not-takedown: the Wine plugin host died, keep the host alive
++        handle_lost_connection(error.what());
++        return 0.0f;
++    }
++    if (!response.value) {
++        return 0.0f;
+     }
+ 
+     logger_.log_get_parameter_response(*response.value);
+@@ -796,12 +834,19 @@ void Vst2PluginBridge::set_parameter(AEffect* /*plugin*/,
+     const Parameter request{index, value};
+     ParameterResult response;
+ 
+-    {
++    if (host_connection_lost_) {
++        return;
++    }
++    try {
+         std::lock_guard lock(parameters_mutex_);
+         sockets_.host_plugin_parameters_.send(request);
+ 
+         response =
+             sockets_.host_plugin_parameters_.receive_single<ParameterResult>();
++    } catch (const std::system_error& error) {
++        // Mute-not-takedown: the Wine plugin host died, keep the host alive
++        handle_lost_connection(error.what());
++        return;
+     }
+ 
+     logger_.log_set_parameter_response();
+diff --git a/src/plugin/bridges/vst2.h b/src/plugin/bridges/vst2.h
+index 7a130d4c..f3ac64a5 100644
+--- a/src/plugin/bridges/vst2.h
++++ b/src/plugin/bridges/vst2.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <atomic>
++#include <system_error>
+ #include <vestige/aeffectx.h>
+ 
+ #include <asio/io_context.hpp>
+@@ -157,6 +159,30 @@ class Vst2PluginBridge : PluginBridge<Vst2Sockets<std::jthread>> {
+      * The logging facility used for this instance of yabridge. Wraps around
+      * `PluginBridge::generic_logger`.
+      */
++    /**
++     * Mute-not-takedown: called the first time a socket operation fails
++     * because the Wine plugin host went away. See `Vst3PluginBridge`.
++     */
++    void handle_lost_connection(const std::string& what) noexcept {
++        if (host_connection_lost_.exchange(true)) {
++            return;
++        }
++        logger_.log("");
++        logger_.log("ERROR: Lost the connection to the Wine plugin host (" +
++                    what + ").");
++        logger_.log("       This plugin is now muted and every call to it "
++                    "returns a default;");
++        logger_.log("       remove or reload it to recover. yabridge would "
++                    "previously have");
++        logger_.log("       terminated the host application here.");
++        logger_.log("");
++    }
++
++    /**
++     * Whether the Wine plugin host has died, see `handle_lost_connection()`.
++     */
++    std::atomic_bool host_connection_lost_{false};
++
+     Vst2Logger logger_;
+ 
+     /**
+diff --git a/src/plugin/bridges/vst3.h b/src/plugin/bridges/vst3.h
+index f26979fd..f3f206be 100644
+--- a/src/plugin/bridges/vst3.h
++++ b/src/plugin/bridges/vst3.h
+@@ -16,8 +16,11 @@
+ 
+ #pragma once
+ 
++#include <atomic>
+ #include <shared_mutex>
++#include <system_error>
+ #include <thread>
++#include <variant>
+ 
+ #include "../../common/communication/vst3.h"
+ #include "../../common/logging/vst3.h"
+@@ -31,6 +34,17 @@ class Vst3PluginProxyImpl;
+ class AraDocumentControllerProxy;
+ #endif
+ 
++/**
++ * Mute-not-takedown: true when `V` is a `std::variant` that can hold `T`. Used
++ * to pick a sensible "the plugin host is gone" response for messages whose
++ * response is either a payload or a `UniversalTResult`.
++ */
++template <typename V, typename T>
++struct yabridge_variant_holds : std::false_type {};
++template <typename T, typename... Ts>
++struct yabridge_variant_holds<std::variant<Ts...>, T>
++    : std::bool_constant<(std::is_same_v<T, Ts> || ...)> {};
++
+ /**
+  * This handles the communication between the native host and a VST3 plugin
+  * hosted in our Wine plugin host. VST3 is handled very differently from VST2
+@@ -128,8 +142,17 @@ class Vst3PluginBridge : PluginBridge<Vst3Sockets<std::jthread>> {
+      */
+     template <typename T>
+     typename T::Response send_message(const T& object) {
+-        return sockets_.host_plugin_control_.send_message(
+-            object, std::pair<Vst3Logger&, bool>(logger_, true));
++        using Response = typename T::Response;
++        if (host_connection_lost_) {
++            return lost_connection_response<Response>();
++        }
++        try {
++            return sockets_.host_plugin_control_.send_message(
++                object, std::pair<Vst3Logger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return lost_connection_response<Response>();
++        }
+     }
+ 
+     /**
+@@ -140,8 +163,17 @@ class Vst3PluginBridge : PluginBridge<Vst3Sockets<std::jthread>> {
+      */
+     template <typename T>
+     typename T::Response send_audio_processor_message(const T& object) {
+-        return sockets_.send_audio_processor_message(
+-            object, std::pair<Vst3Logger&, bool>(logger_, true));
++        using Response = typename T::Response;
++        if (host_connection_lost_) {
++            return lost_connection_response<Response>();
++        }
++        try {
++            return sockets_.send_audio_processor_message(
++                object, std::pair<Vst3Logger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return lost_connection_response<Response>();
++        }
+     }
+ 
+     /**
+@@ -154,9 +186,17 @@ class Vst3PluginBridge : PluginBridge<Vst3Sockets<std::jthread>> {
+     typename T::Response& receive_audio_processor_message_into(
+         const T& object,
+         typename T::Response& response_object) {
+-        return sockets_.receive_audio_processor_message_into(
+-            object, response_object,
+-            std::pair<Vst3Logger&, bool>(logger_, true));
++        if (host_connection_lost_) {
++            return response_object;
++        }
++        try {
++            return sockets_.receive_audio_processor_message_into(
++                object, response_object,
++                std::pair<Vst3Logger&, bool>(logger_, true));
++        } catch (const std::system_error& error) {
++            handle_lost_connection(error.what());
++            return response_object;
++        }
+     }
+ 
+     /**
+@@ -193,6 +233,49 @@ class Vst3PluginBridge : PluginBridge<Vst3Sockets<std::jthread>> {
+         return mutual_recursion_.maybe_handle(std::forward<F>(fn));
+     }
+ 
++    /**
++     * Mute-not-takedown: the response we hand the host for a message we could
++     * not deliver because the Wine plugin host died. Errors where the message
++     * can express them, value-initialized objects otherwise.
++     */
++    template <typename Response>
++    static Response lost_connection_response() {
++        if constexpr (std::is_same_v<Response, UniversalTResult>) {
++            return UniversalTResult(Steinberg::kInternalError);
++        } else if constexpr (yabridge_variant_holds<Response,
++                                                    UniversalTResult>::value) {
++            return Response(UniversalTResult(Steinberg::kInternalError));
++        } else {
++            return Response{};
++        }
++    }
++
++    /**
++     * Mute-not-takedown: called the first time a socket operation fails
++     * because the Wine plugin host went away. From then on every call into
++     * the plugin returns a default/error response instead of the exception
++     * escaping into the host and terminating it.
++     */
++    void handle_lost_connection(const std::string& what) noexcept {
++        if (host_connection_lost_.exchange(true)) {
++            return;
++        }
++        logger_.log("");
++        logger_.log("ERROR: Lost the connection to the Wine plugin host (" +
++                    what + ").");
++        logger_.log("       This plugin is now muted and every call to it "
++                    "returns an error;");
++        logger_.log("       remove or reload it to recover. yabridge would "
++                    "previously have");
++        logger_.log("       terminated the host application here.");
++        logger_.log("");
++    }
++
++    /**
++     * Whether the Wine plugin host has died, see `handle_lost_connection()`.
++     */
++    std::atomic_bool host_connection_lost_{false};
++
+     /**
+      * The logging facility used for this instance of yabridge. Wraps around
+      * `PluginBridge::generic_logger`.

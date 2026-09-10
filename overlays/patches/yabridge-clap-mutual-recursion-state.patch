@@ -1,0 +1,104 @@
+--- a/src/wine-host/bridges/clap.cpp
++++ b/src/wine-host/bridges/clap.cpp
+@@ -309,8 +309,15 @@
+                 -> clap::plugin::Activate::Response {
+                 const auto& [instance, _] = get_instance(request.instance_id);
+ 
+-                return main_context_
+-                    .run_in_context([&, plugin = instance.plugin.get()]() {
++                // NOTE: This must handle mutual recursion. If the plugin
++                //       is currently blocked in a main-thread host
++                //       callback (e.g. clap_host_latency.changed() fired
++                //       from its GUI), then the main context's event loop
++                //       is not running and posting there deadlocks the
++                //       entire chain. The VST3 bridge already does this
++                //       for SetState/GetState.
++                return do_mutual_recursion_on_gui_thread(
++                    [&, plugin = instance.plugin.get()]() {
+                         const bool result = plugin->activate(
+                             plugin, request.sample_rate,
+                             request.min_frames_count, request.max_frames_count);
+@@ -324,20 +331,25 @@
+                             .result = result,
+                             .updated_audio_buffers_config =
+                                 std::move(updated_audio_buffers_config)};
+-                    })
+-                    .get();
++                    });
+             },
+             [&](clap::plugin::Deactivate& request)
+                 -> clap::plugin::Deactivate::Response {
+                 const auto& [instance, _] = get_instance(request.instance_id);
+ 
+-                return main_context_
+-                    .run_in_context([&, plugin = instance.plugin.get()]() {
++                // NOTE: This must handle mutual recursion. If the plugin
++                //       is currently blocked in a main-thread host
++                //       callback (e.g. clap_host_latency.changed() fired
++                //       from its GUI), then the main context's event loop
++                //       is not running and posting there deadlocks the
++                //       entire chain. The VST3 bridge already does this
++                //       for SetState/GetState.
++                return do_mutual_recursion_on_gui_thread(
++                    [&, plugin = instance.plugin.get()]() {
+                         plugin->deactivate(plugin);
+ 
+                         return Ack{};
+-                    })
+-                    .get();
++                    });
+             },
+             [&](const clap::ext::audio_ports::plugin::Count& request)
+                 -> clap::ext::audio_ports::plugin::Count::Response {
+@@ -839,9 +851,16 @@
+                 -> clap::ext::state::plugin::Save::Response {
+                 const auto& [instance, _] = get_instance(request.instance_id);
+ 
+-                return main_context_
+-                    .run_in_context([&, plugin = instance.plugin.get(),
+-                                     state = instance.extensions.state]() {
++                // NOTE: This must handle mutual recursion. If the plugin
++                //       is currently blocked in a main-thread host
++                //       callback (e.g. clap_host_latency.changed() fired
++                //       from its GUI), then the main context's event loop
++                //       is not running and posting there deadlocks the
++                //       entire chain. The VST3 bridge already does this
++                //       for SetState/GetState.
++                return do_mutual_recursion_on_gui_thread(
++                    [&, plugin = instance.plugin.get(),
++                     state = instance.extensions.state]() {
+                         clap::stream::Stream stream{};
+                         if (state->save(plugin, stream.ostream())) {
+                             return clap::ext::state::plugin::SaveResponse{
+@@ -850,19 +869,24 @@
+                             return clap::ext::state::plugin::SaveResponse{
+                                 .result = std::nullopt};
+                         }
+-                    })
+-                    .get();
++                    });
+             },
+             [&](clap::ext::state::plugin::Load& request)
+                 -> clap::ext::state::plugin::Load::Response {
+                 const auto& [instance, _] = get_instance(request.instance_id);
+ 
+-                return main_context_
+-                    .run_in_context([&, plugin = instance.plugin.get(),
+-                                     state = instance.extensions.state]() {
++                // NOTE: This must handle mutual recursion. If the plugin
++                //       is currently blocked in a main-thread host
++                //       callback (e.g. clap_host_latency.changed() fired
++                //       from its GUI), then the main context's event loop
++                //       is not running and posting there deadlocks the
++                //       entire chain. The VST3 bridge already does this
++                //       for SetState/GetState.
++                return do_mutual_recursion_on_gui_thread(
++                    [&, plugin = instance.plugin.get(),
++                     state = instance.extensions.state]() {
+                         return state->load(plugin, request.stream.istream());
+-                    })
+-                    .get();
++                    });
+             },
+             [&](clap::ext::voice_info::plugin::Get& request)
+                 -> clap::ext::voice_info::plugin::Get::Response {

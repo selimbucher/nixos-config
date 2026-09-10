@@ -1,0 +1,148 @@
+diff --git a/src/plugin/bridges/clap-impls/plugin-proxy.cpp b/src/plugin/bridges/clap-impls/plugin-proxy.cpp
+index 0a56cd02..193bbcf8 100644
+--- a/src/plugin/bridges/clap-impls/plugin-proxy.cpp
++++ b/src/plugin/bridges/clap-impls/plugin-proxy.cpp
+@@ -16,6 +16,8 @@
+ 
+ #include "plugin-proxy.h"
+ 
++#include <iostream>
++
+ #include "../clap.h"
+ 
+ ClapHostExtensions::ClapHostExtensions(const clap_host& host) noexcept
+@@ -264,6 +266,10 @@ clap_plugin_proxy::plugin_process(const struct clap_plugin* plugin,
+     assert(plugin && plugin->plugin_data && process);
+     auto self = static_cast<clap_plugin_proxy*>(plugin->plugin_data);
+ 
++    if (self->host_connection_lost_) {
++        return CLAP_PROCESS_ERROR;
++    }
++
+     // We'll synchronize the scheduling priority of the audio thread on the Wine
+     // plugin host with that of the host's audio thread every once in a while
+     std::optional<int> new_realtime_priority = std::nullopt;
+@@ -302,9 +308,19 @@ clap_plugin_proxy::plugin_process(const struct clap_plugin* plugin,
+ 
+     // We'll also receive the response into an existing object so we can also
+     // avoid heap allocations there
+-    self->bridge_.receive_audio_thread_message_into(
+-        MessageReference<clap::plugin::Process>(self->process_request_),
+-        self->process_response_);
++    try {
++        self->bridge_.receive_audio_thread_message_into(
++            MessageReference<clap::plugin::Process>(self->process_request_),
++            self->process_response_);
++    } catch (const std::exception& error) {
++        // See the VST3 plugin proxy: don't let a dead Wine plugin host take
++        // down the entire host process through its audio callback.
++        self->host_connection_lost_ = true;
++        std::cerr << "yabridge: lost connection to the Wine plugin host during "
++                     "process(), muting this plugin: "
++                  << error.what() << std::endl;
++        return CLAP_PROCESS_ERROR;
++    }
+ 
+     // At this point the shared audio buffers should contain the output audio,
+     // so we'll write that back to the host along with any metadata (which in
+diff --git a/src/plugin/bridges/clap-impls/plugin-proxy.h b/src/plugin/bridges/clap-impls/plugin-proxy.h
+index 838ad8a4..3ac3e3ea 100644
+--- a/src/plugin/bridges/clap-impls/plugin-proxy.h
++++ b/src/plugin/bridges/clap-impls/plugin-proxy.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <atomic>
++
+ #include <future>
+ #include <thread>
+ #include <vector>
+@@ -325,6 +327,12 @@ class clap_plugin_proxy {
+      */
+     time_t last_audio_thread_priority_synchronization_ = 0;
+ 
++    /// Set when the Wine plugin host died mid-`process()` (e.g. the plugin
++    /// crashed). Once set, `process()` short-circuits and the plugin stays
++    /// muted instead of the uncaught socket exception terminating the entire
++    /// host process.
++    std::atomic_bool host_connection_lost_{false};
++
+     /**
+      * A shared memory object to share audio buffers between the native plugin
+      * and the Wine plugin host. Copying audio is the most significant source of
+diff --git a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+index 47d7df2d..916e30ae 100644
+--- a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
++++ b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+@@ -16,6 +16,8 @@
+ 
+ #include "plugin-proxy.h"
+ 
++#include <iostream>
++
+ #include <pluginterfaces/vst/ivstmidicontrollers.h>
+ 
+ #ifdef WITH_ARA
+@@ -228,6 +230,10 @@ tresult PLUGIN_API Vst3PluginProxyImpl::setProcessing(TBool state) {
+ 
+ tresult PLUGIN_API
+ Vst3PluginProxyImpl::process(Steinberg::Vst::ProcessData& data) {
++    if (host_connection_lost_) {
++        return Steinberg::kInternalError;
++    }
++
+     // We'll synchronize the scheduling priority of the audio thread on the Wine
+     // plugin host with that of the host's audio thread every once in a while
+     std::optional<int> new_realtime_priority = std::nullopt;
+@@ -262,9 +268,21 @@ Vst3PluginProxyImpl::process(Steinberg::Vst::ProcessData& data) {
+ 
+     // We'll also receive the response into an existing object so we can also
+     // avoid heap allocations there
+-    bridge_.receive_audio_processor_message_into(
+-        MessageReference<YaAudioProcessor::Process>(process_request_),
+-        process_response_);
++    try {
++        bridge_.receive_audio_processor_message_into(
++            MessageReference<YaAudioProcessor::Process>(process_request_),
++            process_response_);
++    } catch (const std::exception& error) {
++        // The Wine plugin host died while we were waiting for it to process
++        // audio (this happens when the plugin crashes). Without this the
++        // exception escapes through the host's audio callback and takes the
++        // entire host down with it.
++        host_connection_lost_ = true;
++        std::cerr << "yabridge: lost connection to the Wine plugin host during "
++                     "process(), muting this plugin: "
++                  << error.what() << std::endl;
++        return Steinberg::kInternalError;
++    }
+ 
+     // At this point the shared audio buffers should contain the output audio,
+     // so we'll write that back to the host along with any metadata (which in
+diff --git a/src/plugin/bridges/vst3-impls/plugin-proxy.h b/src/plugin/bridges/vst3-impls/plugin-proxy.h
+index 61f8e0bb..ec2920bb 100644
+--- a/src/plugin/bridges/vst3-impls/plugin-proxy.h
++++ b/src/plugin/bridges/vst3-impls/plugin-proxy.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <atomic>
++
+ #include <map>
+ #include <mutex>
+ 
+@@ -449,6 +451,12 @@ class Vst3PluginProxyImpl : public Vst3PluginProxy {
+      */
+     time_t last_audio_thread_priority_synchronization_ = 0;
+ 
++    /// Set when the Wine plugin host died mid-`process()` (e.g. the plugin
++    /// crashed). Once set, `process()` short-circuits and the plugin stays
++    /// muted instead of the uncaught socket exception terminating the entire
++    /// host process.
++    std::atomic_bool host_connection_lost_{false};
++
+     /**
+      * Used to assign unique identifiers to context menus created by
+      * `IComponentHandler3::CreateContextMenu`.

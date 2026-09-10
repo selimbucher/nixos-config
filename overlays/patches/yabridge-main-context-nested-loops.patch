@@ -1,0 +1,162 @@
+--- a/src/wine-host/utils.h	2026-09-08 19:37:58.117556206 +0200
++++ b/src/wine-host/utils.h	2026-09-08 19:38:45.225316722 +0200
+@@ -18,6 +18,7 @@
+ 
+ #include "use-linux-asio.h"
+ 
++#include <atomic>
+ #include <future>
+ #include <memory>
+ #include <optional>
+@@ -249,6 +250,7 @@
+         std::packaged_task<Result()> call_fn(std::forward<F>(fn));
+         std::future<Result> result = call_fn.get_future();
+         asio::dispatch(context_, std::move(call_fn));
++        poke();
+ 
+         return result;
+     }
+@@ -261,9 +263,31 @@
+     template <std::invocable F>
+     void schedule_task(F&& fn) {
+         asio::post(context_, std::forward<F>(fn));
++        poke();
+     }
+ 
+     /**
++     * Ask the GUI thread to run the tasks queued on this context even when it
++     * is not currently inside `MainContext::run()`'s event loop. Plugins run
++     * their own nested Win32 message loops for popup menus, drag tracking and
++     * modal dialogs (`PeekMessage()`/`GetMessage()` + `DispatchMessage()`
++     * until the interaction finishes). Those loops dispatch window messages
++     * but never return to our asio event loop, so anything submitted through
++     * `run_in_context()` would otherwise wait until the nested loop ends. On
++     * Windows the host's main thread *is* the plugin's GUI thread and the
++     * host's work is message and timer driven, so it keeps running inside
++     * such loops. We emulate that by posting a message to a message-only
++     * window owned by the GUI thread; its window procedure polls the context.
++     * Any nested loop that dispatches messages will thus also execute our
++     * queued tasks, in the same place the native host would have run them.
++     *
++     * Observed 2026-09-08: Melodyne's popup tracking loop (SetCapture +
++     * PeekMessage + Sleep(1)) starved REAPER's ARA `notifyModelUpdates()`
++     * request forever, freezing the host's GUI thread.
++     */
++    void poke() noexcept;
++
++    /**
+      * Start a timer to handle events on a user configurable interval. The
+      * interval is controllable through the `frame_rate` option and defaults to
+      * 60 updates per second.
+@@ -320,6 +344,22 @@
+         std::chrono::steady_clock::duration interval);
+ 
+     /**
++     * The window procedure for `poke_window_`. Runs pending tasks when the
++     * poke message arrives, see `poke()`.
++     */
++    static LRESULT CALLBACK poke_window_proc(HWND hwnd,
++                                             UINT msg,
++                                             WPARAM wparam,
++                                             LPARAM lparam) noexcept;
++
++    /**
++     * A message-only window created on the GUI thread in `run()`. `poke()`
++     * posts a message to it so nested message loops run our queued tasks.
++     * Null until `run()` has created it, and again after it returns.
++     */
++    std::atomic<HWND> poke_window_ = nullptr;
++
++    /**
+      * The **Windows** thread ID the context is running on, which will be our
+      * GUI thread. Will be a nullopt until `MainContext::run()` has been called.
+      */
+--- a/src/wine-host/utils.cpp	2026-09-08 19:37:58.117522523 +0200
++++ b/src/wine-host/utils.cpp	2026-09-08 19:38:45.225494956 +0200
+@@ -111,8 +111,36 @@
+         });
+     }
+ 
++    // See `poke()`. The window class is registered once per process and the
++    // window belongs to this (GUI) thread, so its window procedure runs here.
++    static constexpr wchar_t poke_class_name[] = L"yabridge-main-context-poke";
++    WNDCLASSEXW poke_class{};
++    poke_class.cbSize = sizeof(poke_class);
++    poke_class.lpfnWndProc = poke_window_proc;
++    poke_class.hInstance = GetModuleHandleW(nullptr);
++    poke_class.lpszClassName = poke_class_name;
++    RegisterClassExW(&poke_class);
++    const HWND poke_window = CreateWindowExW(
++        0, poke_class_name, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr,
++        GetModuleHandleW(nullptr), nullptr);
++    if (poke_window) {
++        SetWindowLongPtrW(poke_window, GWLP_USERDATA,
++                          reinterpret_cast<LONG_PTR>(this));
++        poke_window_.store(poke_window);
++    } else {
++        std::cerr << "WARNING: Could not create the main context's poke "
++                     "window, host calls will stall while plugins run nested "
++                     "message loops"
++                  << std::endl;
++    }
++
+     context_.run();
+ 
++    poke_window_.store(nullptr);
++    if (poke_window) {
++        DestroyWindow(poke_window);
++    }
++
+     // We only need to check if the host is still running while the main context
+     // is also running. If a stop was requested, the entire application is
+     // supposed to shut down. Otherwise `watchdog_handler` would just block on
+@@ -124,6 +152,49 @@
+     context_.stop();
+ }
+ 
++// Private message for `poke()`. `WM_APP` messages are never sent by the
++// system, and the window is ours alone.
++static constexpr UINT WM_YABRIDGE_POKE = WM_APP + 0x59;
++
++void MainContext::poke() noexcept {
++    // When called from the GUI thread itself `asio::dispatch()` already ran
++    // the task inline (or the loop will get to it), no need to poke ourselves
++    if (is_gui_thread()) {
++        return;
++    }
++
++    if (const HWND poke_window = poke_window_.load()) {
++        PostMessageW(poke_window, WM_YABRIDGE_POKE, 0, 0);
++    }
++}
++
++LRESULT CALLBACK MainContext::poke_window_proc(HWND hwnd,
++                                               UINT msg,
++                                               WPARAM wparam,
++                                               LPARAM lparam) noexcept {
++    if (msg == WM_YABRIDGE_POKE) {
++        if (auto* self = reinterpret_cast<MainContext*>(
++                GetWindowLongPtrW(hwnd, GWLP_USERDATA))) {
++            // Running the context from within a handler that is itself being
++            // executed by `context_.run()` is allowed by asio: this behaves
++            // like a nested event loop, exactly what the plugin is doing with
++            // the Win32 message loop around us. `poll()` only runs the
++            // handlers that are ready right now and never blocks.
++            try {
++                self->context_.poll();
++            } catch (const std::exception& error) {
++                std::cerr << "Error while running the main context from a "
++                             "nested message loop: "
++                          << error.what() << std::endl;
++            }
++        }
++
++        return 0;
++    }
++
++    return DefWindowProcW(hwnd, msg, wparam, lparam);
++}
++
+ void MainContext::update_timer_interval(
+     std::chrono::steady_clock::duration new_interval) noexcept {
+     timer_interval_ = new_interval;

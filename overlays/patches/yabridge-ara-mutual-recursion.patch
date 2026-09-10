@@ -1,0 +1,382 @@
+diff --git a/src/common/mutual-recursion.h b/src/common/mutual-recursion.h
+index 2f0796ad..702a1435 100644
+--- a/src/common/mutual-recursion.h
++++ b/src/common/mutual-recursion.h
+@@ -182,6 +182,21 @@ class MutualRecursionHelper {
+             return std::nullopt;
+         }
+ 
++        // (ara-mutual-recursion, 2026-09-06) If we are already running on the
++        // thread that is blocked inside `fork()` (a handled callback that
++        // itself handles another callback, e.g. REAPER's `resizeView()`
++        // calling `IPlugView::onSize()` from inside a callback that was
++        // already dispatched here), then just call `fn` directly. Going
++        // through `asio::dispatch()` would run it inline anyway, but while
++        // holding `mutual_recursion_contexts_mutex_`, so a nested `fork()`
++        // inside `fn` would deadlock on that same mutex.
++        if (mutual_recursion_contexts_.back()
++                ->get_executor()
++                .running_in_this_thread()) {
++            mutual_recursion_lock.unlock();
++            return fn();
++        }
++
+         // This function is only used in synchronous contexts, so we'll just
+         // pretend that we're not doing any async things here
+         std::packaged_task<Result()> do_call(std::forward<F>(fn));
+diff --git a/src/plugin/bridges/vst3-impls/ara-document-controller-proxy.cpp b/src/plugin/bridges/vst3-impls/ara-document-controller-proxy.cpp
+index 0752b565..b12d1bad 100644
+--- a/src/plugin/bridges/vst3-impls/ara-document-controller-proxy.cpp
++++ b/src/plugin/bridges/vst3-impls/ara-document-controller-proxy.cpp
+@@ -252,19 +252,31 @@ const ARA::ARAFactory* ARA_CALL AraDocumentControllerProxy::get_factory(
+ void ARA_CALL AraDocumentControllerProxy::begin_editing(
+     ARA::ARADocumentControllerRef r) {
+     auto* p = self(r);
+-    p->bridge_.send_message(YaAra::BeginEditing{p->ara_dc_id_});
++    p->bridge_.send_mutually_recursive_message(YaAra::BeginEditing{p->ara_dc_id_});
+ }
+ 
+ void ARA_CALL AraDocumentControllerProxy::end_editing(
+     ARA::ARADocumentControllerRef r) {
+     auto* p = self(r);
+-    p->bridge_.send_message(YaAra::EndEditing{p->ara_dc_id_});
++    p->bridge_.send_mutually_recursive_message(YaAra::EndEditing{p->ara_dc_id_});
+ }
+ 
++// (ara-mutual-recursion, 2026-09-06) ARA lets the plug-in call back into the
++// host *synchronously* from inside a handful of document controller calls:
++// notifyModelUpdates() is where the plug-in reports content changes to the
++// host's model update controller, and the archive calls read/write through the
++// host's archive reader/writer. Hosts (REAPER included) expect those callbacks
++// on the thread that made the call and hold their own locks meanwhile. Sending
++// these as plain blocking messages parks the host's main thread in a socket
++// read while the callbacks queue up on yabridge's host-callbacks thread behind
++// that lock: a deadlock ring (REAPER frozen in notify_model_updates, observed
++// 2026-09-06 00:52). Route them through `send_mutually_recursive_message()`
++// so the callbacks run on the calling thread, exactly like yabridge already
++// does for VST3 state loading and GUI resizing.
+ void ARA_CALL AraDocumentControllerProxy::notify_model_updates(
+     ARA::ARADocumentControllerRef r) {
+     auto* p = self(r);
+-    p->bridge_.send_message(YaAra::NotifyModelUpdates{p->ara_dc_id_});
++    p->bridge_.send_mutually_recursive_message(YaAra::NotifyModelUpdates{p->ara_dc_id_});
+ }
+ 
+ ARA::ARABool ARA_CALL
+@@ -272,7 +284,7 @@ AraDocumentControllerProxy::begin_restoring_document_from_archive(
+     ARA::ARADocumentControllerRef r,
+     ARA::ARAArchiveReaderHostRef archiveReaderHostRef) {
+     auto* p = self(r);
+-    auto result = p->bridge_.send_message(
++    auto result = p->bridge_.send_mutually_recursive_message(
+         YaAra::BeginRestoringDocumentFromArchive{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(archiveReaderHostRef)});
+@@ -291,7 +303,7 @@ AraDocumentControllerProxy::end_restoring_document_from_archive(
+     ARA::ARADocumentControllerRef r,
+     ARA::ARAArchiveReaderHostRef archiveReaderHostRef) {
+     auto* p = self(r);
+-    auto result = p->bridge_.send_message(
++    auto result = p->bridge_.send_mutually_recursive_message(
+         YaAra::EndRestoringDocumentFromArchive{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(archiveReaderHostRef)});
+@@ -309,7 +321,7 @@ ARA::ARABool ARA_CALL AraDocumentControllerProxy::store_document_to_archive(
+     ARA::ARADocumentControllerRef r,
+     ARA::ARAArchiveWriterHostRef archiveWriterHostRef) {
+     auto* p = self(r);
+-    auto result = p->bridge_.send_message(YaAra::StoreDocumentToArchive{
++    auto result = p->bridge_.send_mutually_recursive_message(YaAra::StoreDocumentToArchive{
+         p->ara_dc_id_,
+         reinterpret_cast<uint64_t>(archiveWriterHostRef)});
+     return std::visit(
+@@ -1014,7 +1026,7 @@ ARA::ARABool ARA_CALL AraDocumentControllerProxy::restore_objects_from_archive(
+         ya_filter = std::move(f);
+     }
+ 
+-    auto result = p->bridge_.send_message(YaAra::RestoreObjectsFromArchive{
++    auto result = p->bridge_.send_mutually_recursive_message(YaAra::RestoreObjectsFromArchive{
+         p->ara_dc_id_,
+         reinterpret_cast<uint64_t>(archiveReaderHostRef),
+         std::move(ya_filter)});
+@@ -1051,7 +1063,7 @@ ARA::ARABool ARA_CALL AraDocumentControllerProxy::store_objects_to_archive(
+         ya_filter = std::move(f);
+     }
+ 
+-    auto result = p->bridge_.send_message(YaAra::StoreObjectsToArchive{
++    auto result = p->bridge_.send_mutually_recursive_message(YaAra::StoreObjectsToArchive{
+         p->ara_dc_id_,
+         reinterpret_cast<uint64_t>(archiveWriterHostRef),
+         std::move(ya_filter)});
+diff --git a/src/plugin/bridges/vst3.cpp b/src/plugin/bridges/vst3.cpp
+index b151a451..ff7bc06b 100644
+--- a/src/plugin/bridges/vst3.cpp
++++ b/src/plugin/bridges/vst3.cpp
+@@ -68,9 +68,12 @@ Vst3PluginBridge::Vst3PluginBridge(const ghc::filesystem::path& plugin_path)
+                        : nullptr;
+         };
+ #endif
+-        sockets_.plugin_host_callback_.receive_messages(
+-            std::pair<Vst3Logger&, bool>(logger_, false),
+-            overload{
++        // (ara-mutual-recursion) The handlers are kept in a named object so
++        // they can be dispatched either directly on this thread, or on the
++        // host thread that is currently blocked inside a
++        // `send_mutually_recursive_message()` (see the ARA document
++        // controller proxy for why that matters).
++        auto callback_handlers = overload{
+                 [&](const Vst3ContextMenuProxy::Destruct& request)
+                     -> Vst3ContextMenuProxy::Destruct::Response {
+                     const auto& [proxy_object, _] =
+@@ -1287,6 +1290,17 @@ Vst3PluginBridge::Vst3PluginBridge(const ghc::filesystem::path& plugin_path)
+                     return {ok != ARA::kARAFalse};
+                 },
+ #endif  // WITH_ARA
++        };
++
++        sockets_.plugin_host_callback_.receive_messages(
++            std::pair<Vst3Logger&, bool>(logger_, false),
++            [&](auto& request)
++                -> typename std::decay_t<decltype(request)>::Response {
++                auto fn = [&]() { return callback_handlers(request); };
++                if (auto result = maybe_run_on_mutual_recursion_thread(fn)) {
++                    return std::move(*result);
++                }
++                return fn();
+             });
+     });
+ }
+diff --git a/src/wine-host/bridges/vst3-impls/ara-host-callback-proxies.cpp b/src/wine-host/bridges/vst3-impls/ara-host-callback-proxies.cpp
+index ba104c68..d44bbeca 100644
+--- a/src/wine-host/bridges/vst3-impls/ara-host-callback-proxies.cpp
++++ b/src/wine-host/bridges/vst3-impls/ara-host-callback-proxies.cpp
+@@ -58,6 +58,14 @@ inline std::optional<YaAraContentTimeRange> to_ya(
+ 
+ }  // namespace
+ 
++// (ara-mutual-recursion, 2026-09-06) Every ARA host callback below can be issued
++// by the plug-in from inside a document controller call that the host is
++// blocked in (notifyModelUpdates, the archive calls, ...). They are therefore
++// sent with `send_mutually_recursive_message()`: while this thread waits for
++// the host's answer it keeps servicing nested host->plugin requests, exactly
++// like the VST3 component handler / plug frame proxies do. The audio reader
++// callbacks (CreateAudioReader / ReadAudioSamples / DestroyAudioReader) run
++// on the plug-in's analysis threads and stay plain sends.
+ // ---------------------------------------------------------------------------
+ // AraHostInstanceProxy constructor
+ // ---------------------------------------------------------------------------
+@@ -280,7 +288,7 @@ ARA::ARASize ARA_CALL AraHostInstanceProxy::get_archive_size(
+     ARA::ARAArchiveReaderHostRef reader) {
+     auto* p = proxy_from_archiving(h);
+     return static_cast<ARA::ARASize>(
+-        p->bridge_.send_message(YaAra::HostCallback::GetArchiveSize{
++        p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::GetArchiveSize{
+             p->ara_dc_id_, reinterpret_cast<uint64_t>(reader)}).value);
+ }
+ 
+@@ -292,7 +300,7 @@ ARA::ARABool ARA_CALL AraHostInstanceProxy::read_bytes_from_archive(
+     ARA::ARAByte buffer[]) {
+     auto* p = proxy_from_archiving(h);
+     const auto response =
+-        p->bridge_.send_message(YaAra::HostCallback::ReadBytesFromArchive{
++        p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::ReadBytesFromArchive{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(reader),
+             static_cast<uint64_t>(position),
+@@ -315,7 +323,7 @@ ARA::ARABool ARA_CALL AraHostInstanceProxy::write_bytes_to_archive(
+         reinterpret_cast<const uint8_t*>(buffer),
+         reinterpret_cast<const uint8_t*>(buffer) + length);
+     const int32_t result =
+-        p->bridge_.send_message(YaAra::HostCallback::WriteBytesToArchive{
++        p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::WriteBytesToArchive{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(writer),
+             static_cast<uint64_t>(position),
+@@ -327,7 +335,7 @@ void ARA_CALL AraHostInstanceProxy::notify_document_archiving_progress(
+     ARA::ARAArchivingControllerHostRef h,
+     float value) {
+     auto* p = proxy_from_archiving(h);
+-    p->bridge_.send_message(
++    p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::NotifyDocumentArchivingProgress{
+             p->ara_dc_id_, value});
+ }
+@@ -336,7 +344,7 @@ void ARA_CALL AraHostInstanceProxy::notify_document_unarchiving_progress(
+     ARA::ARAArchivingControllerHostRef h,
+     float value) {
+     auto* p = proxy_from_archiving(h);
+-    p->bridge_.send_message(
++    p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::NotifyDocumentUnarchivingProgress{
+             p->ara_dc_id_, value});
+ }
+@@ -346,7 +354,7 @@ ARA::ARAPersistentID ARA_CALL AraHostInstanceProxy::get_document_archive_id(
+     ARA::ARAArchiveReaderHostRef reader) {
+     auto* p = proxy_from_archiving(h);
+     const auto resp =
+-        p->bridge_.send_message(YaAra::HostCallback::GetDocumentArchiveID{
++        p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::GetDocumentArchiveID{
+             p->ara_dc_id_, reinterpret_cast<uint64_t>(reader)});
+     std::lock_guard lock(p->last_event_mutex_);
+     p->last_archive_id_ = resp.value;
+@@ -365,7 +373,7 @@ AraHostInstanceProxy::is_musical_context_content_available(
+     ARA::ARAContentType type) {
+     auto* p = proxy_from_content_access(h);
+     return static_cast<ARA::ARABool>(
+-        p->bridge_.send_message(
++        p->bridge_.send_mutually_recursive_message(
+             YaAra::HostCallback::IsMusicalContextContentAvailable{
+                 p->ara_dc_id_,
+                 reinterpret_cast<uint64_t>(ctx),
+@@ -379,7 +387,7 @@ AraHostInstanceProxy::get_musical_context_content_grade(
+     ARA::ARAContentType type) {
+     auto* p = proxy_from_content_access(h);
+     return static_cast<ARA::ARAContentGrade>(
+-        p->bridge_.send_message(
++        p->bridge_.send_mutually_recursive_message(
+             YaAra::HostCallback::GetMusicalContextContentGrade{
+                 p->ara_dc_id_,
+                 reinterpret_cast<uint64_t>(ctx),
+@@ -393,7 +401,7 @@ AraHostInstanceProxy::create_musical_context_content_reader(
+     ARA::ARAContentType type,
+     const ARA::ARAContentTimeRange* range) {
+     auto* p = proxy_from_content_access(h);
+-    const uint64_t id = p->bridge_.send_message(
++    const uint64_t id = p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::CreateMusicalContextContentReader{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(ctx),
+@@ -412,7 +420,7 @@ ARA::ARABool ARA_CALL AraHostInstanceProxy::is_audio_source_content_available(
+     ARA::ARAContentType type) {
+     auto* p = proxy_from_content_access(h);
+     return static_cast<ARA::ARABool>(
+-        p->bridge_.send_message(
++        p->bridge_.send_mutually_recursive_message(
+             YaAra::HostCallback::IsAudioSourceContentAvailable{
+                 p->ara_dc_id_,
+                 reinterpret_cast<uint64_t>(source),
+@@ -426,7 +434,7 @@ AraHostInstanceProxy::get_audio_source_content_grade(
+     ARA::ARAContentType type) {
+     auto* p = proxy_from_content_access(h);
+     return static_cast<ARA::ARAContentGrade>(
+-        p->bridge_.send_message(
++        p->bridge_.send_mutually_recursive_message(
+             YaAra::HostCallback::GetAudioSourceContentGrade{
+                 p->ara_dc_id_,
+                 reinterpret_cast<uint64_t>(source),
+@@ -440,7 +448,7 @@ AraHostInstanceProxy::create_audio_source_content_reader(
+     ARA::ARAContentType type,
+     const ARA::ARAContentTimeRange* range) {
+     auto* p = proxy_from_content_access(h);
+-    const uint64_t id = p->bridge_.send_message(
++    const uint64_t id = p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::CreateAudioSourceContentReader{
+             p->ara_dc_id_,
+             reinterpret_cast<uint64_t>(source),
+@@ -457,7 +465,7 @@ ARA::ARAInt32 ARA_CALL AraHostInstanceProxy::get_content_reader_event_count(
+     ARA::ARAContentAccessControllerHostRef h,
+     ARA::ARAContentReaderHostRef reader) {
+     auto* p = proxy_from_content_access(h);
+-    return p->bridge_.send_message(
++    return p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::GetContentReaderEventCount{
+             p->ara_dc_id_, reinterpret_cast<uint64_t>(reader)}).value;
+ }
+@@ -475,7 +483,7 @@ const void* ARA_CALL AraHostInstanceProxy::get_content_reader_data_for_event(
+         if (type_it != p->content_reader_type_map_.end())
+             content_type = static_cast<int32_t>(type_it->second);
+     }
+-    auto resp = p->bridge_.send_message(
++    auto resp = p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::GetContentReaderDataForEvent{
+             p->ara_dc_id_,
+             id,
+@@ -565,7 +573,7 @@ void ARA_CALL AraHostInstanceProxy::destroy_content_reader(
+         std::lock_guard lock(p->content_reader_type_map_mutex_);
+         p->content_reader_type_map_.erase(id);
+     }
+-    p->bridge_.send_message(YaAra::HostCallback::DestroyContentReader{
++    p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::DestroyContentReader{
+         p->ara_dc_id_, id});
+ }
+ 
+@@ -651,14 +659,14 @@ void ARA_CALL AraHostInstanceProxy::notify_document_data_changed(
+ void ARA_CALL AraHostInstanceProxy::request_start_playback(
+     ARA::ARAPlaybackControllerHostRef h) {
+     auto* p = proxy_from_playback(h);
+-    p->bridge_.send_message(
++    p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::RequestStartPlayback{p->ara_dc_id_});
+ }
+ 
+ void ARA_CALL AraHostInstanceProxy::request_stop_playback(
+     ARA::ARAPlaybackControllerHostRef h) {
+     auto* p = proxy_from_playback(h);
+-    p->bridge_.send_message(
++    p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::RequestStopPlayback{p->ara_dc_id_});
+ }
+ 
+@@ -666,7 +674,7 @@ void ARA_CALL AraHostInstanceProxy::request_set_playback_position(
+     ARA::ARAPlaybackControllerHostRef h,
+     ARA::ARATimePosition pos) {
+     auto* p = proxy_from_playback(h);
+-    p->bridge_.send_message(
++    p->bridge_.send_mutually_recursive_message(
+         YaAra::HostCallback::RequestSetPlaybackPosition{p->ara_dc_id_, pos});
+ }
+ 
+@@ -675,7 +683,7 @@ void ARA_CALL AraHostInstanceProxy::request_set_cycle_range(
+     ARA::ARATimePosition start,
+     ARA::ARATimeDuration duration) {
+     auto* p = proxy_from_playback(h);
+-    p->bridge_.send_message(YaAra::HostCallback::RequestSetCycleRange{
++    p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::RequestSetCycleRange{
+         p->ara_dc_id_, start, duration});
+ }
+ 
+@@ -683,7 +691,7 @@ void ARA_CALL AraHostInstanceProxy::request_enable_cycle(
+     ARA::ARAPlaybackControllerHostRef h,
+     ARA::ARABool enable) {
+     auto* p = proxy_from_playback(h);
+-    p->bridge_.send_message(YaAra::HostCallback::RequestEnableCycle{
++    p->bridge_.send_mutually_recursive_message(YaAra::HostCallback::RequestEnableCycle{
+         p->ara_dc_id_, static_cast<int32_t>(enable)});
+ }
+ 
+diff --git a/src/wine-host/bridges/vst3.cpp b/src/wine-host/bridges/vst3.cpp
+index d5d9b261..893a0b8e 100644
+--- a/src/wine-host/bridges/vst3.cpp
++++ b/src/wine-host/bridges/vst3.cpp
+@@ -177,12 +177,25 @@ void Vst3Bridge::run() {
+             return fn(dc->dc_instance->documentControllerInterface,
+                       dc->dc_instance->documentControllerRef);
+         }
+-        return main_context_
+-            .run_in_context([dc, fn = std::forward<F>(fn)]() mutable -> R {
+-                return fn(dc->dc_instance->documentControllerInterface,
+-                          dc->dc_instance->documentControllerRef);
+-            })
+-            .get();
++        // (ara-mutual-recursion) Run on the GUI thread through the mutual
++        // recursion helper: if the GUI thread is currently parked inside one
++        // of the plug-in's host callbacks (see ara-host-callback-proxies.cpp),
++        // this nested request is executed right there instead of waiting for
++        // an event loop that cannot run until that callback returns.
++        if constexpr (std::is_void_v<R>) {
++            do_mutual_recursion_on_gui_thread(
++                [dc, fn = std::forward<F>(fn)]() mutable -> int {
++                    fn(dc->dc_instance->documentControllerInterface,
++                       dc->dc_instance->documentControllerRef);
++                    return 0;
++                });
++        } else {
++            return do_mutual_recursion_on_gui_thread(
++                [dc, fn = std::forward<F>(fn)]() mutable -> R {
++                    return fn(dc->dc_instance->documentControllerInterface,
++                              dc->dc_instance->documentControllerRef);
++                });
++        }
+     };
+ #endif
+     sockets_.host_plugin_control_.receive_messages(
