@@ -222,6 +222,10 @@ in
       # adds a message-only window to MainContext; run_in_context/schedule_task
       # post a WM_APP message to it and its wndproc polls the context, so any
       # dispatching loop also runs our queued tasks. Candidate for upstream.
+      # 2026-09-10: the poke is a one-shot 10 ms timer, not a posted message.
+      # Posted messages outrank WM_PAINT/WM_TIMER, and Melodyne's audio
+      # threads submit a task per block (~1500/s), so during playback its
+      # editor never got a paint or timer message and looked frozen.
       ./patches/yabridge-main-context-nested-loops.patch
       # yabridge-ara-factory-slot-sharing.patch (ours, 2026-09-10): the fork
       # gives every ARA factory object a createDocumentController trampoline

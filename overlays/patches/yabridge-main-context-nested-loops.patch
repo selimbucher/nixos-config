@@ -1,79 +1,8 @@
---- a/src/wine-host/utils.h	2026-09-08 19:37:58.117556206 +0200
-+++ b/src/wine-host/utils.h	2026-09-08 19:38:45.225316722 +0200
-@@ -18,6 +18,7 @@
- 
- #include "use-linux-asio.h"
- 
-+#include <atomic>
- #include <future>
- #include <memory>
- #include <optional>
-@@ -249,6 +250,7 @@
-         std::packaged_task<Result()> call_fn(std::forward<F>(fn));
-         std::future<Result> result = call_fn.get_future();
-         asio::dispatch(context_, std::move(call_fn));
-+        poke();
- 
-         return result;
-     }
-@@ -261,9 +263,31 @@
-     template <std::invocable F>
-     void schedule_task(F&& fn) {
-         asio::post(context_, std::forward<F>(fn));
-+        poke();
-     }
- 
-     /**
-+     * Ask the GUI thread to run the tasks queued on this context even when it
-+     * is not currently inside `MainContext::run()`'s event loop. Plugins run
-+     * their own nested Win32 message loops for popup menus, drag tracking and
-+     * modal dialogs (`PeekMessage()`/`GetMessage()` + `DispatchMessage()`
-+     * until the interaction finishes). Those loops dispatch window messages
-+     * but never return to our asio event loop, so anything submitted through
-+     * `run_in_context()` would otherwise wait until the nested loop ends. On
-+     * Windows the host's main thread *is* the plugin's GUI thread and the
-+     * host's work is message and timer driven, so it keeps running inside
-+     * such loops. We emulate that by posting a message to a message-only
-+     * window owned by the GUI thread; its window procedure polls the context.
-+     * Any nested loop that dispatches messages will thus also execute our
-+     * queued tasks, in the same place the native host would have run them.
-+     *
-+     * Observed 2026-09-08: Melodyne's popup tracking loop (SetCapture +
-+     * PeekMessage + Sleep(1)) starved REAPER's ARA `notifyModelUpdates()`
-+     * request forever, freezing the host's GUI thread.
-+     */
-+    void poke() noexcept;
-+
-+    /**
-      * Start a timer to handle events on a user configurable interval. The
-      * interval is controllable through the `frame_rate` option and defaults to
-      * 60 updates per second.
-@@ -320,6 +344,22 @@
-         std::chrono::steady_clock::duration interval);
- 
-     /**
-+     * The window procedure for `poke_window_`. Runs pending tasks when the
-+     * poke message arrives, see `poke()`.
-+     */
-+    static LRESULT CALLBACK poke_window_proc(HWND hwnd,
-+                                             UINT msg,
-+                                             WPARAM wparam,
-+                                             LPARAM lparam) noexcept;
-+
-+    /**
-+     * A message-only window created on the GUI thread in `run()`. `poke()`
-+     * posts a message to it so nested message loops run our queued tasks.
-+     * Null until `run()` has created it, and again after it returns.
-+     */
-+    std::atomic<HWND> poke_window_ = nullptr;
-+
-+    /**
-      * The **Windows** thread ID the context is running on, which will be our
-      * GUI thread. Will be a nullopt until `MainContext::run()` has been called.
-      */
---- a/src/wine-host/utils.cpp	2026-09-08 19:37:58.117522523 +0200
-+++ b/src/wine-host/utils.cpp	2026-09-08 19:38:45.225494956 +0200
-@@ -111,8 +111,36 @@
+diff --git a/src/wine-host/utils.cpp b/src/wine-host/utils.cpp
+index 773bb75..df69c9c 100644
+--- a/src/wine-host/utils.cpp
++++ b/src/wine-host/utils.cpp
+@@ -111,8 +111,36 @@ void MainContext::run() {
          });
      }
  
@@ -110,13 +39,14 @@
      // We only need to check if the host is still running while the main context
      // is also running. If a stop was requested, the entire application is
      // supposed to shut down. Otherwise `watchdog_handler` would just block on
-@@ -124,6 +152,49 @@
+@@ -124,6 +152,60 @@ void MainContext::stop() noexcept {
      context_.stop();
  }
  
-+// Private message for `poke()`. `WM_APP` messages are never sent by the
-+// system, and the window is ours alone.
-+static constexpr UINT WM_YABRIDGE_POKE = WM_APP + 0x59;
++// The one-shot timer `poke()` arms on the poke window. `USER_TIMER_MINIMUM`
++// (10 ms) bounds the latency of host calls made while a plugin sits in a
++// nested message loop; outside such loops the asio loop runs them at once.
++static constexpr UINT_PTR POKE_TIMER_ID = 1;
 +
 +void MainContext::poke() noexcept {
 +    // When called from the GUI thread itself `asio::dispatch()` already ran
@@ -125,8 +55,15 @@
 +        return;
 +    }
 +
++    // One pending poke covers every task queued until it fires; see the
++    // comment on `poke_armed_` for why this must not be a posted message.
++    if (poke_armed_.exchange(true)) {
++        return;
++    }
 +    if (const HWND poke_window = poke_window_.load()) {
-+        PostMessageW(poke_window, WM_YABRIDGE_POKE, 0, 0);
++        SetTimer(poke_window, POKE_TIMER_ID, USER_TIMER_MINIMUM, nullptr);
++    } else {
++        poke_armed_.store(false);
 +    }
 +}
 +
@@ -134,9 +71,12 @@
 +                                               UINT msg,
 +                                               WPARAM wparam,
 +                                               LPARAM lparam) noexcept {
-+    if (msg == WM_YABRIDGE_POKE) {
++    if (msg == WM_TIMER && wparam == POKE_TIMER_ID) {
++        KillTimer(hwnd, POKE_TIMER_ID);
 +        if (auto* self = reinterpret_cast<MainContext*>(
 +                GetWindowLongPtrW(hwnd, GWLP_USERDATA))) {
++            // Clear before polling: a task that queues more work re-arms.
++            self->poke_armed_.store(false);
 +            // Running the context from within a handler that is itself being
 +            // executed by `context_.run()` is allowed by asio: this behaves
 +            // like a nested event loop, exactly what the plugin is doing with
@@ -160,3 +100,88 @@
  void MainContext::update_timer_interval(
      std::chrono::steady_clock::duration new_interval) noexcept {
      timer_interval_ = new_interval;
+diff --git a/src/wine-host/utils.h b/src/wine-host/utils.h
+index 75ace84..46acf2e 100644
+--- a/src/wine-host/utils.h
++++ b/src/wine-host/utils.h
+@@ -18,6 +18,7 @@
+ 
+ #include "use-linux-asio.h"
+ 
++#include <atomic>
+ #include <future>
+ #include <memory>
+ #include <optional>
+@@ -249,6 +250,7 @@ class MainContext {
+         std::packaged_task<Result()> call_fn(std::forward<F>(fn));
+         std::future<Result> result = call_fn.get_future();
+         asio::dispatch(context_, std::move(call_fn));
++        poke();
+ 
+         return result;
+     }
+@@ -261,8 +263,30 @@ class MainContext {
+     template <std::invocable F>
+     void schedule_task(F&& fn) {
+         asio::post(context_, std::forward<F>(fn));
++        poke();
+     }
+ 
++    /**
++     * Ask the GUI thread to run the tasks queued on this context even when it
++     * is not currently inside `MainContext::run()`'s event loop. Plugins run
++     * their own nested Win32 message loops for popup menus, drag tracking and
++     * modal dialogs (`PeekMessage()`/`GetMessage()` + `DispatchMessage()`
++     * until the interaction finishes). Those loops dispatch window messages
++     * but never return to our asio event loop, so anything submitted through
++     * `run_in_context()` would otherwise wait until the nested loop ends. On
++     * Windows the host's main thread *is* the plugin's GUI thread and the
++     * host's work is message and timer driven, so it keeps running inside
++     * such loops. We emulate that by posting a message to a message-only
++     * window owned by the GUI thread; its window procedure polls the context.
++     * Any nested loop that dispatches messages will thus also execute our
++     * queued tasks, in the same place the native host would have run them.
++     *
++     * Observed 2026-09-08: Melodyne's popup tracking loop (SetCapture +
++     * PeekMessage + Sleep(1)) starved REAPER's ARA `notifyModelUpdates()`
++     * request forever, freezing the host's GUI thread.
++     */
++    void poke() noexcept;
++
+     /**
+      * Start a timer to handle events on a user configurable interval. The
+      * interval is controllable through the `frame_rate` option and defaults to
+@@ -319,6 +343,33 @@ class MainContext {
+     void async_handle_watchdog_timer(
+         std::chrono::steady_clock::duration interval);
+ 
++    /**
++     * The window procedure for `poke_window_`. Runs pending tasks when the
++     * poke message arrives, see `poke()`.
++     */
++    static LRESULT CALLBACK poke_window_proc(HWND hwnd,
++                                             UINT msg,
++                                             WPARAM wparam,
++                                             LPARAM lparam) noexcept;
++
++    /**
++     * A message-only window created on the GUI thread in `run()`. `poke()`
++     * posts a message to it so nested message loops run our queued tasks.
++     * Null until `run()` has created it, and again after it returns.
++     */
++    std::atomic<HWND> poke_window_ = nullptr;
++
++    /**
++     * Whether a poke is already pending on the GUI thread. `poke()` arms a
++     * one-shot timer on `poke_window_` instead of posting a message: posted
++     * messages outrank `WM_PAINT` and `WM_TIMER` in the queue, so a stream
++     * of them (an ARA plugin submits a task per audio block, ~1500/s) would
++     * starve the plugin's own windows of paint and timer messages for as
++     * long as audio runs. A timer message has the same priority as those
++     * and one pending poke is enough: the handler polls everything queued.
++     */
++    std::atomic<bool> poke_armed_ = false;
++
+     /**
+      * The **Windows** thread ID the context is running on, which will be our
+      * GUI thread. Will be a nullopt until `MainContext::run()` has been called.
