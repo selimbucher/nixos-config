@@ -1,0 +1,183 @@
+diff --git a/src/common/serialization/vst3/plugin/ara-factory.cpp b/src/common/serialization/vst3/plugin/ara-factory.cpp
+index 44b9e5f..ced24ce 100644
+--- a/src/common/serialization/vst3/plugin/ara-factory.cpp
++++ b/src/common/serialization/vst3/plugin/ara-factory.cpp
+@@ -42,10 +42,11 @@ std::mutex& YaAraFactory::registry_mutex() {
+ 
+ static std::atomic<native_size_t> g_next_dc_id{1};
+ 
+-static bool g_slot_used[8] = {};
++constexpr int kNumSlots = 32;
++static bool g_slot_used[kNumSlots] = {};
+ 
+ // Each trampoline looks up registry entry by slot index.
+-// Defined as a template to generate 8 distinct function addresses.
++// Defined as a template to generate kNumSlots distinct function addresses.
+ template <int N>
+ static const ARA::ARADocumentControllerInstance* ARA_CALL
+ slot_trampoline(const ARA::ARADocumentControllerHostInstance* hostInstance,
+@@ -57,8 +58,8 @@ slot_trampoline(const ARA::ARADocumentControllerHostInstance* hostInstance,
+         std::lock_guard lock(YaAraFactory::registry_mutex());
+         auto& reg = YaAraFactory::registry();
+         for (auto& [key, entry] : reg) {
+-            if (entry.slot == N) {
+-                callback = entry.create_dc;
++            if (entry.slot == N && !entry.registrants.empty()) {
++                callback = entry.registrants.back().second;
+                 break;
+             }
+         }
+@@ -71,7 +72,7 @@ slot_trampoline(const ARA::ARADocumentControllerHostInstance* hostInstance,
+ using TrampFn = const ARA::ARADocumentControllerInstance* (ARA_CALL*)(
+     const ARA::ARADocumentControllerHostInstance*,
+     const ARA::ARADocumentProperties*);
+-static const TrampFn g_trampolines[8] = {
++static const TrampFn g_trampolines[kNumSlots] = {
+     slot_trampoline<0>,
+     slot_trampoline<1>,
+     slot_trampoline<2>,
+@@ -80,6 +81,30 @@ static const TrampFn g_trampolines[8] = {
+     slot_trampoline<5>,
+     slot_trampoline<6>,
+     slot_trampoline<7>,
++    slot_trampoline<8>,
++    slot_trampoline<9>,
++    slot_trampoline<10>,
++    slot_trampoline<11>,
++    slot_trampoline<12>,
++    slot_trampoline<13>,
++    slot_trampoline<14>,
++    slot_trampoline<15>,
++    slot_trampoline<16>,
++    slot_trampoline<17>,
++    slot_trampoline<18>,
++    slot_trampoline<19>,
++    slot_trampoline<20>,
++    slot_trampoline<21>,
++    slot_trampoline<22>,
++    slot_trampoline<23>,
++    slot_trampoline<24>,
++    slot_trampoline<25>,
++    slot_trampoline<26>,
++    slot_trampoline<27>,
++    slot_trampoline<28>,
++    slot_trampoline<29>,
++    slot_trampoline<30>,
++    slot_trampoline<31>,
+ };
+ 
+ // ---------------------------------------------------------------------------
+@@ -142,27 +167,35 @@ ARA::ARAFactory YaAraFactory::to_ara_factory(
+ 
+     if (create_dc) {
+         std::lock_guard lock(registry_mutex());
+-        int slot = -1;
+-        for (int i = 0; i < 8; ++i) {
+-            if (!g_slot_used[i]) {
+-                slot = i;
+-                break;
++        auto& reg = registry();
++        auto it = reg.find(factoryID);
++        if (it == reg.end()) {
++            // First factory object of this plugin: take a slot.  Instances
++            // of the same plugin share it; a slot per instance would run a
++            // pool of any size dry on a project with a dozen tracks of it.
++            int slot = -1;
++            for (int i = 0; i < kNumSlots; ++i) {
++                if (!g_slot_used[i]) {
++                    slot = i;
++                    break;
++                }
+             }
++            if (slot < 0) {
++                fprintf(stderr,
++                        "yabridge: ARA factory trampoline pool exhausted "
++                        "(all %d slots in use)\n",
++                        kNumSlots);
++                factory.createDocumentControllerWithDocument =
++                    stub_create_document_controller;
++                return factory;
++            }
++            g_slot_used[slot] = true;
++            it = reg.emplace(factoryID, RegistryEntry{}).first;
++            it->second.slot = slot;
+         }
+-        if (slot < 0) {
+-            fprintf(stderr,
+-                    "yabridge: ARA factory trampoline pool exhausted "
+-                    "(all 8 slots in use)\n");
+-            factory.createDocumentControllerWithDocument =
+-                stub_create_document_controller;
+-            return factory;
+-        }
+-        g_slot_used[slot] = true;
+-        factory.createDocumentControllerWithDocument = g_trampolines[slot];
+-
+-        auto& entry = registry()[factoryID];
+-        entry.create_dc = std::move(create_dc);
+-        entry.slot = slot;
++        it->second.registrants.emplace_back(this, std::move(create_dc));
++        factory.createDocumentControllerWithDocument =
++            g_trampolines[it->second.slot];
+         registered_ = true;
+     } else {
+         factory.createDocumentControllerWithDocument =
+@@ -182,9 +215,17 @@ void YaAraFactory::unregister_factory() const noexcept {
+     std::lock_guard lock(registry_mutex());
+     auto it = registry().find(factoryID);
+     if (it != registry().end()) {
+-        if (it->second.slot >= 0 && it->second.slot < 8)
+-            g_slot_used[it->second.slot] = false;
+-        registry().erase(it);
++        auto& regs = it->second.registrants;
++        regs.erase(std::remove_if(regs.begin(), regs.end(),
++                                  [this](const auto& r) {
++                                      return r.first == this;
++                                  }),
++                   regs.end());
++        if (regs.empty()) {
++            if (it->second.slot >= 0 && it->second.slot < kNumSlots)
++                g_slot_used[it->second.slot] = false;
++            registry().erase(it);
++        }
+     }
+     registered_ = false;
+ }
+diff --git a/src/common/serialization/vst3/plugin/ara-factory.h b/src/common/serialization/vst3/plugin/ara-factory.h
+index 73731d3..7d7b7e5 100644
+--- a/src/common/serialization/vst3/plugin/ara-factory.h
++++ b/src/common/serialization/vst3/plugin/ara-factory.h
+@@ -83,12 +83,14 @@ struct YaAraFactory {
+     //
+     // When create_dc is null, a stub returning nullptr is installed instead.
+ 
+-    // Registry entry: create_dc callback + assigned trampoline slot index.
++    // Registry entry, one per factoryID: the trampoline slot shared by every
++    // live factory object of that plugin, and their create_dc callbacks.
++    // Any of them can create the document controller (it is created in the
++    // plugin process); the trampoline uses the most recently registered one.
+     struct RegistryEntry {
+-        AraCreateDcFn create_dc;
+         int slot = -1;
++        std::vector<std::pair<const YaAraFactory*, AraCreateDcFn>> registrants;
+         RegistryEntry() = default;
+-        explicit RegistryEntry(AraCreateDcFn dc) : create_dc(std::move(dc)) {}
+         RegistryEntry(RegistryEntry&&) = default;
+         RegistryEntry& operator=(RegistryEntry&&) = default;
+         RegistryEntry(const RegistryEntry&) = delete;
+diff --git a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+index 47d7df2..5e8d8b1 100644
+--- a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
++++ b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+@@ -1406,6 +1406,11 @@ const ARA::ARAFactory* PLUGIN_API Vst3PluginProxyImpl::getFactory() {
+         overload{
+             [&](YaAraFactory&& factory) -> const ARA::ARAFactory* {
+                 std::lock_guard lock(ara_factory_cache_mutex_);
++                // getFactory() can be called more than once per instance;
++                // the previous factory object must give its registration
++                // back before it is replaced.
++                if (ara_factory_cache_)
++                    ara_factory_cache_->unregister_factory();
+                 ara_factory_cache_ = std::move(factory);
+                 ara_factory_c_struct_ = ara_factory_cache_->to_ara_factory(
+                     [this](
