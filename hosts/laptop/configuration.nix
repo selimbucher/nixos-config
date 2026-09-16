@@ -24,7 +24,9 @@
       { output = "HDMI-A-1"; mode = "2560x1440@60";  position = "-304x-1152"; scale = "1.25"; }
       { output = "DP-1";     mode = "3840x2160@30";  position = "1440x0";     scale = "2"; }
     ];
-    blur = false;
+    # WhiteSur renders header bars and sidebars at 96% opacity; without blur
+    # behind them that reads as a muddy wallpaper tint rather than vibrancy.
+    blur = true;
     shadow = true;
     scale = 2.0;
     jackBufferSize = 128;

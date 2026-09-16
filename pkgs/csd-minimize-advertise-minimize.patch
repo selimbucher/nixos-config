@@ -1,0 +1,63 @@
+--- a/main.cpp
++++ b/main.cpp
+@@ -4,7 +4,9 @@
+ #include <Compositor.hpp>
+ #include <event/EventBus.hpp>
+ #include <config/values/types/StringValue.hpp>
++#define private public
+ #include <protocols/XDGShell.hpp>
++#undef private
+ #include <xwayland/XSurface.hpp>
+ #include <thread>
+ #include <cstdlib>
+@@ -61,6 +63,7 @@
+         CHyprSignalListener stateChanged;
+         SSuppressState      suppress;
+         bool                listening = false;
++        PHLWINDOWREF        window; // to detect a slot left behind by a dead window
+     };
+ 
+     HANDLE                                                    m_handle = nullptr;
+@@ -126,14 +129,40 @@
+         applySuppression(pWindow);
+ 
+         SWindowState& state = m_windows[w];
+-        if (state.listening)
+-            return;
++        if (state.listening) {
++            // Hyprland emits window.destroy from ~CWindow, when the weak ref it
++            // passes can no longer be locked, so the destroy listener below never
++            // reaches unregisterWindow and the slot outlives its window. A new
++            // window allocated at the same address must not inherit it, or it
++            // gets neither the capabilities nor the state listener.
++            if (state.window.lock() == pWindow)
++                return;
++            state = SWindowState{};
++        }
++        state.window = pWindow;
+ 
+         const PHLWINDOWREF pWindowRef = pWindow;
+ 
+         const auto         xdg      = pWindow->m_xdgSurface.lock();
+         const auto         toplevel = xdg ? xdg->m_toplevel.lock() : nullptr;
+         if (toplevel) {
++            // Hyprland's XDGShell.cpp advertises only FULLSCREEN and MAXIMIZE in
++            // xdg_toplevel.wm_capabilities, so GTK/libadwaita renders the minimize
++            // button insensitive and never sends set_minimized -- the handler below
++            // would never fire. Re-send the array with MINIMIZE included.
++            if (toplevel->m_resource && toplevel->m_resource->version() >= 5) {
++                wl_array arr;
++                wl_array_init(&arr);
++                auto p = static_cast<uint32_t*>(wl_array_add(&arr, sizeof(uint32_t)));
++                *p     = XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN;
++                p      = static_cast<uint32_t*>(wl_array_add(&arr, sizeof(uint32_t)));
++                *p     = XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE;
++                p      = static_cast<uint32_t*>(wl_array_add(&arr, sizeof(uint32_t)));
++                *p     = XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE;
++                toplevel->m_resource->sendWmCapabilities(&arr);
++                wl_array_release(&arr);
++            }
++
+             state.stateChanged = toplevel->m_events.stateChanged.listen([this, pWindowRef]() {
+                 auto pWindow = pWindowRef.lock();
+                 if (!pWindow)

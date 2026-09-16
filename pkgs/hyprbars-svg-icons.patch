@@ -1,0 +1,160 @@
+--- a/globals.hpp
++++ b/globals.hpp
+@@ -18,6 +18,7 @@
+     float                size    = 10;
+     std::string          icon    = "";
+     SP<Render::ITexture> iconTex;
++    float                iconTexScale = 0; // scale an SVG icon was rasterised at
+ };
+ 
+ class CHyprBar;
+@@ -29,6 +30,9 @@
+     uint32_t                  barColorRuleIdx   = 0;
+     uint32_t                  titleColorRuleIdx = 0;
+ 
++    // Owned here, not in function-local statics: see PLUGIN_EXIT.
++    CHyprSignalListener       windowOpenListener, updateRulesListener, preReloadListener, reloadedListener;
++
+     struct {
+         SP<Config::Values::CColorValue>      barColor, textColor, inactiveButtonColor;
+         SP<Config::Values::CIntValue>        barHeight;
+--- a/main.cpp
++++ b/main.cpp
+@@ -203,13 +203,18 @@
+         throw std::runtime_error("[hb] Version mismatch");
+     }
+ 
++    // g_pGlobalState is a GNU-unique symbol, so a previously unloaded copy of
++    // this plugin shares it and may have left its state behind. That state can
++    // have another layout; never destroy it with this copy's destructor.
++    if (g_pGlobalState)
++        new (&g_pGlobalState) UP<SGlobalState>();
+     g_pGlobalState                    = makeUnique<SGlobalState>();
+     g_pGlobalState->nobarRuleIdx      = Desktop::Rule::windowEffects()->registerEffect("hyprbars:no_bar");
+     g_pGlobalState->barColorRuleIdx   = Desktop::Rule::windowEffects()->registerEffect("hyprbars:bar_color");
+     g_pGlobalState->titleColorRuleIdx = Desktop::Rule::windowEffects()->registerEffect("hyprbars:title_color");
+ 
+-    static auto P  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
+-    static auto P3 = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
++    g_pGlobalState->windowOpenListener  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
++    g_pGlobalState->updateRulesListener = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
+ 
+     g_pGlobalState->config.barColor            = makeShared<Config::Values::CColorValue>("plugin:hyprbars:bar_color", "Change the bar color", 0x88333333);
+     g_pGlobalState->config.textColor           = makeShared<Config::Values::CColorValue>("plugin:hyprbars:col.text", "Change the text color", 0xffffffff);
+@@ -256,8 +261,8 @@
+         HyprlandAPI::addConfigKeyword(PHANDLE, "plugin:hyprbars:hyprbars-button", onNewButton, Hyprlang::SHandlerOptions{});
+     else
+         HyprlandAPI::addLuaFunction(PHANDLE, "hyprbars", "add_button", ::newLuaButton);
+-    static auto P4 = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
+-    static auto P5 = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
++    g_pGlobalState->preReloadListener = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
++    g_pGlobalState->reloadedListener  = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
+ 
+     // add deco to existing windows
+     for (auto& w : Desktop::windowState()->windows()) {
+@@ -281,4 +286,14 @@
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->barColorRuleIdx);
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->titleColorRuleIdx);
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->nobarRuleIdx);
++
++    // The GNU-unique symbols above keep this library mapped after dlclose, so
++    // upstream's static listeners were never destroyed: after an unload (any
++    // rebuild that changes the plugin's store path) they kept firing, adding a
++    // second bar to new windows and, once the state layout changed, crashing
++    // Hyprland on the next config reload. Stop listening here.
++    g_pGlobalState->windowOpenListener.reset();
++    g_pGlobalState->updateRulesListener.reset();
++    g_pGlobalState->preReloadListener.reset();
++    g_pGlobalState->reloadedListener.reset();
+ }
+--- a/barDeco.cpp
++++ b/barDeco.cpp
+@@ -1,4 +1,5 @@
+ #include "barDeco.hpp"
++#include <hyprgraphics/image/Image.hpp>
+ 
+ #include <hyprland/src/Compositor.hpp>
+ #include <hyprland/src/desktop/state/FocusState.hpp>
+@@ -55,7 +56,8 @@
+ }
+ 
+ CHyprBar::~CHyprBar() {
+-    std::erase(g_pGlobalState->bars, m_self);
++    if (g_pGlobalState)
++        std::erase(g_pGlobalState->bars, m_self);
+ }
+ 
+ SDecorationPositioningInfo CHyprBar::getPositioningInfo() {
+@@ -357,10 +359,14 @@
+         const auto scaledButtonsPad = BARBUTTONPADDING * scale;
+ 
+         auto       color = button.bgcol;
++        const bool isSvg = button.icon.starts_with('/');
+ 
+         if (INACTIVECOLOR > 0) {
+-            color = m_bWindowHasFocus ? color : configColor(INACTIVECOLOR);
+-            if (INVALIDATEICONS && button.userfg && button.iconTex)
++            // a hovered button shows its colour even on an unfocused window
++            const bool HOVERED = (m_iButtonHoverState & (1 << i)) != 0;
++            color              = m_bWindowHasFocus || HOVERED ? color : configColor(INACTIVECOLOR);
++            // text icons are re-rendered here; an SVG icon's colours live in the file
++            if (INVALIDATEICONS && button.userfg && button.iconTex && !isSvg)
+                 button.iconTex = nullptr;
+         }
+ 
+@@ -397,15 +403,29 @@
+ 
+         // check if hovering here
+         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
+-        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - BARBUTTONPADDING - button.size - noScaleOffset : noScaleOffset), (BARBUF.y - button.size) / 2.0}.floor();
+-        bool       hovering   = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + button.size + BARBUTTONPADDING, currentPos.y + button.size);
++        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - button.size - noScaleOffset : noScaleOffset), (BARBUF.y - button.size) / 2.0}.floor();
++        bool       hovering   = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + button.size, currentPos.y + button.size);
+         noScaleOffset += BARBUTTONPADDING + button.size;
+ 
++        const bool isSvg = button.icon.starts_with('/');
++        if (isSvg && button.iconTex && button.iconTexScale != scale)
++            button.iconTex = nullptr;
++
+         if ((!button.iconTex || button.iconTex->m_texID == 0) && !button.icon.empty()) {
+-            // render icon
+-            auto fgcol = button.userfg ? button.fgcol : (button.bgcol.r + button.bgcol.g + button.bgcol.b < 1) ? CHyprColor(0xFFFFFFFF) : CHyprColor(0xFF000000);
++            if (isSvg) {
++                // the SVG is drawn over the whole disc, so it carries its own
++                // placement and colour and looks the same in any toolkit
++                Hyprgraphics::CImage image(button.icon, Vector2D{std::round(scaledButtonSize), std::round(scaledButtonSize)});
++                if (image.success() && image.cairoSurface()) {
++                    button.iconTex      = g_pHyprRenderer->createTexture(image.cairoSurface()->cairo());
++                    button.iconTexScale = scale;
++                }
++            } else {
++                // render icon
++                auto fgcol = button.userfg ? button.fgcol : (button.bgcol.r + button.bgcol.g + button.bgcol.b < 1) ? CHyprColor(0xFFFFFFFF) : CHyprColor(0xFF000000);
+ 
+-            button.iconTex = g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, "sans", scaledButtonSize);
++                button.iconTex = g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, "sans", scaledButtonSize);
++            }
+         }
+ 
+         if (!button.iconTex || button.iconTex->m_texID == 0)
+@@ -415,7 +435,7 @@
+         const auto iconY = barBox->y + barBox->height / 2.0 - button.iconTex->m_size.y / 2.0;
+         CBox       pos   = {iconX, iconY, button.iconTex->m_size.x, button.iconTex->m_size.y};
+ 
+-        if (!ICONONHOVER || (ICONONHOVER && m_iButtonHoverState > 0))
++        if (!ICONONHOVER || (m_iButtonHoverState & (1 << i)) != 0)
+             g_pHyprOpenGL->renderTexture(button.iconTex, pos, {.a = a});
+         offset += scaledButtonsPad + scaledButtonSize;
+ 
+@@ -677,9 +697,9 @@
+ 
+     for (auto& b : g_pGlobalState->buttons) {
+         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
+-        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - BARBUTTONPADDING - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
++        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
+ 
+-        bool       hover = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + b.size + BARBUTTONPADDING, currentPos.y + b.size);
++        bool       hover = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + b.size, currentPos.y + b.size);
+ 
+         if (hover != m_bButtonHovered) {
+             m_bButtonHovered = hover;

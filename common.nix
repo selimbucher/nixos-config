@@ -24,6 +24,11 @@
     })
     inputs.claude-code-nix.overlays.default
     (import ./overlays/yabridge-wine11.nix)
+    # Slightly larger icons at Nautilus's smallest zoom steps; an overlay rather
+    # than a systemPackages override so the D-Bus-activated copy is the same one.
+    (final: prev: {
+      nautilus = final.callPackage ./pkgs/nautilus-icon-sizes.nix { inherit (prev) nautilus; };
+    })
   ];
 
   nixpkgs.config.allowUnfree = true;
@@ -185,6 +190,9 @@
     enable = true;
     enableOnBoot = false; # starts on first use; restart=always containers won't autostart
   };
+  # rootless containers for distro packaging work (rpmbuild/debuild chroots);
+  # no dockerCompat — real docker above owns the `docker` command
+  virtualisation.podman.enable = true;
 
   # don't block boot ~4.5s waiting for the network
   systemd.services.NetworkManager-wait-online.enable = false;
@@ -222,11 +230,65 @@
     gvfs
     nautilus
     brave
+    gnupg
   ];
 
   services.xserver.excludePackages = [ pkgs.xterm ];
 
   security.polkit.enable = true;
+
+  # GUI password prompt for terminal-less sudo (agent shells, scripts): sudo
+  # automatically falls back to the askpass helper from sudo.conf when it has
+  # no TTY to prompt on. Styled after the hyprlock input pill (dimaround layer
+  # rule lives in home/hyprland/hyprland.nix).
+  environment.etc."sudo.conf".text =
+    let
+      theme = pkgs.writeText "sudo-askpass.rasi" ''
+        * {
+          font: "Quicksand Medium 15";
+          background-color: transparent;
+          text-color: rgba(255, 255, 255, 100%);
+        }
+        window {
+          transparency: "real";
+          location: center;
+          anchor: center;
+          width: 20%;
+          border-radius: 100px;
+          background-color: rgba(255, 255, 255, 14%);
+          padding: 16px 28px;
+        }
+        mainbox { children: [ "inputbar" ]; }
+        inputbar {
+          children: [ "entry" ];
+          background-color: transparent;
+        }
+        entry {
+          background-color: transparent;
+          placeholder: "Enter Password";
+          placeholder-color: rgba(255, 255, 255, 55%);
+          blink: true;
+        }
+        listview { enabled: false; }
+        message { enabled: false; }
+        mode-switcher { enabled: false; }
+      '';
+      askpass = pkgs.writeShellScript "sudo-askpass" ''
+        # runs as the invoking user; agent/cron shells often lack the Wayland
+        # session env, so recover it from the runtime dir
+        export XDG_RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+        if [ -z "''${WAYLAND_DISPLAY:-}" ]; then
+          for s in "$XDG_RUNTIME_DIR"/wayland-*; do
+            [ -S "$s" ] || continue
+            WAYLAND_DISPLAY="''${s##*/}"
+            break
+          done
+          export WAYLAND_DISPLAY
+        fi
+        exec ${pkgs.rofi}/bin/rofi -dmenu -password -p "" -theme ${theme} < /dev/null
+      '';
+    in
+    "Path askpass ${askpass}\n";
 
   programs.steam.enable = true;
 

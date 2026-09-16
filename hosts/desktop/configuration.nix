@@ -52,6 +52,9 @@
       { output = "HDMI-A-1"; mode = "3840x2160@60";  position = "4096x0"; scale = "1"; }
     ];
     blur = true;
+    # macOS reads as much from the drop shadow as from the corner radius;
+    # without it windows sit flat on the wallpaper.
+    shadow = true;
     extraExecOnce = [
       "steam -silent"
     ];
