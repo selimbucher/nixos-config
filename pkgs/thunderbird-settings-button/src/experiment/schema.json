@@ -1,0 +1,21 @@
+[
+  {
+    "namespace": "settingsTab",
+    "functions": [
+      {
+        "name": "open",
+        "type": "function",
+        "async": true,
+        "description": "Open the Settings tab, or switch to it if it is already open.",
+        "parameters": []
+      },
+      {
+        "name": "placeBeforeSearchBar",
+        "type": "function",
+        "async": true,
+        "description": "Move this add-on's button right before the search bar in every space that has one.",
+        "parameters": []
+      }
+    ]
+  }
+]

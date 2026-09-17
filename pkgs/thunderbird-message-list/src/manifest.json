@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Message List",
+  "version": "1.0",
+  "description": "Sender badges, a short date and row sizing for the cards message list; the look lives in message-list.css.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "message-list@selim.one",
+      "strict_min_version": "128.0"
+    }
+  },
+  "experiment_apis": {
+    "messageList": {
+      "schema": "experiment/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "paths": [["messageList"]],
+        "script": "experiment/implementation.js",
+        "events": ["startup"]
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Settings Button",
+  "version": "1.0",
+  "description": "A unified toolbar button that opens the Settings tab.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "settings-button@selim.one",
+      "strict_min_version": "128.0"
+    }
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Settings",
+    "default_icon": "icons/settings.svg",
+    "allowed_spaces": []
+  },
+  "experiment_apis": {
+    "settingsTab": {
+      "schema": "experiment/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "paths": [
+          [
+            "settingsTab"
+          ]
+        ],
+        "script": "experiment/implementation.js",
+        "events": [
+          "startup"
+        ]
+      }
+    }
+  }
+}
