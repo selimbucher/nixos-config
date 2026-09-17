@@ -232,9 +232,12 @@ in
           blur = {
             enabled = osConfig.deviceConfig.blur;
             # size 3 / passes 2 was imperceptible behind the shell's 55-86%-opaque
-            # dark panels — this is a proper macOS-style frost
-            size = 6;
-            passes = 3;
+            # dark panels — this is a proper macOS-style frost. At 6/3 a
+            # terminal's text was still readable through a glass panel; 10/4
+            # is the first setting that dissolves it. passes costs the most,
+            # so drop to 3 before touching size if it shows in the framerate.
+            size = 10;
+            passes = 4;
             vibrancy = 0.1696;
             noise = 0.01;
             contrast = 1.4;
