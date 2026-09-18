@@ -83,5 +83,6 @@ in
     demucs
     basic-pitch
     (pkgs.callPackage ../../pkgs/stem2midi.nix { inherit demucs basic-pitch; })
+    todoist-electron
   ];
 }

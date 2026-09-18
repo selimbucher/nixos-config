@@ -216,6 +216,10 @@
 
   programs.zsh.enable = true;
 
+  # kiwi-settings looks up kiwi-shell's included wallpapers through the XDG
+  # data dirs, and nothing links /share/kiwi-shell into the profile by default
+  environment.pathsToLink = [ "/share/kiwi-shell" ];
+
   environment.systemPackages = with pkgs; [
     git
     kitty
