@@ -1,0 +1,2261 @@
+From: Selim Bucher <me@selim.one>
+Subject: [PATCH] windows.ui.notifications: Add stub ToastNotificationManager, ToastNotification and XmlDocument factories.
+
+Adobe Creative Cloud desktop creates a toast notifier at startup and
+dereferences the factory without checking RoGetActivationFactory's result,
+so a missing Windows.UI.Notifications runtime crashed it on launch.
+Nothing is displayed; Show() succeeds silently.
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -3392,6 +3392,7 @@
+ WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers/tests)
+ WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput)
+ WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput/tests)
++WINE_CONFIG_MAKEFILE(dlls/windows.ui.notifications)
+ WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml)
+ WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml/tests)
+ WINE_CONFIG_MAKEFILE(dlls/windows.ui)
+--- /dev/null
++++ b/dlls/windows.ui.notifications/Makefile.in
+@@ -0,0 +1,6 @@
++MODULE  = windows.ui.notifications.dll
++IMPORTS = combase
++
++SOURCES = \
++	classes.idl \
++	main.c
+--- /dev/null
++++ b/dlls/windows.ui.notifications/classes.idl
+@@ -0,0 +1,23 @@
++/*
++ * Runtime Classes for windows.ui.notifications.dll
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ */
++
++#pragma makedep register
++#pragma winrt ns_prefix
++
++import "windows.ui.notifications.idl";
++import "windows.data.xml.dom.idl";
++
++namespace Windows.UI.Notifications {
++    runtimeclass ToastNotificationManager;
++    runtimeclass ToastNotification;
++}
++
++namespace Windows.Data.Xml.Dom {
++    runtimeclass XmlDocument;
++}
+--- /dev/null
++++ b/dlls/windows.ui.notifications/main.c
+@@ -0,0 +1,2164 @@
++/*
++ * Windows.UI.Notifications / Windows.Data.Xml.Dom stubs
++ *
++ * Just enough activation factories for applications that create a toast
++ * notifier at startup and do not null-check the factory (Adobe Creative
++ * Cloud desktop). Nothing is displayed.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ */
++
++#include "initguid.h"
++#include "private.h"
++
++WINE_DEFAULT_DEBUG_CHANNEL(notifications);
++
++static HRESULT create_notifier( IToastNotifier **out );
++static HRESULT create_toast( IXmlDocument *content, IToastNotification **out );
++static HRESULT create_xmldoc( IXmlDocument **out );
++static HRESULT create_history( IToastNotificationHistory **out );
++
++
++/* ---- manager_factory ---- */
++
++struct manager_factory
++{
++    IActivationFactory IActivationFactory_iface;
++    IToastNotificationManagerStatics IToastNotificationManagerStatics_iface;
++    IToastNotificationManagerStatics2 IToastNotificationManagerStatics2_iface;
++    LONG ref;
++};
++
++static inline struct manager_factory *manager_factory_from_IActivationFactory( IActivationFactory *iface )
++{
++    return CONTAINING_RECORD( iface, struct manager_factory, IActivationFactory_iface );
++}
++
++static inline struct manager_factory *manager_factory_from_IToastNotificationManagerStatics( IToastNotificationManagerStatics *iface )
++{
++    return CONTAINING_RECORD( iface, struct manager_factory, IToastNotificationManagerStatics_iface );
++}
++
++static inline struct manager_factory *manager_factory_from_IToastNotificationManagerStatics2( IToastNotificationManagerStatics2 *iface )
++{
++    return CONTAINING_RECORD( iface, struct manager_factory, IToastNotificationManagerStatics2_iface );
++}
++
++static HRESULT WINAPI manager_factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
++{
++    struct manager_factory *impl = manager_factory_from_IActivationFactory( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IActivationFactory ))
++    {
++        *out = &impl->IActivationFactory_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotificationManagerStatics ))
++    {
++        *out = &impl->IToastNotificationManagerStatics_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotificationManagerStatics2 ))
++    {
++        *out = &impl->IToastNotificationManagerStatics2_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI manager_factory_AddRef( IActivationFactory *iface )
++{
++    struct manager_factory *impl = manager_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI manager_factory_Release( IActivationFactory *iface )
++{
++    struct manager_factory *impl = manager_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static HRESULT WINAPI manager_factory_IActivationFactory_GetIids( IActivationFactory  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IActivationFactory_GetRuntimeClassName( IActivationFactory  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IActivationFactory_GetTrustLevel( IActivationFactory  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IActivationFactory_ActivateInstance( IActivationFactory  *iface, IInspectable **instance )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IActivationFactoryVtbl manager_factory_IActivationFactory_vtbl =
++{
++    manager_factory_QueryInterface,
++    manager_factory_AddRef,
++    manager_factory_Release,
++    manager_factory_IActivationFactory_GetIids,
++    manager_factory_IActivationFactory_GetRuntimeClassName,
++    manager_factory_IActivationFactory_GetTrustLevel,
++    manager_factory_IActivationFactory_ActivateInstance,
++};
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_QueryInterface( IToastNotificationManagerStatics *This, REFIID riid, void **ppvObject )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IActivationFactory_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI manager_factory_IToastNotificationManagerStatics_AddRef( IToastNotificationManagerStatics *This )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static ULONG WINAPI manager_factory_IToastNotificationManagerStatics_Release( IToastNotificationManagerStatics *This )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics( This );
++    return IInspectable_Release( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_GetIids( IToastNotificationManagerStatics  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_GetRuntimeClassName( IToastNotificationManagerStatics  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_GetTrustLevel( IToastNotificationManagerStatics  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_CreateToastNotifier( IToastNotificationManagerStatics  *iface, IToastNotifier **result )
++{
++    TRACE( "iface %p, result %p\n", iface, result );
++    return create_notifier( result );
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_CreateToastNotifierWithId( IToastNotificationManagerStatics  *iface, HSTRING application_id, IToastNotifier **result )
++{
++    TRACE( "iface %p, application_id %s, result %p\n", iface, debugstr_hstring( application_id ), result );
++    return create_notifier( result );
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics_GetTemplateContent( IToastNotificationManagerStatics  *iface, ToastTemplateType type, IXmlDocument **result )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IToastNotificationManagerStaticsVtbl manager_factory_IToastNotificationManagerStatics_vtbl =
++{
++    manager_factory_IToastNotificationManagerStatics_QueryInterface,
++    manager_factory_IToastNotificationManagerStatics_AddRef,
++    manager_factory_IToastNotificationManagerStatics_Release,
++    manager_factory_IToastNotificationManagerStatics_GetIids,
++    manager_factory_IToastNotificationManagerStatics_GetRuntimeClassName,
++    manager_factory_IToastNotificationManagerStatics_GetTrustLevel,
++    manager_factory_IToastNotificationManagerStatics_CreateToastNotifier,
++    manager_factory_IToastNotificationManagerStatics_CreateToastNotifierWithId,
++    manager_factory_IToastNotificationManagerStatics_GetTemplateContent,
++};
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics2_QueryInterface( IToastNotificationManagerStatics2 *This, REFIID riid, void **ppvObject )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics2( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IActivationFactory_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI manager_factory_IToastNotificationManagerStatics2_AddRef( IToastNotificationManagerStatics2 *This )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics2( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static ULONG WINAPI manager_factory_IToastNotificationManagerStatics2_Release( IToastNotificationManagerStatics2 *This )
++{
++    struct manager_factory *impl = manager_factory_from_IToastNotificationManagerStatics2( This );
++    return IInspectable_Release( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics2_GetIids( IToastNotificationManagerStatics2  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics2_GetRuntimeClassName( IToastNotificationManagerStatics2  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics2_GetTrustLevel( IToastNotificationManagerStatics2  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI manager_factory_IToastNotificationManagerStatics2_get_History( IToastNotificationManagerStatics2  *iface, IToastNotificationHistory **value )
++{
++    TRACE( "iface %p, value %p\n", iface, value );
++    return create_history( value );
++}
++
++static const struct IToastNotificationManagerStatics2Vtbl manager_factory_IToastNotificationManagerStatics2_vtbl =
++{
++    manager_factory_IToastNotificationManagerStatics2_QueryInterface,
++    manager_factory_IToastNotificationManagerStatics2_AddRef,
++    manager_factory_IToastNotificationManagerStatics2_Release,
++    manager_factory_IToastNotificationManagerStatics2_GetIids,
++    manager_factory_IToastNotificationManagerStatics2_GetRuntimeClassName,
++    manager_factory_IToastNotificationManagerStatics2_GetTrustLevel,
++    manager_factory_IToastNotificationManagerStatics2_get_History,
++};
++
++
++/* ---- notifier ---- */
++
++struct notifier
++{
++    IToastNotifier IToastNotifier_iface;
++    LONG ref;
++};
++
++static inline struct notifier *notifier_from_IToastNotifier( IToastNotifier *iface )
++{
++    return CONTAINING_RECORD( iface, struct notifier, IToastNotifier_iface );
++}
++
++static HRESULT WINAPI notifier_QueryInterface( IToastNotifier *iface, REFIID iid, void **out )
++{
++    struct notifier *impl = notifier_from_IToastNotifier( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IToastNotifier ))
++    {
++        *out = &impl->IToastNotifier_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI notifier_AddRef( IToastNotifier *iface )
++{
++    struct notifier *impl = notifier_from_IToastNotifier( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI notifier_Release( IToastNotifier *iface )
++{
++    struct notifier *impl = notifier_from_IToastNotifier( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    if (!ref)
++    {
++        free( impl );
++    }
++    return ref;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_GetIids( IToastNotifier  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_GetRuntimeClassName( IToastNotifier  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_GetTrustLevel( IToastNotifier  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_Show( IToastNotifier  *iface, IToastNotification *notification )
++{
++    FIXME( "iface %p, notification %p: not showing anything\n", iface, notification );
++    return S_OK;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_Hide( IToastNotifier  *iface, IToastNotification *notification )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_get_Setting( IToastNotifier  *iface, NotificationSetting *value )
++{
++    FIXME( "iface %p, value %p semi-stub\n", iface, value );
++    *value = NotificationSetting_Enabled;
++    return S_OK;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_AddToSchedule( IToastNotifier  *iface, IScheduledToastNotification *scheduled_toast )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_RemoveFromSchedule( IToastNotifier  *iface, IScheduledToastNotification *scheduled_toast )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI notifier_IToastNotifier_GetScheduledToastNotifications( IToastNotifier  *iface, __FIVectorView_1_Windows__CUI__CNotifications__CScheduledToastNotification **result )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IToastNotifierVtbl notifier_IToastNotifier_vtbl =
++{
++    notifier_QueryInterface,
++    notifier_AddRef,
++    notifier_Release,
++    notifier_IToastNotifier_GetIids,
++    notifier_IToastNotifier_GetRuntimeClassName,
++    notifier_IToastNotifier_GetTrustLevel,
++    notifier_IToastNotifier_Show,
++    notifier_IToastNotifier_Hide,
++    notifier_IToastNotifier_get_Setting,
++    notifier_IToastNotifier_AddToSchedule,
++    notifier_IToastNotifier_RemoveFromSchedule,
++    notifier_IToastNotifier_GetScheduledToastNotifications,
++};
++
++
++/* ---- history ---- */
++
++struct history
++{
++    IToastNotificationHistory IToastNotificationHistory_iface;
++    IToastNotificationHistory2 IToastNotificationHistory2_iface;
++    LONG ref;
++};
++
++static inline struct history *history_from_IToastNotificationHistory( IToastNotificationHistory *iface )
++{
++    return CONTAINING_RECORD( iface, struct history, IToastNotificationHistory_iface );
++}
++
++static inline struct history *history_from_IToastNotificationHistory2( IToastNotificationHistory2 *iface )
++{
++    return CONTAINING_RECORD( iface, struct history, IToastNotificationHistory2_iface );
++}
++
++static HRESULT WINAPI history_QueryInterface( IToastNotificationHistory *iface, REFIID iid, void **out )
++{
++    struct history *impl = history_from_IToastNotificationHistory( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IToastNotificationHistory ))
++    {
++        *out = &impl->IToastNotificationHistory_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotificationHistory2 ))
++    {
++        *out = &impl->IToastNotificationHistory2_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI history_AddRef( IToastNotificationHistory *iface )
++{
++    struct history *impl = history_from_IToastNotificationHistory( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI history_Release( IToastNotificationHistory *iface )
++{
++    struct history *impl = history_from_IToastNotificationHistory( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    if (!ref)
++    {
++        free( impl );
++    }
++    return ref;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_GetIids( IToastNotificationHistory  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_GetRuntimeClassName( IToastNotificationHistory  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_GetTrustLevel( IToastNotificationHistory  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_RemoveGroup( IToastNotificationHistory  *iface, HSTRING group )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_RemoveGroupWithId( IToastNotificationHistory  *iface, HSTRING group, HSTRING application_id )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_RemoveGroupedTagWithId( IToastNotificationHistory  *iface, HSTRING tag, HSTRING group, HSTRING application_id )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_RemoveGroupedTag( IToastNotificationHistory  *iface, HSTRING tag, HSTRING group )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_Remove( IToastNotificationHistory  *iface, HSTRING tag )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_Clear( IToastNotificationHistory  *iface )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory_ClearWithId( IToastNotificationHistory  *iface, HSTRING application_id )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static const struct IToastNotificationHistoryVtbl history_IToastNotificationHistory_vtbl =
++{
++    history_QueryInterface,
++    history_AddRef,
++    history_Release,
++    history_IToastNotificationHistory_GetIids,
++    history_IToastNotificationHistory_GetRuntimeClassName,
++    history_IToastNotificationHistory_GetTrustLevel,
++    history_IToastNotificationHistory_RemoveGroup,
++    history_IToastNotificationHistory_RemoveGroupWithId,
++    history_IToastNotificationHistory_RemoveGroupedTagWithId,
++    history_IToastNotificationHistory_RemoveGroupedTag,
++    history_IToastNotificationHistory_Remove,
++    history_IToastNotificationHistory_Clear,
++    history_IToastNotificationHistory_ClearWithId,
++};
++
++static HRESULT WINAPI history_IToastNotificationHistory2_QueryInterface( IToastNotificationHistory2 *This, REFIID riid, void **ppvObject )
++{
++    struct history *impl = history_from_IToastNotificationHistory2( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IToastNotificationHistory_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI history_IToastNotificationHistory2_AddRef( IToastNotificationHistory2 *This )
++{
++    struct history *impl = history_from_IToastNotificationHistory2( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IToastNotificationHistory_iface );
++}
++
++static ULONG WINAPI history_IToastNotificationHistory2_Release( IToastNotificationHistory2 *This )
++{
++    struct history *impl = history_from_IToastNotificationHistory2( This );
++    return IInspectable_Release( (IInspectable *)&impl->IToastNotificationHistory_iface );
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory2_GetIids( IToastNotificationHistory2  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory2_GetRuntimeClassName( IToastNotificationHistory2  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory2_GetTrustLevel( IToastNotificationHistory2  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory2_GetHistory( IToastNotificationHistory2  *iface, __FIVectorView_1_Windows__CUI__CNotifications__CToastNotification **result )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI history_IToastNotificationHistory2_GetHistoryWithId( IToastNotificationHistory2  *iface, HSTRING application_id, __FIVectorView_1_Windows__CUI__CNotifications__CToastNotification **result )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IToastNotificationHistory2Vtbl history_IToastNotificationHistory2_vtbl =
++{
++    history_IToastNotificationHistory2_QueryInterface,
++    history_IToastNotificationHistory2_AddRef,
++    history_IToastNotificationHistory2_Release,
++    history_IToastNotificationHistory2_GetIids,
++    history_IToastNotificationHistory2_GetRuntimeClassName,
++    history_IToastNotificationHistory2_GetTrustLevel,
++    history_IToastNotificationHistory2_GetHistory,
++    history_IToastNotificationHistory2_GetHistoryWithId,
++};
++
++
++/* ---- toast_factory ---- */
++
++struct toast_factory
++{
++    IActivationFactory IActivationFactory_iface;
++    IToastNotificationFactory IToastNotificationFactory_iface;
++    LONG ref;
++};
++
++static inline struct toast_factory *toast_factory_from_IActivationFactory( IActivationFactory *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast_factory, IActivationFactory_iface );
++}
++
++static inline struct toast_factory *toast_factory_from_IToastNotificationFactory( IToastNotificationFactory *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast_factory, IToastNotificationFactory_iface );
++}
++
++static HRESULT WINAPI toast_factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
++{
++    struct toast_factory *impl = toast_factory_from_IActivationFactory( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IActivationFactory ))
++    {
++        *out = &impl->IActivationFactory_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotificationFactory ))
++    {
++        *out = &impl->IToastNotificationFactory_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI toast_factory_AddRef( IActivationFactory *iface )
++{
++    struct toast_factory *impl = toast_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI toast_factory_Release( IActivationFactory *iface )
++{
++    struct toast_factory *impl = toast_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static HRESULT WINAPI toast_factory_IActivationFactory_GetIids( IActivationFactory  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IActivationFactory_GetRuntimeClassName( IActivationFactory  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IActivationFactory_GetTrustLevel( IActivationFactory  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IActivationFactory_ActivateInstance( IActivationFactory  *iface, IInspectable **instance )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IActivationFactoryVtbl toast_factory_IActivationFactory_vtbl =
++{
++    toast_factory_QueryInterface,
++    toast_factory_AddRef,
++    toast_factory_Release,
++    toast_factory_IActivationFactory_GetIids,
++    toast_factory_IActivationFactory_GetRuntimeClassName,
++    toast_factory_IActivationFactory_GetTrustLevel,
++    toast_factory_IActivationFactory_ActivateInstance,
++};
++
++static HRESULT WINAPI toast_factory_IToastNotificationFactory_QueryInterface( IToastNotificationFactory *This, REFIID riid, void **ppvObject )
++{
++    struct toast_factory *impl = toast_factory_from_IToastNotificationFactory( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IActivationFactory_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI toast_factory_IToastNotificationFactory_AddRef( IToastNotificationFactory *This )
++{
++    struct toast_factory *impl = toast_factory_from_IToastNotificationFactory( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static ULONG WINAPI toast_factory_IToastNotificationFactory_Release( IToastNotificationFactory *This )
++{
++    struct toast_factory *impl = toast_factory_from_IToastNotificationFactory( This );
++    return IInspectable_Release( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static HRESULT WINAPI toast_factory_IToastNotificationFactory_GetIids( IToastNotificationFactory  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IToastNotificationFactory_GetRuntimeClassName( IToastNotificationFactory  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IToastNotificationFactory_GetTrustLevel( IToastNotificationFactory  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_factory_IToastNotificationFactory_CreateToastNotification( IToastNotificationFactory  *iface, IXmlDocument *content, IToastNotification **value )
++{
++    TRACE( "iface %p, content %p, value %p\n", iface, content, value );
++    return create_toast( content, value );
++}
++
++static const struct IToastNotificationFactoryVtbl toast_factory_IToastNotificationFactory_vtbl =
++{
++    toast_factory_IToastNotificationFactory_QueryInterface,
++    toast_factory_IToastNotificationFactory_AddRef,
++    toast_factory_IToastNotificationFactory_Release,
++    toast_factory_IToastNotificationFactory_GetIids,
++    toast_factory_IToastNotificationFactory_GetRuntimeClassName,
++    toast_factory_IToastNotificationFactory_GetTrustLevel,
++    toast_factory_IToastNotificationFactory_CreateToastNotification,
++};
++
++
++/* ---- toast ---- */
++
++struct toast
++{
++    IToastNotification IToastNotification_iface;
++    IToastNotification2 IToastNotification2_iface;
++    IToastNotification3 IToastNotification3_iface;
++    IToastNotification4 IToastNotification4_iface;
++    IToastNotification6 IToastNotification6_iface;
++    LONG ref;
++    IXmlDocument *content;
++};
++
++static inline struct toast *toast_from_IToastNotification( IToastNotification *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast, IToastNotification_iface );
++}
++
++static inline struct toast *toast_from_IToastNotification2( IToastNotification2 *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast, IToastNotification2_iface );
++}
++
++static inline struct toast *toast_from_IToastNotification3( IToastNotification3 *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast, IToastNotification3_iface );
++}
++
++static inline struct toast *toast_from_IToastNotification4( IToastNotification4 *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast, IToastNotification4_iface );
++}
++
++static inline struct toast *toast_from_IToastNotification6( IToastNotification6 *iface )
++{
++    return CONTAINING_RECORD( iface, struct toast, IToastNotification6_iface );
++}
++
++static HRESULT WINAPI toast_QueryInterface( IToastNotification *iface, REFIID iid, void **out )
++{
++    struct toast *impl = toast_from_IToastNotification( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IToastNotification ))
++    {
++        *out = &impl->IToastNotification_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotification2 ))
++    {
++        *out = &impl->IToastNotification2_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotification3 ))
++    {
++        *out = &impl->IToastNotification3_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotification4 ))
++    {
++        *out = &impl->IToastNotification4_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IToastNotification6 ))
++    {
++        *out = &impl->IToastNotification6_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI toast_AddRef( IToastNotification *iface )
++{
++    struct toast *impl = toast_from_IToastNotification( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI toast_Release( IToastNotification *iface )
++{
++    struct toast *impl = toast_from_IToastNotification( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    if (!ref)
++    {
++        if (impl->content) IXmlDocument_Release( impl->content );
++        free( impl );
++    }
++    return ref;
++}
++
++static HRESULT WINAPI toast_IToastNotification_GetIids( IToastNotification  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification_GetRuntimeClassName( IToastNotification  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification_GetTrustLevel( IToastNotification  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification_get_Content( IToastNotification  *iface, IXmlDocument **value )
++{
++    struct toast *impl = toast_from_IToastNotification( iface );
++    TRACE( "iface %p, value %p\n", iface, value );
++    *value = impl->content;
++    if (*value) IXmlDocument_AddRef( *value );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_put_ExpirationTime( IToastNotification  *iface, __FIReference_1_DateTime *value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_get_ExpirationTime( IToastNotification  *iface, __FIReference_1_DateTime **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification_add_Dismissed( IToastNotification  *iface, __FITypedEventHandler_2_Windows__CUI__CNotifications__CToastNotification_Windows__CUI__CNotifications__CToastDismissedEventArgs *handler, EventRegistrationToken *token )
++{
++    FIXME( "iface %p stub\n", iface );
++    if (token) token->value = 1;
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_remove_Dismissed( IToastNotification  *iface, EventRegistrationToken token )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_add_Activated( IToastNotification  *iface, __FITypedEventHandler_2_Windows__CUI__CNotifications__CToastNotification_IInspectable *handler, EventRegistrationToken *token )
++{
++    FIXME( "iface %p stub\n", iface );
++    if (token) token->value = 1;
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_remove_Activated( IToastNotification  *iface, EventRegistrationToken token )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_add_Failed( IToastNotification  *iface, __FITypedEventHandler_2_Windows__CUI__CNotifications__CToastNotification_Windows__CUI__CNotifications__CToastFailedEventArgs *handler, EventRegistrationToken *token )
++{
++    FIXME( "iface %p stub\n", iface );
++    if (token) token->value = 1;
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification_remove_Failed( IToastNotification  *iface, EventRegistrationToken token )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static const struct IToastNotificationVtbl toast_IToastNotification_vtbl =
++{
++    toast_QueryInterface,
++    toast_AddRef,
++    toast_Release,
++    toast_IToastNotification_GetIids,
++    toast_IToastNotification_GetRuntimeClassName,
++    toast_IToastNotification_GetTrustLevel,
++    toast_IToastNotification_get_Content,
++    toast_IToastNotification_put_ExpirationTime,
++    toast_IToastNotification_get_ExpirationTime,
++    toast_IToastNotification_add_Dismissed,
++    toast_IToastNotification_remove_Dismissed,
++    toast_IToastNotification_add_Activated,
++    toast_IToastNotification_remove_Activated,
++    toast_IToastNotification_add_Failed,
++    toast_IToastNotification_remove_Failed,
++};
++
++static HRESULT WINAPI toast_IToastNotification2_QueryInterface( IToastNotification2 *This, REFIID riid, void **ppvObject )
++{
++    struct toast *impl = toast_from_IToastNotification2( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IToastNotification_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI toast_IToastNotification2_AddRef( IToastNotification2 *This )
++{
++    struct toast *impl = toast_from_IToastNotification2( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static ULONG WINAPI toast_IToastNotification2_Release( IToastNotification2 *This )
++{
++    struct toast *impl = toast_from_IToastNotification2( This );
++    return IInspectable_Release( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static HRESULT WINAPI toast_IToastNotification2_GetIids( IToastNotification2  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_GetRuntimeClassName( IToastNotification2  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_GetTrustLevel( IToastNotification2  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_put_Tag( IToastNotification2  *iface, HSTRING value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_get_Tag( IToastNotification2  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_put_Group( IToastNotification2  *iface, HSTRING value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_get_Group( IToastNotification2  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_put_SuppressPopup( IToastNotification2  *iface, boolean value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static HRESULT WINAPI toast_IToastNotification2_get_SuppressPopup( IToastNotification2  *iface, boolean *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IToastNotification2Vtbl toast_IToastNotification2_vtbl =
++{
++    toast_IToastNotification2_QueryInterface,
++    toast_IToastNotification2_AddRef,
++    toast_IToastNotification2_Release,
++    toast_IToastNotification2_GetIids,
++    toast_IToastNotification2_GetRuntimeClassName,
++    toast_IToastNotification2_GetTrustLevel,
++    toast_IToastNotification2_put_Tag,
++    toast_IToastNotification2_get_Tag,
++    toast_IToastNotification2_put_Group,
++    toast_IToastNotification2_get_Group,
++    toast_IToastNotification2_put_SuppressPopup,
++    toast_IToastNotification2_get_SuppressPopup,
++};
++
++static HRESULT WINAPI toast_IToastNotification3_QueryInterface( IToastNotification3 *This, REFIID riid, void **ppvObject )
++{
++    struct toast *impl = toast_from_IToastNotification3( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IToastNotification_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI toast_IToastNotification3_AddRef( IToastNotification3 *This )
++{
++    struct toast *impl = toast_from_IToastNotification3( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static ULONG WINAPI toast_IToastNotification3_Release( IToastNotification3 *This )
++{
++    struct toast *impl = toast_from_IToastNotification3( This );
++    return IInspectable_Release( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static HRESULT WINAPI toast_IToastNotification3_GetIids( IToastNotification3  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_GetRuntimeClassName( IToastNotification3  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_GetTrustLevel( IToastNotification3  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_get_NotificationMirroring( IToastNotification3  *iface, NotificationMirroring *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_put_NotificationMirroring( IToastNotification3  *iface, NotificationMirroring value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_get_RemoteId( IToastNotification3  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification3_put_RemoteId( IToastNotification3  *iface, HSTRING value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IToastNotification3Vtbl toast_IToastNotification3_vtbl =
++{
++    toast_IToastNotification3_QueryInterface,
++    toast_IToastNotification3_AddRef,
++    toast_IToastNotification3_Release,
++    toast_IToastNotification3_GetIids,
++    toast_IToastNotification3_GetRuntimeClassName,
++    toast_IToastNotification3_GetTrustLevel,
++    toast_IToastNotification3_get_NotificationMirroring,
++    toast_IToastNotification3_put_NotificationMirroring,
++    toast_IToastNotification3_get_RemoteId,
++    toast_IToastNotification3_put_RemoteId,
++};
++
++static HRESULT WINAPI toast_IToastNotification4_QueryInterface( IToastNotification4 *This, REFIID riid, void **ppvObject )
++{
++    struct toast *impl = toast_from_IToastNotification4( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IToastNotification_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI toast_IToastNotification4_AddRef( IToastNotification4 *This )
++{
++    struct toast *impl = toast_from_IToastNotification4( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static ULONG WINAPI toast_IToastNotification4_Release( IToastNotification4 *This )
++{
++    struct toast *impl = toast_from_IToastNotification4( This );
++    return IInspectable_Release( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static HRESULT WINAPI toast_IToastNotification4_GetIids( IToastNotification4  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_GetRuntimeClassName( IToastNotification4  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_GetTrustLevel( IToastNotification4  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_get_Data( IToastNotification4  *iface, INotificationData **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_put_Data( IToastNotification4  *iface, INotificationData *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_get_Priority( IToastNotification4  *iface, ToastNotificationPriority *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification4_put_Priority( IToastNotification4  *iface, ToastNotificationPriority value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static const struct IToastNotification4Vtbl toast_IToastNotification4_vtbl =
++{
++    toast_IToastNotification4_QueryInterface,
++    toast_IToastNotification4_AddRef,
++    toast_IToastNotification4_Release,
++    toast_IToastNotification4_GetIids,
++    toast_IToastNotification4_GetRuntimeClassName,
++    toast_IToastNotification4_GetTrustLevel,
++    toast_IToastNotification4_get_Data,
++    toast_IToastNotification4_put_Data,
++    toast_IToastNotification4_get_Priority,
++    toast_IToastNotification4_put_Priority,
++};
++
++static HRESULT WINAPI toast_IToastNotification6_QueryInterface( IToastNotification6 *This, REFIID riid, void **ppvObject )
++{
++    struct toast *impl = toast_from_IToastNotification6( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IToastNotification_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI toast_IToastNotification6_AddRef( IToastNotification6 *This )
++{
++    struct toast *impl = toast_from_IToastNotification6( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static ULONG WINAPI toast_IToastNotification6_Release( IToastNotification6 *This )
++{
++    struct toast *impl = toast_from_IToastNotification6( This );
++    return IInspectable_Release( (IInspectable *)&impl->IToastNotification_iface );
++}
++
++static HRESULT WINAPI toast_IToastNotification6_GetIids( IToastNotification6  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification6_GetRuntimeClassName( IToastNotification6  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification6_GetTrustLevel( IToastNotification6  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification6_get_ExpiresOnReboot( IToastNotification6  *iface, boolean *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI toast_IToastNotification6_put_ExpiresOnReboot( IToastNotification6  *iface, boolean value )
++{
++    FIXME( "iface %p stub, returning S_OK\n", iface );
++    return S_OK;
++}
++
++static const struct IToastNotification6Vtbl toast_IToastNotification6_vtbl =
++{
++    toast_IToastNotification6_QueryInterface,
++    toast_IToastNotification6_AddRef,
++    toast_IToastNotification6_Release,
++    toast_IToastNotification6_GetIids,
++    toast_IToastNotification6_GetRuntimeClassName,
++    toast_IToastNotification6_GetTrustLevel,
++    toast_IToastNotification6_get_ExpiresOnReboot,
++    toast_IToastNotification6_put_ExpiresOnReboot,
++};
++
++
++/* ---- xmldoc_factory ---- */
++
++struct xmldoc_factory
++{
++    IActivationFactory IActivationFactory_iface;
++    IXmlDocumentStatics IXmlDocumentStatics_iface;
++    LONG ref;
++};
++
++static inline struct xmldoc_factory *xmldoc_factory_from_IActivationFactory( IActivationFactory *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc_factory, IActivationFactory_iface );
++}
++
++static inline struct xmldoc_factory *xmldoc_factory_from_IXmlDocumentStatics( IXmlDocumentStatics *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc_factory, IXmlDocumentStatics_iface );
++}
++
++static HRESULT WINAPI xmldoc_factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IActivationFactory( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IActivationFactory ))
++    {
++        *out = &impl->IActivationFactory_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IXmlDocumentStatics ))
++    {
++        *out = &impl->IXmlDocumentStatics_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI xmldoc_factory_AddRef( IActivationFactory *iface )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI xmldoc_factory_Release( IActivationFactory *iface )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IActivationFactory( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static HRESULT WINAPI xmldoc_factory_IActivationFactory_GetIids( IActivationFactory  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IActivationFactory_GetRuntimeClassName( IActivationFactory  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IActivationFactory_GetTrustLevel( IActivationFactory  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IActivationFactory_ActivateInstance( IActivationFactory  *iface, IInspectable **instance )
++{
++    TRACE( "iface %p, instance %p\n", iface, instance );
++    return create_xmldoc( (IXmlDocument **)instance );
++}
++
++static const struct IActivationFactoryVtbl xmldoc_factory_IActivationFactory_vtbl =
++{
++    xmldoc_factory_QueryInterface,
++    xmldoc_factory_AddRef,
++    xmldoc_factory_Release,
++    xmldoc_factory_IActivationFactory_GetIids,
++    xmldoc_factory_IActivationFactory_GetRuntimeClassName,
++    xmldoc_factory_IActivationFactory_GetTrustLevel,
++    xmldoc_factory_IActivationFactory_ActivateInstance,
++};
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_QueryInterface( IXmlDocumentStatics *This, REFIID riid, void **ppvObject )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IXmlDocumentStatics( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IActivationFactory_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI xmldoc_factory_IXmlDocumentStatics_AddRef( IXmlDocumentStatics *This )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IXmlDocumentStatics( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static ULONG WINAPI xmldoc_factory_IXmlDocumentStatics_Release( IXmlDocumentStatics *This )
++{
++    struct xmldoc_factory *impl = xmldoc_factory_from_IXmlDocumentStatics( This );
++    return IInspectable_Release( (IInspectable *)&impl->IActivationFactory_iface );
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_GetIids( IXmlDocumentStatics  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_GetRuntimeClassName( IXmlDocumentStatics  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_GetTrustLevel( IXmlDocumentStatics  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_LoadFromUriAsync( IXmlDocumentStatics  *iface, __x_ABI_CWindows_CFoundation_CIUriRuntimeClass *uri, __FIAsyncOperation_1_Windows__CData__CXml__CDom__CXmlDocument **async_info )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_LoadFromUriWithSettingsAsync( IXmlDocumentStatics  *iface, __x_ABI_CWindows_CFoundation_CIUriRuntimeClass *uri, IXmlLoadSettings *load_settings, __FIAsyncOperation_1_Windows__CData__CXml__CDom__CXmlDocument **async_info )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_LoadFromFileAsync( IXmlDocumentStatics  *iface, __x_ABI_CWindows_CStorage_CIStorageFile *file, __FIAsyncOperation_1_Windows__CData__CXml__CDom__CXmlDocument **async_info )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_factory_IXmlDocumentStatics_LoadFromFileWithSettingsAsync( IXmlDocumentStatics  *iface, __x_ABI_CWindows_CStorage_CIStorageFile *file, IXmlLoadSettings *load_settings, __FIAsyncOperation_1_Windows__CData__CXml__CDom__CXmlDocument **async_info )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlDocumentStaticsVtbl xmldoc_factory_IXmlDocumentStatics_vtbl =
++{
++    xmldoc_factory_IXmlDocumentStatics_QueryInterface,
++    xmldoc_factory_IXmlDocumentStatics_AddRef,
++    xmldoc_factory_IXmlDocumentStatics_Release,
++    xmldoc_factory_IXmlDocumentStatics_GetIids,
++    xmldoc_factory_IXmlDocumentStatics_GetRuntimeClassName,
++    xmldoc_factory_IXmlDocumentStatics_GetTrustLevel,
++    xmldoc_factory_IXmlDocumentStatics_LoadFromUriAsync,
++    xmldoc_factory_IXmlDocumentStatics_LoadFromUriWithSettingsAsync,
++    xmldoc_factory_IXmlDocumentStatics_LoadFromFileAsync,
++    xmldoc_factory_IXmlDocumentStatics_LoadFromFileWithSettingsAsync,
++};
++
++
++/* ---- xmldoc ---- */
++
++struct xmldoc
++{
++    IXmlDocument IXmlDocument_iface;
++    IXmlDocumentIO IXmlDocumentIO_iface;
++    IXmlNode IXmlNode_iface;
++    IXmlNodeSerializer IXmlNodeSerializer_iface;
++    IXmlNodeSelector IXmlNodeSelector_iface;
++    LONG ref;
++};
++
++static inline struct xmldoc *xmldoc_from_IXmlDocument( IXmlDocument *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc, IXmlDocument_iface );
++}
++
++static inline struct xmldoc *xmldoc_from_IXmlDocumentIO( IXmlDocumentIO *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc, IXmlDocumentIO_iface );
++}
++
++static inline struct xmldoc *xmldoc_from_IXmlNode( IXmlNode *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc, IXmlNode_iface );
++}
++
++static inline struct xmldoc *xmldoc_from_IXmlNodeSerializer( IXmlNodeSerializer *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc, IXmlNodeSerializer_iface );
++}
++
++static inline struct xmldoc *xmldoc_from_IXmlNodeSelector( IXmlNodeSelector *iface )
++{
++    return CONTAINING_RECORD( iface, struct xmldoc, IXmlNodeSelector_iface );
++}
++
++static HRESULT WINAPI xmldoc_QueryInterface( IXmlDocument *iface, REFIID iid, void **out )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocument( iface );
++
++    TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
++
++    if (IsEqualGUID( iid, &IID_IUnknown ) ||
++        IsEqualGUID( iid, &IID_IInspectable ) ||
++        IsEqualGUID( iid, &IID_IXmlDocument ))
++    {
++        *out = &impl->IXmlDocument_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IXmlDocumentIO ))
++    {
++        *out = &impl->IXmlDocumentIO_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IXmlNode ))
++    {
++        *out = &impl->IXmlNode_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IXmlNodeSerializer ))
++    {
++        *out = &impl->IXmlNodeSerializer_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++    if (IsEqualGUID( iid, &IID_IXmlNodeSelector ))
++    {
++        *out = &impl->IXmlNodeSelector_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    FIXME( "%s not implemented, returning E_NOINTERFACE.\n", debugstr_guid( iid ) );
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI xmldoc_AddRef( IXmlDocument *iface )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocument( iface );
++    ULONG ref = InterlockedIncrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    return ref;
++}
++
++static ULONG WINAPI xmldoc_Release( IXmlDocument *iface )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocument( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref );
++    TRACE( "iface %p, ref %lu.\n", iface, ref );
++    if (!ref)
++    {
++        free( impl );
++    }
++    return ref;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_GetIids( IXmlDocument  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_GetRuntimeClassName( IXmlDocument  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_GetTrustLevel( IXmlDocument  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_get_Doctype( IXmlDocument  *iface, IXmlDocumentType **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_get_Implementation( IXmlDocument  *iface, IXmlDomImplementation **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_get_DocumentElement( IXmlDocument  *iface, IXmlElement **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateElement( IXmlDocument  *iface, HSTRING tag_name, IXmlElement **new_element )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateDocumentFragment( IXmlDocument  *iface, IXmlDocumentFragment **new_document_fragment )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateTextNode( IXmlDocument  *iface, HSTRING data, IXmlText **new_text_node )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateComment( IXmlDocument  *iface, HSTRING data, IXmlComment **new_comment )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateProcessingInstruction( IXmlDocument  *iface, HSTRING target, HSTRING data, IXmlProcessingInstruction **new_processing_instruction )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateAttribute( IXmlDocument  *iface, HSTRING name, IXmlAttribute **new_attribute )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateEntityReference( IXmlDocument  *iface, HSTRING name, IXmlEntityReference **new_entity_reference )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_GetElementsByTagName( IXmlDocument  *iface, HSTRING tag_name, IXmlNodeList **elements )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateCDataSection( IXmlDocument  *iface, HSTRING data, IXmlCDataSection **new_cdata_section )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_get_DocumentUri( IXmlDocument  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateAttributeNS( IXmlDocument  *iface, IInspectable *namespace_uri, HSTRING qualified_name, IXmlAttribute **new_attribute )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_CreateElementNS( IXmlDocument  *iface, IInspectable *namespace_uri, HSTRING qualified_name, IXmlElement **new_element )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_GetElementById( IXmlDocument  *iface, HSTRING element_id, IXmlElement **element )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocument_ImportNode( IXmlDocument  *iface, IXmlNode *node, boolean deep, IXmlNode **new_node )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlDocumentVtbl xmldoc_IXmlDocument_vtbl =
++{
++    xmldoc_QueryInterface,
++    xmldoc_AddRef,
++    xmldoc_Release,
++    xmldoc_IXmlDocument_GetIids,
++    xmldoc_IXmlDocument_GetRuntimeClassName,
++    xmldoc_IXmlDocument_GetTrustLevel,
++    xmldoc_IXmlDocument_get_Doctype,
++    xmldoc_IXmlDocument_get_Implementation,
++    xmldoc_IXmlDocument_get_DocumentElement,
++    xmldoc_IXmlDocument_CreateElement,
++    xmldoc_IXmlDocument_CreateDocumentFragment,
++    xmldoc_IXmlDocument_CreateTextNode,
++    xmldoc_IXmlDocument_CreateComment,
++    xmldoc_IXmlDocument_CreateProcessingInstruction,
++    xmldoc_IXmlDocument_CreateAttribute,
++    xmldoc_IXmlDocument_CreateEntityReference,
++    xmldoc_IXmlDocument_GetElementsByTagName,
++    xmldoc_IXmlDocument_CreateCDataSection,
++    xmldoc_IXmlDocument_get_DocumentUri,
++    xmldoc_IXmlDocument_CreateAttributeNS,
++    xmldoc_IXmlDocument_CreateElementNS,
++    xmldoc_IXmlDocument_GetElementById,
++    xmldoc_IXmlDocument_ImportNode,
++};
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_QueryInterface( IXmlDocumentIO *This, REFIID riid, void **ppvObject )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocumentIO( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IXmlDocument_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI xmldoc_IXmlDocumentIO_AddRef( IXmlDocumentIO *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocumentIO( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static ULONG WINAPI xmldoc_IXmlDocumentIO_Release( IXmlDocumentIO *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlDocumentIO( This );
++    return IInspectable_Release( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_GetIids( IXmlDocumentIO  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_GetRuntimeClassName( IXmlDocumentIO  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_GetTrustLevel( IXmlDocumentIO  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_LoadXml( IXmlDocumentIO  *iface, HSTRING xml )
++{
++    FIXME( "iface %p, xml %s: accepted, not parsed\n", iface, debugstr_hstring( xml ) );
++    return S_OK;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_LoadXmlWithSettings( IXmlDocumentIO  *iface, HSTRING xml, IXmlLoadSettings *load_settings )
++{
++    FIXME( "iface %p, xml %s: accepted, not parsed\n", iface, debugstr_hstring( xml ) );
++    return S_OK;
++}
++
++static HRESULT WINAPI xmldoc_IXmlDocumentIO_SaveToFileAsync( IXmlDocumentIO  *iface, __x_ABI_CWindows_CStorage_CIStorageFile *file, __x_ABI_CWindows_CFoundation_CIAsyncAction **async_info )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlDocumentIOVtbl xmldoc_IXmlDocumentIO_vtbl =
++{
++    xmldoc_IXmlDocumentIO_QueryInterface,
++    xmldoc_IXmlDocumentIO_AddRef,
++    xmldoc_IXmlDocumentIO_Release,
++    xmldoc_IXmlDocumentIO_GetIids,
++    xmldoc_IXmlDocumentIO_GetRuntimeClassName,
++    xmldoc_IXmlDocumentIO_GetTrustLevel,
++    xmldoc_IXmlDocumentIO_LoadXml,
++    xmldoc_IXmlDocumentIO_LoadXmlWithSettings,
++    xmldoc_IXmlDocumentIO_SaveToFileAsync,
++};
++
++static HRESULT WINAPI xmldoc_IXmlNode_QueryInterface( IXmlNode *This, REFIID riid, void **ppvObject )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNode( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IXmlDocument_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI xmldoc_IXmlNode_AddRef( IXmlNode *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNode( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static ULONG WINAPI xmldoc_IXmlNode_Release( IXmlNode *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNode( This );
++    return IInspectable_Release( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_GetIids( IXmlNode  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_GetRuntimeClassName( IXmlNode  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_GetTrustLevel( IXmlNode  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_NodeValue( IXmlNode  *iface, IInspectable **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_put_NodeValue( IXmlNode  *iface, IInspectable *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_NodeType( IXmlNode  *iface, NodeType *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_NodeName( IXmlNode  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_ParentNode( IXmlNode  *iface, IXmlNode **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_ChildNodes( IXmlNode  *iface, IXmlNodeList **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_FirstChild( IXmlNode  *iface, IXmlNode **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_LastChild( IXmlNode  *iface, IXmlNode **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_PreviousSibling( IXmlNode  *iface, IXmlNode **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_NextSibling( IXmlNode  *iface, IXmlNode **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_Attributes( IXmlNode  *iface, IXmlNamedNodeMap **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_HasChildNodes( IXmlNode  *iface, boolean *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_OwnerDocument( IXmlNode  *iface, IXmlDocument **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_InsertBefore( IXmlNode  *iface, IXmlNode *new_child, IXmlNode *reference_child, IXmlNode **inserted_child )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_ReplaceChild( IXmlNode  *iface, IXmlNode *new_child, IXmlNode *reference_child, IXmlNode **previous_child )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_RemoveChild( IXmlNode  *iface, IXmlNode *child_node, IXmlNode **removed_child )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_AppendChild( IXmlNode  *iface, IXmlNode *new_child, IXmlNode **appended_child )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_CloneNode( IXmlNode  *iface, boolean deep, IXmlNode **new_node )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_NamespaceUri( IXmlNode  *iface, IInspectable **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_LocalName( IXmlNode  *iface, IInspectable **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_get_Prefix( IXmlNode  *iface, IInspectable **value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_Normalize( IXmlNode  *iface )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNode_put_Prefix( IXmlNode  *iface, IInspectable *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlNodeVtbl xmldoc_IXmlNode_vtbl =
++{
++    xmldoc_IXmlNode_QueryInterface,
++    xmldoc_IXmlNode_AddRef,
++    xmldoc_IXmlNode_Release,
++    xmldoc_IXmlNode_GetIids,
++    xmldoc_IXmlNode_GetRuntimeClassName,
++    xmldoc_IXmlNode_GetTrustLevel,
++    xmldoc_IXmlNode_get_NodeValue,
++    xmldoc_IXmlNode_put_NodeValue,
++    xmldoc_IXmlNode_get_NodeType,
++    xmldoc_IXmlNode_get_NodeName,
++    xmldoc_IXmlNode_get_ParentNode,
++    xmldoc_IXmlNode_get_ChildNodes,
++    xmldoc_IXmlNode_get_FirstChild,
++    xmldoc_IXmlNode_get_LastChild,
++    xmldoc_IXmlNode_get_PreviousSibling,
++    xmldoc_IXmlNode_get_NextSibling,
++    xmldoc_IXmlNode_get_Attributes,
++    xmldoc_IXmlNode_HasChildNodes,
++    xmldoc_IXmlNode_get_OwnerDocument,
++    xmldoc_IXmlNode_InsertBefore,
++    xmldoc_IXmlNode_ReplaceChild,
++    xmldoc_IXmlNode_RemoveChild,
++    xmldoc_IXmlNode_AppendChild,
++    xmldoc_IXmlNode_CloneNode,
++    xmldoc_IXmlNode_get_NamespaceUri,
++    xmldoc_IXmlNode_get_LocalName,
++    xmldoc_IXmlNode_get_Prefix,
++    xmldoc_IXmlNode_Normalize,
++    xmldoc_IXmlNode_put_Prefix,
++};
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_QueryInterface( IXmlNodeSerializer *This, REFIID riid, void **ppvObject )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSerializer( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IXmlDocument_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI xmldoc_IXmlNodeSerializer_AddRef( IXmlNodeSerializer *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSerializer( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static ULONG WINAPI xmldoc_IXmlNodeSerializer_Release( IXmlNodeSerializer *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSerializer( This );
++    return IInspectable_Release( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_GetIids( IXmlNodeSerializer  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_GetRuntimeClassName( IXmlNodeSerializer  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_GetTrustLevel( IXmlNodeSerializer  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_GetXml( IXmlNodeSerializer  *iface, HSTRING *outer_xml )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_get_InnerText( IXmlNodeSerializer  *iface, HSTRING *value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSerializer_put_InnerText( IXmlNodeSerializer  *iface, HSTRING value )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlNodeSerializerVtbl xmldoc_IXmlNodeSerializer_vtbl =
++{
++    xmldoc_IXmlNodeSerializer_QueryInterface,
++    xmldoc_IXmlNodeSerializer_AddRef,
++    xmldoc_IXmlNodeSerializer_Release,
++    xmldoc_IXmlNodeSerializer_GetIids,
++    xmldoc_IXmlNodeSerializer_GetRuntimeClassName,
++    xmldoc_IXmlNodeSerializer_GetTrustLevel,
++    xmldoc_IXmlNodeSerializer_GetXml,
++    xmldoc_IXmlNodeSerializer_get_InnerText,
++    xmldoc_IXmlNodeSerializer_put_InnerText,
++};
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_QueryInterface( IXmlNodeSelector *This, REFIID riid, void **ppvObject )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSelector( This );
++    return IInspectable_QueryInterface( (IInspectable *)&impl->IXmlDocument_iface, riid, ppvObject );
++}
++
++static ULONG WINAPI xmldoc_IXmlNodeSelector_AddRef( IXmlNodeSelector *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSelector( This );
++    return IInspectable_AddRef( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static ULONG WINAPI xmldoc_IXmlNodeSelector_Release( IXmlNodeSelector *This )
++{
++    struct xmldoc *impl = xmldoc_from_IXmlNodeSelector( This );
++    return IInspectable_Release( (IInspectable *)&impl->IXmlDocument_iface );
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_GetIids( IXmlNodeSelector  *iface, ULONG *iidCount, IID **iids )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_GetRuntimeClassName( IXmlNodeSelector  *iface, HSTRING *className )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_GetTrustLevel( IXmlNodeSelector  *iface, TrustLevel *trustLevel )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_SelectSingleNode( IXmlNodeSelector  *iface, HSTRING xpath, IXmlNode **node )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_SelectNodes( IXmlNodeSelector  *iface, HSTRING xpath, IXmlNodeList **node_list )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_SelectSingleNodeNS( IXmlNodeSelector  *iface, HSTRING xpath, IInspectable *namespaces, IXmlNode **node )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI xmldoc_IXmlNodeSelector_SelectNodesNS( IXmlNodeSelector  *iface, HSTRING xpath, IInspectable *namespaces, IXmlNodeList **node_list )
++{
++    FIXME( "iface %p stub!\n", iface );
++    return E_NOTIMPL;
++}
++
++static const struct IXmlNodeSelectorVtbl xmldoc_IXmlNodeSelector_vtbl =
++{
++    xmldoc_IXmlNodeSelector_QueryInterface,
++    xmldoc_IXmlNodeSelector_AddRef,
++    xmldoc_IXmlNodeSelector_Release,
++    xmldoc_IXmlNodeSelector_GetIids,
++    xmldoc_IXmlNodeSelector_GetRuntimeClassName,
++    xmldoc_IXmlNodeSelector_GetTrustLevel,
++    xmldoc_IXmlNodeSelector_SelectSingleNode,
++    xmldoc_IXmlNodeSelector_SelectNodes,
++    xmldoc_IXmlNodeSelector_SelectSingleNodeNS,
++    xmldoc_IXmlNodeSelector_SelectNodesNS,
++};
++
++
++static HRESULT create_notifier( IToastNotifier **out )
++{
++    struct notifier *impl;
++
++    if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
++    impl->IToastNotifier_iface.lpVtbl = &notifier_IToastNotifier_vtbl;
++    impl->ref = 1;
++    *out = &impl->IToastNotifier_iface;
++    return S_OK;
++}
++
++static HRESULT create_toast( IXmlDocument *content, IToastNotification **out )
++{
++    struct toast *impl;
++
++    if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
++    impl->IToastNotification_iface.lpVtbl = &toast_IToastNotification_vtbl;
++    impl->IToastNotification2_iface.lpVtbl = &toast_IToastNotification2_vtbl;
++    impl->IToastNotification3_iface.lpVtbl = &toast_IToastNotification3_vtbl;
++    impl->IToastNotification4_iface.lpVtbl = &toast_IToastNotification4_vtbl;
++    impl->IToastNotification6_iface.lpVtbl = &toast_IToastNotification6_vtbl;
++    impl->ref = 1;
++    impl->content = content;
++    if (content) IXmlDocument_AddRef( content );
++    *out = &impl->IToastNotification_iface;
++    return S_OK;
++}
++
++static HRESULT create_history( IToastNotificationHistory **out )
++{
++    struct history *impl;
++
++    if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
++    impl->IToastNotificationHistory_iface.lpVtbl = &history_IToastNotificationHistory_vtbl;
++    impl->IToastNotificationHistory2_iface.lpVtbl = &history_IToastNotificationHistory2_vtbl;
++    impl->ref = 1;
++    *out = &impl->IToastNotificationHistory_iface;
++    return S_OK;
++}
++
++static HRESULT create_xmldoc( IXmlDocument **out )
++{
++    struct xmldoc *impl;
++
++    if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
++    impl->IXmlDocument_iface.lpVtbl = &xmldoc_IXmlDocument_vtbl;
++    impl->IXmlDocumentIO_iface.lpVtbl = &xmldoc_IXmlDocumentIO_vtbl;
++    impl->IXmlNode_iface.lpVtbl = &xmldoc_IXmlNode_vtbl;
++    impl->IXmlNodeSerializer_iface.lpVtbl = &xmldoc_IXmlNodeSerializer_vtbl;
++    impl->IXmlNodeSelector_iface.lpVtbl = &xmldoc_IXmlNodeSelector_vtbl;
++    impl->ref = 1;
++    *out = &impl->IXmlDocument_iface;
++    return S_OK;
++}
++
++static struct manager_factory manager_factory =
++{
++    {&manager_factory_IActivationFactory_vtbl},
++    {&manager_factory_IToastNotificationManagerStatics_vtbl},
++    {&manager_factory_IToastNotificationManagerStatics2_vtbl},
++    1,
++};
++
++static struct toast_factory toast_factory =
++{
++    {&toast_factory_IActivationFactory_vtbl},
++    {&toast_factory_IToastNotificationFactory_vtbl},
++    1,
++};
++
++static struct xmldoc_factory xmldoc_factory =
++{
++    {&xmldoc_factory_IActivationFactory_vtbl},
++    {&xmldoc_factory_IXmlDocumentStatics_vtbl},
++    1,
++};
++
++HRESULT WINAPI DllGetClassObject( REFCLSID clsid, REFIID riid, void **out )
++{
++    FIXME( "clsid %s, riid %s, out %p stub!\n", debugstr_guid( clsid ), debugstr_guid( riid ), out );
++    return CLASS_E_CLASSNOTAVAILABLE;
++}
++
++HRESULT WINAPI DllGetActivationFactory( HSTRING classid, IActivationFactory **factory )
++{
++    const WCHAR *name = WindowsGetStringRawBuffer( classid, NULL );
++
++    TRACE( "classid %s, factory %p.\n", debugstr_hstring( classid ), factory );
++
++    *factory = NULL;
++
++    if (!wcscmp( name, RuntimeClass_Windows_UI_Notifications_ToastNotificationManager ))
++        IActivationFactory_QueryInterface( &manager_factory.IActivationFactory_iface, &IID_IActivationFactory, (void **)factory );
++    else if (!wcscmp( name, RuntimeClass_Windows_UI_Notifications_ToastNotification ))
++        IActivationFactory_QueryInterface( &toast_factory.IActivationFactory_iface, &IID_IActivationFactory, (void **)factory );
++    else if (!wcscmp( name, RuntimeClass_Windows_Data_Xml_Dom_XmlDocument ))
++        IActivationFactory_QueryInterface( &xmldoc_factory.IActivationFactory_iface, &IID_IActivationFactory, (void **)factory );
++
++    if (*factory) return S_OK;
++    return CLASS_E_CLASSNOTAVAILABLE;
++}
+--- /dev/null
++++ b/dlls/windows.ui.notifications/private.h
+@@ -0,0 +1,32 @@
++/*
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ */
++
++#ifndef __WINE_WINDOWS_UI_NOTIFICATIONS_PRIVATE_H
++#define __WINE_WINDOWS_UI_NOTIFICATIONS_PRIVATE_H
++
++#include <stdarg.h>
++#include <stddef.h>
++
++#define COBJMACROS
++#include "windef.h"
++#include "winbase.h"
++#include "winstring.h"
++
++#include "activation.h"
++#include "roapi.h"
++
++#define WIDL_using_Windows_Foundation
++#define WIDL_using_Windows_Foundation_Collections
++#include "windows.foundation.h"
++#define WIDL_using_Windows_Data_Xml_Dom
++#include "windows.data.xml.dom.h"
++#define WIDL_using_Windows_UI_Notifications
++#include "windows.ui.notifications.h"
++
++#include "wine/debug.h"
++
++#endif
+--- /dev/null
++++ b/dlls/windows.ui.notifications/windows.ui.notifications.spec
+@@ -0,0 +1,3 @@
++@ stdcall -private DllGetActivationFactory(ptr ptr)
++@ stdcall -private DllCanUnloadNow()
++@ stdcall -private DllGetClassObject(ptr ptr ptr)

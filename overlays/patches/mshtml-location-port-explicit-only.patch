@@ -1,0 +1,48 @@
+From: Selim Bucher <me@selim.one>
+Subject: [PATCH] mshtml: Only report an explicit port from location.port.
+
+IUri::GetPort returns the scheme default (80/443) when the URL carries no
+port, so location.port was "443" for plain https URLs; native returns "".
+
+--- a/dlls/mshtml/htmllocation.c
++++ b/dlls/mshtml/htmllocation.c
+@@ -324,7 +324,8 @@
+ static HRESULT WINAPI HTMLLocation_get_port(IHTMLLocation *iface, BSTR *p)
+ {
+     HTMLLocation *This = impl_from_IHTMLLocation(iface);
+-    DWORD port;
++    const WCHAR *ptr, *end;
++    BSTR authority;
+     IUri *uri;
+     HRESULT hres;
+ 
+@@ -338,18 +339,21 @@
+         return S_OK;
+     }
+ 
+-    hres = IUri_GetPort(uri, &port);
++    /* IUri::GetPort reports the scheme's default port when the URL has none;
++     * location.port is empty in that case, so look for an explicit ":port"
++     * suffix in the authority instead. */
++    hres = IUri_GetAuthority(uri, &authority);
+     if(FAILED(hres))
+         return hres;
+ 
+-    if(hres == S_OK) {
+-        WCHAR buf[12];
+-
+-        swprintf(buf, ARRAY_SIZE(buf), L"%u", port);
+-        *p = SysAllocString(buf);
+-    }else {
++    ptr = end = authority + SysStringLen(authority);
++    while(ptr > authority && ptr[-1] >= '0' && ptr[-1] <= '9')
++        ptr--;
++    if(ptr > authority && ptr < end && ptr[-1] == ':')
++        *p = SysAllocStringLen(ptr, end - ptr);
++    else
+         *p = SysAllocStringLen(NULL, 0);
+-    }
++    SysFreeString(authority);
+ 
+     if(!*p)
+         return E_OUTOFMEMORY;

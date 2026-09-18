@@ -1,0 +1,78 @@
+From: Filip Bakreski (ValveSoftware/wine PR #310, subset)
+Subject: mshtml: JSObject dispatch and IE9+ event attribute fixes for the Adobe installer
+
+diff --git a/dlls/mshtml/dispex.c b/dlls/mshtml/dispex.c
+index 0eb18fe8d3df..476c5f96c4c6 100644
+--- a/dlls/mshtml/dispex.c
++++ b/dlls/mshtml/dispex.c
+@@ -2315,7 +2315,10 @@ static HRESULT WINAPI DispatchEx_InvokeEx(IWineJSDispatchHost *iface, DISPID id,
+     if(!ensure_real_info(This))
+         return E_OUTOFMEMORY;
+ 
+-    if(This->jsdisp)
++    /* Don't delegate dynamic property DISPIDs to jscript - they are mshtml-specific
++     * and jscript doesn't know about them. This is needed for native code that
++     * creates properties on window via GetDispID+InvokeEx (e.g. Adobe installer's JSObject). */
++    if(This->jsdisp && !is_dynamic_dispid(id))
+         return IWineJSDispatch_InvokeEx(This->jsdisp, id, lcid, wFlags, pdp, pvarRes, pei, pspCaller);
+ 
+     switch(wFlags) {
+diff --git a/dlls/mshtml/htmlelem.c b/dlls/mshtml/htmlelem.c
+index a04dfbb70735..188c1bc1b5d5 100644
+--- a/dlls/mshtml/htmlelem.c
++++ b/dlls/mshtml/htmlelem.c
+@@ -1168,6 +1168,17 @@ static HRESULT WINAPI HTMLElement_setAttribute(IHTMLElement *iface, BSTR strAttr
+ 
+     TRACE("(%p)->(%s %s %08lx)\n", This, debugstr_w(strAttributeName), debugstr_variant(&AttributeValue), lFlags);
+ 
++    /* Event handler attributes (onclick, onload, etc.) need to go through Wine's event system
++     * even in IE9+ mode, since Gecko doesn't dispatch events through our event handlers. */
++    if(compat_mode >= COMPAT_MODE_IE9 && This->dom_element &&
++       strAttributeName[0] && (strAttributeName[0] == 'o' || strAttributeName[0] == 'O') &&
++       strAttributeName[1] && (strAttributeName[1] == 'n' || strAttributeName[1] == 'N')) {
++        hres = set_node_event_handler_by_attr(&This->node, strAttributeName, &val);
++        if(SUCCEEDED(hres))
++            goto done;
++        /* If the event isn't recognized, fall through to the normal attribute handling */
++    }
++
+     if(compat_mode < COMPAT_MODE_IE9 || !This->dom_element) {
+         hres = dispex_get_id(&This->node.event_target.dispex, translate_attr_name(strAttributeName, compat_mode),
+                 (lFlags&ATTRFLAG_CASESENSITIVE ? fdexNameCaseSensitive : fdexNameCaseInsensitive) | fdexNameEnsure, &dispid);
+diff --git a/dlls/mshtml/htmlevent.c b/dlls/mshtml/htmlevent.c
+index d1c39a10519c..ab5ea5ba20f1 100644
+--- a/dlls/mshtml/htmlevent.c
++++ b/dlls/mshtml/htmlevent.c
+@@ -4869,6 +4883,20 @@ void bind_target_event(HTMLDocumentNode *doc, EventTarget *event_target, const W
+     set_event_handler_disp(event_target, eid, disp);
+ }
+ 
++HRESULT set_node_event_handler_by_attr(HTMLDOMNode *node, const WCHAR *attr_name, VARIANT *var)
++{
++    eventid_t eid;
++
++    eid = attr_to_eid(attr_name);
++    if(eid == EVENTID_LAST) {
++        WARN("Unsupported event attribute %s\n", debugstr_w(attr_name));
++        return DISP_E_UNKNOWNNAME;
++    }
++
++    TRACE("Setting event handler for %s (eid=%d)\n", debugstr_w(attr_name), eid);
++    return set_node_event(node, eid, var);
++}
++
+ void update_doc_cp_events(HTMLDocumentNode *doc, cp_static_data_t *cp)
+ {
+     int i;
+diff --git a/dlls/mshtml/htmlevent.h b/dlls/mshtml/htmlevent.h
+index 6dec8cf9a9a7..5c4a9cddbb0d 100644
+--- a/dlls/mshtml/htmlevent.h
++++ b/dlls/mshtml/htmlevent.h
+@@ -109,6 +109,7 @@ HRESULT doc_init_events(HTMLDocumentNode*);
+ void detach_events(HTMLDocumentNode *doc);
+ HRESULT create_event_obj(DOMEvent*,HTMLDocumentNode*,IHTMLEventObj**);
+ void bind_target_event(HTMLDocumentNode*,EventTarget*,const WCHAR*,IDispatch*);
++HRESULT set_node_event_handler_by_attr(HTMLDOMNode*,const WCHAR*,VARIANT*);
+ HRESULT ensure_doc_nsevent_handler(HTMLDocumentNode*,nsIDOMNode*,eventid_t);
+ 
+ void dispatch_event(EventTarget*,DOMEvent*);

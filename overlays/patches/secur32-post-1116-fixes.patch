@@ -1,0 +1,182 @@
+From: upstream wine (wine-mirror/wine), backported 2026-09-13
+Subject: [PATCH] secur32: post-11.16 fixes (081d8b1 df5c23c b717164 e240785 1b1ef35)
+
+ dlls/secur32/schannel.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/dlls/secur32/schannel.c b/dlls/secur32/schannel.c
+index e03efb54dbfb..e9984a561071 100644
+--- a/dlls/secur32/schannel.c
++++ b/dlls/secur32/schannel.c
+@@ -1170,7 +1170,8 @@ static SECURITY_STATUS SEC_ENTRY schan_InitializeSecurityContextW(
+     dump_buffer_desc(pInput);
+     dump_buffer_desc(pOutput);
+ 
+-    return establish_context(phCredential, phContext, pszTargetName, pInput, fContextReq, TargetDataRep, phNewContext, pOutput, pfContextAttr, ptsExpiry, FALSE);
++    return establish_context(phCredential, phContext, pszTargetName, pInput, fContextReq, TargetDataRep,
++                             phNewContext, pOutput, pfContextAttr, ptsExpiry, FALSE);
+ }
+ 
+ /***********************************************************************
+@@ -1218,7 +1219,8 @@ static SECURITY_STATUS SEC_ENTRY schan_AcceptSecurityContext(
+     dump_buffer_desc(pInput);
+     dump_buffer_desc(pOutput);
+ 
+-    return establish_context(phCredential, phContext, NULL, pInput, fContextReq, TargetDataRep, phNewContext, pOutput, pfContextAttr, ptsTimeStamp, TRUE);
++    return establish_context(phCredential, phContext, NULL, pInput, fContextReq, TargetDataRep, phNewContext,
++                             pOutput, pfContextAttr, ptsTimeStamp, TRUE);
+ }
+ 
+ static void *get_alg_name(ALG_ID id, BOOL wide)
+@@ -1519,8 +1521,8 @@ static SECURITY_STATUS SEC_ENTRY schan_EncryptMessage(PCtxtHandle context_handle
+     TRACE("context_handle %p, quality %ld, message %p, message_seq_no %ld\n",
+             context_handle, quality, message, message_seq_no);
+ 
+-    if (!context_handle) return SEC_E_INVALID_HANDLE;
+-    ctx = schan_get_object(context_handle->dwLower, SCHAN_HANDLE_CTX);
++    if (!context_handle || !(ctx = schan_get_object(context_handle->dwLower, SCHAN_HANDLE_CTX)))
++        return SEC_E_INVALID_HANDLE;
+ 
+     dump_buffer_desc(message);
+ 
+@@ -1655,8 +1657,8 @@ static SECURITY_STATUS SEC_ENTRY schan_DecryptMessage(PCtxtHandle context_handle
+     TRACE("context_handle %p, message %p, message_seq_no %ld, quality %p\n",
+             context_handle, message, message_seq_no, quality);
+ 
+-    if (!context_handle) return SEC_E_INVALID_HANDLE;
+-    ctx = schan_get_object(context_handle->dwLower, SCHAN_HANDLE_CTX);
++    if (!context_handle || !(ctx = schan_get_object(context_handle->dwLower, SCHAN_HANDLE_CTX)))
++        return SEC_E_INVALID_HANDLE;
+ 
+     dump_buffer_desc(message);
+ 
+ dlls/secur32/schannel_gnutls.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/secur32/schannel_gnutls.c b/dlls/secur32/schannel_gnutls.c
+index b95d8875d65d..83b9f8faf9d2 100644
+--- a/dlls/secur32/schannel_gnutls.c
++++ b/dlls/secur32/schannel_gnutls.c
+@@ -1252,7 +1252,7 @@ static NTSTATUS schan_set_application_protocols( void *args )
+     if (!count || !(protocols = malloc(count * sizeof(*protocols)))) return STATUS_NO_MEMORY;
+ 
+     parse_alpn_protocol_list(&params->buffer[offset], list_len, protocols);
+-    if ((ret = pgnutls_alpn_set_protocols(s, protocols, count, GNUTLS_ALPN_SERVER_PRECEDENCE) < 0))
++    if ((ret = pgnutls_alpn_set_protocols(s, protocols, count, GNUTLS_ALPN_SERVER_PRECEDENCE)) < 0)
+     {
+         pgnutls_perror(ret);
+     }
+ dlls/secur32/schannel.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/secur32/schannel.c b/dlls/secur32/schannel.c
+index 2ebb3f06a351..1e149d70b801 100644
+--- a/dlls/secur32/schannel.c
++++ b/dlls/secur32/schannel.c
+@@ -743,8 +743,12 @@ static SECURITY_STATUS acquire_credentials_handle(ULONG fCredentialUse,
+     free(key_blob);
+     if (status) goto fail;
+ 
+-    handle = schan_alloc_handle(creds, SCHAN_HANDLE_CRED);
+-    if (handle == SCHAN_INVALID_HANDLE) goto fail;
++    if ((handle = schan_alloc_handle(creds, SCHAN_HANDLE_CRED)) == SCHAN_INVALID_HANDLE)
++    {
++        struct free_certificate_credentials_params free_params = { creds };
++        GNUTLS_CALL( free_certificate_credentials, &free_params );
++        goto fail;
++    }
+ 
+     phCredential->dwLower = handle;
+     phCredential->dwUpper = 0;
+ dlls/secur32/thunks.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/dlls/secur32/thunks.c b/dlls/secur32/thunks.c
+index de0fb0a50ecd..a39ab7eefdb7 100644
+--- a/dlls/secur32/thunks.c
++++ b/dlls/secur32/thunks.c
+@@ -404,7 +404,7 @@ static PSecPkgInfoA _copyPackageInfoFlatWToA(const SecPkgInfoW *infoW)
+             if (infoW->Comment)
+             {
+                 ret->Comment = nextString;
+-                WideCharToMultiByte(CP_ACP, 0, infoW->Comment, -1, nextString, nameLen, NULL, NULL);
++                WideCharToMultiByte(CP_ACP, 0, infoW->Comment, -1, nextString, commentLen, NULL, NULL);
+             }
+             else
+                 ret->Comment = NULL;
+ dlls/secur32/thunks.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/dlls/secur32/thunks.c b/dlls/secur32/thunks.c
+index a39ab7eefdb7..71d0426e64e9 100644
+--- a/dlls/secur32/thunks.c
++++ b/dlls/secur32/thunks.c
+@@ -636,7 +636,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 if (oldUser)
+                 {
+                     names->sUserName = (char *)strdupAW(oldUser);
+-                    package->provider->fnTableW.FreeContextBuffer(oldUser);
++                    package->provider->fnTableA.FreeContextBuffer(oldUser);
+                 }
+                 break;
+             }
+@@ -648,7 +648,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 if (oldAuth)
+                 {
+                     names->sAuthorityName = (char *)strdupAW(oldAuth);
+-                    package->provider->fnTableW.FreeContextBuffer(oldAuth);
++                    package->provider->fnTableA.FreeContextBuffer(oldAuth);
+                 }
+                 break;
+             }
+@@ -661,12 +661,12 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 if (oldSigAlgName)
+                 {
+                     info->sSignatureAlgorithmName = (char *)strdupAW(oldSigAlgName);
+-                    package->provider->fnTableW.FreeContextBuffer(oldSigAlgName);
++                    package->provider->fnTableA.FreeContextBuffer(oldSigAlgName);
+                 }
+                 if (oldEncAlgName)
+                 {
+                     info->sEncryptAlgorithmName = (char *)strdupAW(oldEncAlgName);
+-                    package->provider->fnTableW.FreeContextBuffer(oldEncAlgName);
++                    package->provider->fnTableA.FreeContextBuffer(oldEncAlgName);
+                 }
+                 break;
+             }
+@@ -679,7 +679,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 {
+                     info->PackageInfo = (PSecPkgInfoA)
+                      _copyPackageInfoFlatAToW(oldPkgInfo);
+-                    package->provider->fnTableW.FreeContextBuffer(oldPkgInfo);
++                    package->provider->fnTableA.FreeContextBuffer(oldPkgInfo);
+                 }
+                 break;
+             }
+@@ -692,7 +692,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 {
+                     info->PackageInfo = (PSecPkgInfoA)
+                      _copyPackageInfoFlatAToW(oldPkgInfo);
+-                    package->provider->fnTableW.FreeContextBuffer(oldPkgInfo);
++                    package->provider->fnTableA.FreeContextBuffer(oldPkgInfo);
+                 }
+                 break;
+             }
+@@ -710,7 +710,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 if (oldServer)
+                 {
+                     names->sServerName = (char *)strdupAW(oldServer);
+-                    package->provider->fnTableW.FreeContextBuffer(oldServer);
++                    package->provider->fnTableA.FreeContextBuffer(oldServer);
+                 }
+                 break;
+             }
+@@ -722,7 +722,7 @@ static SECURITY_STATUS thunk_ContextAttributesAToW(SecurePackage *package,
+                 if (oldCred)
+                 {
+                     name->sCredentialName = (char *)strdupAW(oldCred);
+-                    package->provider->fnTableW.FreeContextBuffer(oldCred);
++                    package->provider->fnTableA.FreeContextBuffer(oldCred);
+                 }
+                 break;
+             }

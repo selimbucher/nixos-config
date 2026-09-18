@@ -85,6 +85,61 @@ let
       # host GUI thread) burn a core on font lookups. Adds a 4-entry
       # re-validated LRU per collection. Upstream-worthy.
       ./patches/dwrite-fontface-lookup-cache.patch
+      # mshtml-feature-browser-emulation.patch (ours, 2026-09-12): native
+      # mshtml lets a host pick the default document mode for standards-
+      # doctype pages via FeatureControl\FEATURE_BROWSER_EMULATION\<exe>;
+      # wine ignored the key and hardcoded IE7, so jscript ran in legacy
+      # mode and choked (800a03ea on `default`) on the ES5 webpack bundle
+      # that Adobe's Creative Cloud Set-up.exe renders its UI with (it
+      # writes 11001 for itself) -> installer window never appears. This is
+      # the missing piece wine-staging's mshtml-adobe set does NOT have;
+      # the staging msxml3 bits are moot with native msxml3 in ~/.wine-cc.
+      # Upstream-worthy (mirrors native, no app check).
+      ./patches/mshtml-feature-browser-emulation.patch
+      # mshtml-adobe-jsobject-events.patch: subset of ValveSoftware/wine
+      # PR #310 (Bakreski) that still applies on 11.16 — don't hand dynamic
+      # DISPIDs to jscript (the installer's native JSObject bridge), route
+      # on* attributes through wine's event system in IE9+ mode. The PR's
+      # NodeList hunk is already upstream, its msxml3 CDATA hunk is
+      # unnecessary with native msxml3.
+      ./patches/mshtml-adobe-jsobject-events.patch
+      # mshtml-querycommandsupported-false.patch (ours, 2026-09-12): the
+      # installer's sign-in step loads Adobe's delegated QR-login page, whose
+      # init script calls document.queryCommandSupported("copy") at top
+      # level; wine's E_NOTIMPL stub throws, the script aborts before it
+      # starts polling and the page sits on "Loading...". Native answers
+      # FALSE for unknown commands, so do that.
+      ./patches/mshtml-querycommandsupported-false.patch
+      # mshtml-location-port-explicit-only.patch (ours, 2026-09-12): IUri
+      # reports the scheme default port as present, so location.port was
+      # "443" on https pages (native: ""). The QR sign-in page keys its
+      # environment table on protocol+hostname+port and got an undefined
+      # API URL -> "Something Went Wrong". Only report explicit ports.
+      ./patches/mshtml-location-port-explicit-only.patch
+      # wine-windows-ui-notifications-stub.patch (ours, 2026-09-12): new
+      # windows.ui.notifications.dll with stub ToastNotificationManager /
+      # ToastNotification / Windows.Data.Xml.Dom.XmlDocument activation
+      # factories. Creative Cloud desktop (5.9+/6.9) creates a toast
+      # notifier on launch and dereferences the factory without checking
+      # RoGetActivationFactory, so wine's "class not registered" became
+      # an access violation at startup. Show() is a silent no-op.
+      # Registration is generated from classes.idl (makedep register), so
+      # prefixes pick it up on the next wineboot update.
+      ./patches/wine-windows-ui-notifications-stub.patch
+      # kernel32-SetThreadpoolTimerEx.patch: verbatim wine-staging 11.16
+      # patchset kernel32-SetThreadpoolTimerEx (bug 57980, "Help: Adobe
+      # Lightroom CC"). Creative Cloud desktop 6.9 aborts with "unimplemented
+      # function KERNEL32.dll.SetThreadpoolTimerEx" right after its UI loads;
+      # the fork is not staging-based so it lacks it.
+      ./patches/kernel32-SetThreadpoolTimerEx.patch
+      # secur32-post-1116-fixes.patch: five upstream secur32 commits that
+      # landed right after 11.16 (081d8b1 df5c23c b717164 e240785 1b1ef35):
+      # context-handle validation, gnutls credential leak, wrong comment
+      # length in _copyPackageInfoFlatWToA (heap overflow) and wrong
+      # deallocator in thunk_ContextAttributesAToW (heap corruption).
+      # Creative Cloud desktop corrupts its process heap ~1 min after
+      # launch only when schannel is enabled (schannel=d → no fault).
+      ./patches/secur32-post-1116-fixes.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''

@@ -1,0 +1,28 @@
+From: Selim Bucher <me@selim.one>
+Subject: [PATCH] mshtml: Report unsupported commands from queryCommandSupported instead of failing.
+
+Adobe's delegated sign-in page calls document.queryCommandSupported("copy")
+at top level of its init script; E_NOTIMPL becomes a thrown exception and the
+rest of the script (the QR-code polling) never runs.
+
+--- a/dlls/mshtml/htmldoc.c
++++ b/dlls/mshtml/htmldoc.c
+@@ -1566,8 +1566,16 @@
+         VARIANT_BOOL *pfRet)
+ {
+     HTMLDocumentNode *This = impl_from_IHTMLDocument2(iface);
+-    FIXME("(%p)->(%s %p)\n", This, debugstr_w(cmdID), pfRet);
+-    return E_NOTIMPL;
++
++    FIXME("(%p)->(%s %p) semi-stub, reporting unsupported\n", This, debugstr_w(cmdID), pfRet);
++
++    /* Native answers FALSE for commands it doesn't know rather than failing
++     * the call; scripts feature-detect with this (e.g. "copy") and a thrown
++     * exception aborts them. */
++    if(!pfRet)
++        return E_INVALIDARG;
++    *pfRet = VARIANT_FALSE;
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI HTMLDocument_queryCommandEnabled(IHTMLDocument2 *iface, BSTR cmdID,
