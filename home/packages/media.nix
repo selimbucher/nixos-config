@@ -1,5 +1,9 @@
-{ pkgs, ... }:
+{ pkgs, osConfig, ... }:
 let
+  # The wine yabridge hosts plugins with: the fork with deviceConfig.wineFork,
+  # otherwise stock yabridge 5.1.1's pinned wine 9.21.
+  yabridgeWine = pkgs.wineWow64Packages.yabridge;
+
   # The single wine for the whole stack: the wow64 wine-staging build that
   # yabridge is compiled against (overlays/yabridge-wine11.nix). Being the
   # ONLY wine on PATH is what keeps a foreign build off the plugin prefixes —
@@ -13,7 +17,11 @@ let
   #
   # Set WINEPREFIX yourself for anything that touches a plugin prefix:
   #   WINEPREFIX=~/.wine-ni wine ~/Downloads/Native\ Access.exe
-  wine = pkgs.wineWow64Packages.yabridge;
+  #
+  # Without deviceConfig.wineFork this invariant does NOT hold: PATH gets
+  # cached wine-staging while yabridge stays on 9.21, so keep PATH wine off
+  # the plugin prefixes there.
+  wine = if osConfig.deviceConfig.wineFork then yabridgeWine else pkgs.wineWow64Packages.staging;
 
   # The gecko/mono MSI installers matching this nixpkgs' wine — the same
   # fetchurls the wine build itself would embed with embedInstallers = true.
@@ -75,7 +83,7 @@ in
     # Kept under its own name because pkgs/reaper-tools/reaper-rescue.sh
     # invokes it directly when killing wedged plugin hosts.
     (writeShellScriptBin "wineserver-yabridge" ''
-      exec ${wine}/bin/wineserver "$@"
+      exec ${yabridgeWine}/bin/wineserver "$@"
     '')
 
     # Kept as an alias for muscle memory — reaper-logged (home/apps/

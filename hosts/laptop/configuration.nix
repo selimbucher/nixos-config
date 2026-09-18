@@ -30,5 +30,7 @@
     shadow = true;
     scale = 2.0;
     jackBufferSize = 128;
+    # true = patched wine + yabridge like the desktop (~1h local build per nixpkgs bump)
+    wineFork = false;
   };
 }

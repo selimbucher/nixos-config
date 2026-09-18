@@ -46,6 +46,7 @@
 
   deviceConfig = {
     sddmWayland = false;
+    wineFork = true;
     monitor = [
       { output = "DP-2";     mode = "2560x1440@240"; position = "0x0";    scale = "1.25"; bitdepth = 10; }
       { output = "DP-3";     mode = "2560x1440@240"; position = "2048x0"; scale = "1.25"; bitdepth = 10; }

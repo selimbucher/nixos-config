@@ -61,5 +61,17 @@
       description = "Buffer size for Jack.";
     };
 
+    wineFork = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Apply overlays/yabridge-wine11.nix: patched yabridge (master + ARA)
+        on the patched d2d1-dcomp wine fork, which is also the wine on PATH.
+        Uncached: a local ~1h wine + yabridge build on every nixpkgs bump.
+        When false, everything is stock and cached: yabridge 5.1.1 on its
+        pinned wine 9.21, and wineWow64Packages.staging on PATH.
+      '';
+    };
+
   };
 }
