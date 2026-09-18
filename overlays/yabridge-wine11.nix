@@ -77,6 +77,14 @@ let
       # read-owner pass every 250ms. Diagnosis: omni-preset-freeze memory +
       # scratchpad/omni-probe. Candidate for upstream (novel, unfiled).
       ./patches/wineserver-batch-mutex-abandon.patch
+      # dwrite-fontface-lookup-cache.patch (ours, 2026-09-11): wine's
+      # GetFontFromFontFace does a full collection scan (refkey memcmp per
+      # candidate + two COM allocs) on EVERY text draw; JUCE's D2D text path
+      # calls it per draw, so busy plugin UIs (Absynth 6 node-view preset
+      # explorer, perf-profiled: dwrite+string/heap satellites ~25-30% of the
+      # host GUI thread) burn a core on font lookups. Adds a 4-entry
+      # re-validated LRU per collection. Upstream-worthy.
+      ./patches/dwrite-fontface-lookup-cache.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''

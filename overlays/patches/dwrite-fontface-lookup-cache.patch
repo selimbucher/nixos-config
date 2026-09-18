@@ -1,0 +1,95 @@
+dwrite: cache GetFontFromFontFace lookups (JUCE D2D text resolves the collection font per text draw; the full-collection scan dominated UI-thread CPU in Absynth 6's preset browser).
+
+--- a/dlls/dwrite/font.c
++++ b/dlls/dwrite/font.c
+@@ -429,6 +429,21 @@
+         struct dwrite_fontset_entry **entries;
+         unsigned int count;
+     } set;
++
++    /* Small LRU cache for GetFontFromFontFace(): text renderers (notably
++     * JUCE's Direct2D backend) resolve the collection font from a font face
++     * on every text draw, and the full scan over all families/fonts with a
++     * reference-key compare per candidate dominates UI-thread CPU. Entries
++     * are only hints: a hit is always re-validated against the actual font
++     * data before use, so a stale/reused face pointer cannot produce a wrong
++     * result. */
++    struct facelookup_cache_entry
++    {
++        IDWriteFontFace *face;
++        size_t family;
++        size_t font;
++    } facelookup_cache[4];
++    unsigned int facelookup_next;
+ };
+ 
+ struct dwrite_fontfamily
+@@ -3455,22 +3470,60 @@
+     face_index = IDWriteFontFace_GetIndex(face);
+ 
+     found_font = FALSE;
+-    for (i = 0; i < collection->count; ++i)
++
++    /* Cached lookup first; every hit is re-validated below, see the cache
++     * declaration. */
++    for (i = 0; i < ARRAY_SIZE(collection->facelookup_cache); ++i)
+     {
+-        struct dwrite_fontfamily_data *family_data = collection->family_data[i];
++        const struct facelookup_cache_entry *entry = &collection->facelookup_cache[i];
++        size_t fam = entry->family, fnt = entry->font;
++
++        if (entry->face != face)
++            continue;
++        if (fam >= collection->count || fnt >= collection->family_data[fam]->count)
++            continue;
+ 
+-        for (j = 0; j < family_data->count; ++j)
++        if (face_index == collection->family_data[fam]->fonts[fnt]->face_index
++                && is_same_fontfile(file, collection->family_data[fam]->fonts[fnt]->file))
+         {
+-            struct dwrite_font_data *font_data = family_data->fonts[j];
++            i = fam;
++            j = fnt;
++            found_font = TRUE;
++            break;
++        }
++    }
+ 
+-            if (face_index == font_data->face_index && is_same_fontfile(file, font_data->file)) {
+-                found_font = TRUE;
+-                break;
++    if (!found_font)
++    {
++        for (i = 0; i < collection->count; ++i)
++        {
++            struct dwrite_fontfamily_data *family_data = collection->family_data[i];
++
++            for (j = 0; j < family_data->count; ++j)
++            {
++                struct dwrite_font_data *font_data = family_data->fonts[j];
++
++                if (face_index == font_data->face_index && is_same_fontfile(file, font_data->file)) {
++                    found_font = TRUE;
++                    break;
++                }
+             }
++
++            if (found_font)
++                break;
+         }
+ 
+         if (found_font)
+-            break;
++        {
++            struct facelookup_cache_entry *entry;
++            unsigned int slot = collection->facelookup_next++ % ARRAY_SIZE(collection->facelookup_cache);
++
++            entry = &collection->facelookup_cache[slot];
++            entry->face = NULL;
++            entry->family = i;
++            entry->font = j;
++            entry->face = face;
++        }
+     }
+     IDWriteFontFile_Release(file);
+ 
