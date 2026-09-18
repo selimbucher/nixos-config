@@ -1,20 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "Message List",
-  "version": "1.0",
-  "description": "Sender badges, a short date and row sizing for the cards message list; the look lives in message-list.css.",
+  "name": "Mail Look",
+  "version": "2.0",
+  "description": "Apple Mail-style message list, message header, toolbar and search; the look lives in mail-look.css.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "message-list@selim.one",
+      "id": "mail-look@selim.one",
       "strict_min_version": "128.0"
     }
   },
   "experiment_apis": {
-    "messageList": {
+    "mailLook": {
       "schema": "experiment/schema.json",
       "parent": {
         "scopes": ["addon_parent"],
-        "paths": [["messageList"]],
+        "paths": [["mailLook"]],
         "script": "experiment/implementation.js",
         "events": ["startup"]
       }

@@ -1,0 +1,208 @@
+/* Thunderbird's conversation view (a thread, mail.thread.conversation.enabled)
+ * as Apple Mail shows a conversation: the subject on top, earlier messages as
+ * rows with badge, name, date and two preview lines, the open message below.
+ * Its markup lives in a shadow root, which userChrome.css can't reach, so the
+ * add-on adopts this sheet there. The --ml-* colours come from mail-look.css
+ * and inherit through the shadow boundary. */
+
+:host {
+  min-block-size: 0;
+  overflow-y: auto;
+  background-color: var(--ml-content) !important;
+  color: var(--ml-label);
+}
+
+header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: auto auto !important;
+  grid-template-areas:
+    "title"
+    "info" !important;
+  align-content: center !important;
+  gap: 2px !important;
+  box-sizing: border-box !important;
+  /* single and minimal set these (mail-look.css): a row as tall as the list
+   * header, the rule level with its. */
+  block-size: var(--ml-conversation-header-height, auto) !important;
+  padding-block: var(--ml-conversation-header-padding, 16px 14px) !important;
+  padding-inline: 20px !important;
+  background: var(--ml-content) !important;
+  color: var(--ml-label) !important;
+  border: none !important;
+  z-index: 1;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: var(--ml-conversation-rule-inset, 20px);
+    inset-block-end: 0;
+    block-size: 1px;
+    background-color: var(--ml-separator);
+  }
+
+  & .title {
+    grid-area: title;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    line-height: 1.25;
+  }
+
+  & .info {
+    grid-area: info;
+  }
+
+  & .counts {
+    flex-direction: row !important;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--ml-secondary);
+
+    & .total {
+      font-weight: 400 !important;
+    }
+
+    & .details:not(:empty)::before {
+      content: "· ";
+    }
+
+    & .details {
+      color: var(--ml-secondary) !important;
+    }
+  }
+
+  & :is(.toolbar, .actions):empty {
+    display: none;
+  }
+}
+
+#mainConversation {
+  block-size: auto !important;
+  min-block-size: 100%;
+
+  & article {
+    position: relative;
+    border: none !important;
+  }
+
+  /* Earlier messages. */
+  & article[aria-expanded="false"] {
+    grid-template-columns: 34px minmax(0, 1fr) max-content !important;
+    grid-template-areas:
+      "badge name date"
+      "badge snippet snippet" !important;
+    gap: 2px 12px !important;
+    align-items: start !important;
+    padding: 12px 20px !important;
+
+    &:hover {
+      background-color: var(--ml-hover);
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: 66px 20px;
+      inset-block-end: 0;
+      block-size: 1px;
+      background-color: var(--ml-separator);
+    }
+
+    /* Unread: Mail's dot left of the badge. */
+    &.ml-unread::before {
+      content: "";
+      position: absolute;
+      inset-inline-start: 7px;
+      inset-block-start: 25px;
+      inline-size: 8px;
+      block-size: 8px;
+      border-radius: 50%;
+      background-color: var(--ml-unread);
+    }
+
+    & .ml-badge {
+      grid-area: badge;
+    }
+
+    & address {
+      grid-area: name;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+    }
+
+    & time {
+      grid-area: date;
+      font-size: 12px !important;
+      color: var(--ml-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    & p {
+      grid-area: snippet;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      white-space: normal !important;
+      font-size: 12.5px;
+      line-height: 17px;
+      color: var(--ml-secondary);
+    }
+
+    & .info:empty {
+      display: none;
+    }
+  }
+
+  /* The open message: Thunderbird's message view, styled by mail-look.css. */
+  & article[aria-expanded="true"] {
+    padding: 0 !important;
+  }
+}
+
+/* Same badge as in the message list. */
+.ml-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: light-dark(hsl(var(--ml-hue, 220) 60% 91%), hsl(var(--ml-hue, 220) 28% 27%));
+  color: light-dark(hsl(var(--ml-hue, 220) 42% 33%), hsl(var(--ml-hue, 220) 58% 82%));
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 0.5px var(--ml-separator);
+  }
+
+  & .ml-initials {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  & .ml-logo {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    object-fit: cover;
+    visibility: hidden;
+  }
+
+  &.ml-has-logo {
+    & .ml-logo {
+      visibility: visible;
+    }
+    & .ml-initials {
+      visibility: hidden;
+    }
+  }
+}

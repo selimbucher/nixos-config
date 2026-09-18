@@ -1,0 +1,1497 @@
+/* Apple Mail-style Thunderbird: toolbar, list header and search, message list,
+ * message header, thread summary. Needs the mail-look add-on
+ * (pkgs/thunderbird-mail-look), which sets data-ml-layout on each document and
+ * adds the badges, the search field and the scope bar.
+ * Loaded as part of userChrome.css, so everything overriding Thunderbird needs
+ * !important. --ml-row-height must stay a plain px value: the add-on reads it to
+ * tell the tree how tall a row is. */
+
+/* Shared by every mail document: colours, badges, quiet icon buttons. */
+@-moz-document url("chrome://messenger/content/messenger.xhtml"), url("about:3pane"), url("about:message"), url("chrome://messenger/content/multimessageview.xhtml") {
+  :root[data-ml-layout] {
+    --ml-label: light-dark(rgba(0, 0, 0, 0.85), rgba(255, 255, 255, 0.86));
+    --ml-secondary: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.55));
+    --ml-tertiary: light-dark(rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.3));
+    --ml-separator: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.1));
+    --ml-content: light-dark(#ffffff, #1e1e1e);
+    --ml-control: light-dark(rgba(0, 0, 0, 0.055), rgba(255, 255, 255, 0.08));
+    --ml-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+    --ml-accent: light-dark(#0a64e1, #0a5ad2);
+    /* The accent as text or an icon, bright enough on dark grounds. */
+    --ml-accent-text: light-dark(#0a64e1, #6aa8ff);
+    --ml-unfocused: light-dark(#dcdcdc, #464646);
+    --ml-unread: light-dark(#007aff, #0a84ff);
+    /* Height of the one row single and minimal leave, shared by the toolbar
+     * over the folder pane, the list header and the message actions. */
+    --ml-top-row: 52px;
+  }
+
+  /* Badge: the sender's logo, or initials tinted per sender (the add-on sets
+   * --ml-hue). Rounded squares, like app icons, which is what most logos are
+   * drawn for. */
+  :root[data-ml-layout] .ml-badge {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--ml-badge-size, 34px);
+    block-size: var(--ml-badge-size, 34px);
+    border-radius: calc(var(--ml-badge-size, 34px) * 0.235);
+    overflow: hidden;
+    background: light-dark(hsl(var(--ml-hue, 220) 60% 91%), hsl(var(--ml-hue, 220) 28% 27%));
+    color: light-dark(hsl(var(--ml-hue, 220) 42% 33%), hsl(var(--ml-hue, 220) 58% 82%));
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: inset 0 0 0 0.5px var(--ml-separator);
+      pointer-events: none;
+    }
+
+    & .ml-initials {
+      font-size: calc(var(--ml-badge-size, 34px) * 0.38);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    & .ml-logo {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      visibility: hidden;
+    }
+
+    &.ml-has-logo {
+      & .ml-logo {
+        visibility: visible;
+      }
+      & .ml-initials {
+        visibility: hidden;
+      }
+    }
+  }
+
+  /* Icon-only actions (the toolbar, the message header, the thread summary). */
+  :root[data-ml-layout] :is(#unifiedToolbarContent .unified-toolbar-button, #button-appmenu, .message-header-view-button) {
+    min-inline-size: 30px !important;
+    min-block-size: 28px !important;
+    padding: 5px 7px !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    &:not([disabled]):hover {
+      background-color: var(--ml-hover) !important;
+    }
+
+    & .toolbarbutton-text,
+    & > .toolbarbutton-menubutton-dropmarker {
+      display: none !important;
+    }
+
+    & .toolbarbutton-menubutton-button {
+      padding: 0 !important;
+      border: none !important;
+      background: transparent !important;
+    }
+  }
+
+  /* The search field, in the toolbar or the list header: the magnifier in
+   * front and a plain "Search" placeholder. */
+  :root[data-ml-layout] :is(global-search-bar, #mlSearch) {
+    --search-bar-background: transparent !important;
+    --search-bar-focus-background: transparent !important;
+    --search-bar-border-color: transparent !important;
+    --search-button-show: none !important;
+    --search-buttons-padding: 6px !important;
+    --search-padding: 0px !important;
+    --search-outline-offset: 0px !important;
+    box-sizing: border-box !important;
+    block-size: 28px !important;
+    padding-inline-start: 26px !important;
+    border-radius: 7px !important;
+    background: var(--ml-control) var(--icon-search) no-repeat 7px center / 14px !important;
+    -moz-context-properties: fill, stroke;
+    fill: color-mix(in srgb, currentColor 20%, transparent);
+    stroke: var(--ml-secondary);
+    font-size: 13px;
+    /* One ring around the whole field, Mail's focus ring, rather than an
+     * outline around the text part only. */
+    --focus-outline-color: transparent !important;
+    transition: box-shadow 120ms ease;
+
+    &:focus-within {
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--ml-accent) 65%, transparent),
+        0 0 0 4px color-mix(in srgb, var(--ml-accent) 22%, transparent) !important;
+    }
+
+    & .kbd-container {
+      font-size: 0 !important;
+
+      & kbd {
+        display: none !important;
+      }
+      &::before {
+        content: "Search";
+        font-size: 13px;
+      }
+    }
+  }
+}
+
+/* Main window: the toolbar. */
+@-moz-document url("chrome://messenger/content/messenger.xhtml") {
+  :root[data-ml-layout] {
+    /* No spaces button next to the window buttons; in the status bar no
+     * offline toggle and no "Connecting to…", "Loading message…" or link
+     * text. */
+    & #spacesPinnedButton,
+    & #offline-status,
+    & #statusText,
+    & #urlText {
+      display: none !important;
+    }
+
+    /* The app menu: without the Thundermail sign-in, density, font size and
+     * help. */
+    & :is(#tbpro-menu-id-root, #appMenu-uiDensity-controls, #appMenu-fontSize-controls, #appmenu_help) {
+      display: none !important;
+    }
+
+    /* The app menu's icon as far from the right edge as the window buttons
+     * are from the left (12px, measured in the rendered window); specific
+     * enough to beat the shared button margin. */
+    & #unifiedToolbar > #button-appmenu {
+      margin-inline-end: 3px !important;
+    }
+
+    /* A hidden tab bar takes no room, so the toolbar meets the panes. */
+    &[tabbarhidden] #tabs-toolbar {
+      display: none !important;
+    }
+
+    & #unifiedToolbarContent {
+      gap: 2px !important;
+    }
+
+    /* Gaps between groups of related actions, like Mail's toolbar. */
+    & #unifiedToolbarContent :is([item-id="archive"], [item-id="reply"]) {
+      margin-inline-start: 10px !important;
+    }
+
+    & #unifiedToolbarContent li.search-bar {
+      flex: 0 1 220px !important;
+      min-inline-size: 140px !important;
+      margin-inline: 4px !important;
+    }
+  }
+
+  :root[data-ml-layout="reader"] #unifiedToolbarContent li.search-bar {
+    flex-basis: 420px !important;
+  }
+
+  /* mail: the toolbar's groups line up with the panes below. Compose and the
+   * search sit over the message list (inset like its rows), the message
+   * actions start where the message header does, and the app menu closes the
+   * row. The add-on measures the panes. */
+  :root[data-ml-layout="mail"][data-ml-zones] #unifiedToolbarContent {
+    & > [item-id="write-message"] {
+      margin-inline-start: max(0px, calc(var(--ml-list-x) - var(--ml-toolbar-x) + var(--ml-compose-start))) !important;
+    }
+    & > li.search-bar {
+      flex: 0 1 calc(var(--ml-reader-x) - var(--ml-list-x) - var(--ml-compose-start) - 54px) !important;
+      min-inline-size: 120px !important;
+      margin-inline: var(--ml-search-start) 0 !important;
+    }
+    & > [item-id="archive"] {
+      margin-inline-start: var(--ml-actions-start) !important;
+    }
+  }
+  :root[data-ml-layout="mail"] {
+    /* From the pane edges to the controls, tuned against the rendered row:
+     * compose's icon lines up with the list's text, the search follows it. */
+    --ml-compose-start: 9px;
+    --ml-search-start: 6px;
+    --ml-actions-start: 27px;
+  }
+
+  /* Tabs, when there's more than one: Safari's, one row of equal tabs. */
+  :root[data-ml-layout] {
+    & #tabs-toolbar {
+      background-image: none !important;
+      box-shadow: none !important;
+      /* the same room above the tabs as below them */
+      padding: 6px 8px !important;
+      border-block-end: 1px solid var(--ml-separator) !important;
+    }
+    & .tabmail-tab {
+      flex: 0 1 220px !important;
+      min-inline-size: 90px !important;
+      max-inline-size: 220px !important;
+      margin: 0 !important;
+      margin-inline-end: 4px !important;
+      border-radius: 7px !important;
+      box-shadow: none !important;
+    }
+    & .tab-background {
+      margin: 0 !important;
+      border: none !important;
+      border-radius: 7px !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    /* A quiet fill for the open tab, which reads on any toolbar colour. */
+    & .tab-background[selected] {
+      background: var(--ml-control) !important;
+    }
+    & .tabmail-tab:hover .tab-background:not([selected]) {
+      background: color-mix(in srgb, currentColor 4%, transparent) !important;
+    }
+    & .tab-line {
+      display: none !important;
+    }
+    & .tab-content {
+      position: relative;
+      justify-content: center !important;
+      padding-inline: 28px !important;
+      min-block-size: 28px !important;
+    }
+    & .tab-label-container {
+      flex: 0 1 auto !important;
+    }
+    & .tab-text {
+      font-size: 12px !important;
+      color: var(--ml-secondary) !important;
+    }
+    & .tab-content[selected] .tab-text {
+      font-weight: 500 !important;
+      color: var(--ml-label) !important;
+    }
+    & .tab-icon-image {
+      opacity: 0.8;
+    }
+    /* Close at the start, shown on hover. */
+    & .tab-close-button {
+      position: absolute !important;
+      inset-inline-start: 6px !important;
+      margin: 0 !important;
+      border-radius: 5px !important;
+      opacity: 0;
+    }
+    & .tabmail-tab:hover .tab-close-button {
+      opacity: 1;
+    }
+  }
+
+  /* The status bar keeps to the folder pane, like the bottom of Mail's
+   * sidebar; the message list and message run down to the window's edge. */
+  :root[data-ml-layout][data-ml-tab="mail3PaneTab"][data-ml-sidebar] #status-bar {
+    position: fixed !important;
+    inset-block-end: 0 !important;
+    inset-inline-start: 0 !important;
+    inline-size: var(--ml-sidebar-width) !important;
+    min-inline-size: 0 !important;
+    z-index: 2 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* single, minimal: no toolbar row. What's left of it (window buttons,
+   * compose in single, the menu) sits above the folder pane; the list and the
+   * message start at the top of the window with their own tools, in a row
+   * of the same height. With the folder pane hidden or tabs open, the
+   * toolbar stays a row. */
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"])[data-ml-tab="mail3PaneTab"][data-ml-sidebar][tabbarhidden="true"] {
+    & #navigation-toolbox {
+      position: fixed !important;
+      inset-block-start: 0 !important;
+      inset-inline-start: 0 !important;
+      inline-size: var(--ml-sidebar-width) !important;
+      block-size: var(--ml-top-row) !important;
+      z-index: 2 !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    & #titlebar,
+    & unified-toolbar,
+    & #unifiedToolbarContainer,
+    & #unifiedToolbar,
+    & #unifiedToolbarContent {
+      min-inline-size: 0 !important;
+      inline-size: auto !important;
+      block-size: 100% !important;
+      background: transparent !important;
+      border: none !important;
+    }
+    & #unifiedToolbarContainer {
+      inline-size: 100% !important;
+      align-items: center !important;
+    }
+  }
+}
+
+/* Mail tab: list header, search, message list. */
+@-moz-document url("about:3pane") {
+  :root[data-ml-layout] {
+    --ml-header-height: 38px;
+    --ml-row-height: 58px;
+    --ml-gutter: 10px;
+    --ml-gap: 10px;
+    --ml-padding-start: 8px;
+    --ml-padding-end: 14px;
+    --ml-inset: 8px;
+    --ml-radius: 8px;
+    --ml-badge-size: 34px;
+  }
+
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) {
+    --ml-header-height: var(--ml-top-row);
+  }
+
+  /* List header: the folder in Mail's title style, count beside it, quiet
+   * icon buttons; no bar of its own. */
+  :root[data-ml-layout] #threadPaneHeaderBar {
+    box-sizing: border-box !important;
+    flex: none !important;
+    block-size: var(--ml-header-height) !important;
+    padding-inline: 16px 8px !important;
+    gap: 8px !important;
+    background-color: var(--ml-content) !important;
+    border-block-end: 1px solid var(--ml-separator) !important;
+
+    & .list-header-bar-container-start {
+      flex: 0 1 auto !important;
+      align-items: baseline !important;
+      gap: 6px !important;
+      padding: 0 !important;
+    }
+
+    & #threadPaneFolderName {
+      font-size: 13px !important;
+      font-weight: 700 !important;
+      color: var(--ml-label) !important;
+    }
+
+    & .thread-pane-count-info {
+      padding: 0 !important;
+      font-size: 12px !important;
+      color: var(--ml-secondary) !important;
+    }
+
+    & .list-header-bar-container-end {
+      padding: 0 !important;
+      gap: 2px !important;
+    }
+
+    & #threadPaneQuickFilterButton > span,
+    & #threadPaneQuickFilterButton::before {
+      display: none !important;
+    }
+
+    & #threadPaneQuickFilterButton,
+    & #threadPaneDisplayButton,
+    & #mlCompose {
+      min-inline-size: 30px !important;
+      block-size: 28px !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 7px !important;
+      background-color: transparent !important;
+      background-position: center !important;
+      box-shadow: none !important;
+
+      &:hover {
+        background-color: var(--ml-hover) !important;
+      }
+    }
+
+    & #mlCompose {
+      background-image: var(--icon-new-mail) !important;
+    }
+
+    & #threadPaneQuickFilterButton[aria-pressed="true"] {
+      background-color: color-mix(in srgb, var(--ml-accent) 14%, transparent) !important;
+      stroke: var(--ml-accent-text) !important;
+    }
+
+    & #mlSearch {
+      flex: 1 1 auto !important;
+      min-inline-size: 80px !important;
+    }
+  }
+
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #threadPaneHeaderBar .list-header-bar-container-start {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0 !important;
+    line-height: 1.15 !important;
+
+    & .thread-pane-count-info {
+      font-size: 11px !important;
+    }
+  }
+
+  /* The list header's display menu: no way to hide the header by accident
+   * (View > Layout > Message List Header still toggles it). */
+  :root[data-ml-layout] #threadPaneDisplayContext > :is(menuitem[data-l10n-id="thread-pane-header-context-hide"], #separatorAfterSortOptions) {
+    display: none !important;
+  }
+
+  /* While searching, the scope bar counts the results instead. */
+  :root[data-ml-searching] #threadPaneHeaderBar #threadPaneFolderCountContainer {
+    display: none !important;
+  }
+
+  /* Scope of a running search: the open folder or all mail. */
+  :root[data-ml-layout] #mlScope {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 16px 6px 10px;
+    background-color: var(--ml-content);
+    border-block-end: 1px solid var(--ml-separator);
+
+    &[hidden] {
+      display: none;
+    }
+
+    & .ml-scope-button {
+      appearance: none !important;
+      min-inline-size: 0 !important;
+      min-block-size: 0 !important;
+      margin: 0 !important;
+      padding: 3px 10px !important;
+      border: none !important;
+      border-radius: 6px !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      color: var(--ml-secondary) !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+
+      &:hover {
+        background-color: var(--ml-hover) !important;
+      }
+
+      &[aria-checked="true"] {
+        background-color: var(--ml-control) !important;
+        color: var(--ml-label) !important;
+        font-weight: 600 !important;
+      }
+    }
+
+    & .ml-scope-count {
+      margin-inline-start: auto;
+      font-size: 12px;
+      color: var(--ml-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  /* Quick filter bar: only the filter chips, as a quiet row. Text search goes
+   * through the one search field. */
+  :root[data-ml-layout] #quick-filter-bar {
+    background-color: var(--ml-content) !important;
+    border-block-end: 1px solid var(--ml-separator) !important;
+
+    & #qfb-sticky,
+    & #qfd-dropdown,
+    & #qfb-qs-textbox,
+    & #qfb-results-label,
+    & #quick-filter-bar-filter-text-bar {
+      display: none !important;
+    }
+
+    & #quickFilterBarContainer {
+      gap: 4px !important;
+      min-block-size: 0 !important;
+      padding: 6px 16px 6px 10px !important;
+    }
+
+    /* Chips with their labels at any list width, not Thunderbird's joined
+     * button group that drops the labels below 1000px and hides below 500px. */
+    & .quickFilterButtons {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      gap: 4px !important;
+      margin: 0 !important;
+      border: none !important;
+      background: none !important;
+    }
+    & .quickFilterButtons .collapsible-button span {
+      display: inline !important;
+      visibility: visible !important;
+      inline-size: auto !important;
+    }
+
+    & .quickFilterButtons .button {
+      min-block-size: 0 !important;
+      min-inline-size: 0 !important;
+      margin: 0 !important;
+      padding: 3px 10px 3px 27px !important;
+      border: none !important;
+      border-radius: 6px !important;
+      background-color: transparent !important;
+      background-position: 9px center !important;
+      background-size: 14px !important;
+      box-shadow: none !important;
+      color: var(--ml-secondary) !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      stroke: currentColor !important;
+      fill: color-mix(in srgb, currentColor 20%, transparent) !important;
+
+      &::before {
+        display: none !important;
+      }
+      &:hover {
+        background-color: var(--ml-hover) !important;
+      }
+      &[aria-pressed="true"] {
+        background-color: color-mix(in srgb, var(--ml-accent) 14%, transparent) !important;
+        color: var(--ml-accent-text) !important;
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  /* Tag filter row: the any/all/none choice and the tags as the same quiet
+   * pills, each tag marked by its colour dot. */
+  :root[data-ml-layout] #quick-filter-bar {
+    & #quickFilterBarSecondFilters {
+      padding: 0 16px 6px 10px !important;
+    }
+
+    & #quickFilterBarTagsContainer {
+      gap: 4px !important;
+      margin: 0 !important;
+    }
+
+    & #qfb-tag-filter-mode {
+      appearance: none !important;
+      min-block-size: 0 !important;
+      margin: 0 4px 0 0 !important;
+      padding: 3px 8px !important;
+      border: none !important;
+      border-radius: 6px !important;
+      background-color: var(--ml-control) !important;
+      box-shadow: none !important;
+      color: var(--ml-label) !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+    }
+
+    & button.qfb-tag-button {
+      margin: 0 !important;
+      padding: 3px 10px 3px 22px !important;
+      border: none !important;
+      border-radius: 6px !important;
+      background-color: transparent !important;
+      background-image: radial-gradient(circle at 11px 50%, var(--tag-color) 3.5px, transparent 4px) !important;
+      box-shadow: none !important;
+      color: var(--ml-secondary) !important;
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      line-height: 15px !important;
+
+      &:hover {
+        background-color: var(--ml-hover) !important;
+      }
+      &[aria-pressed="true"] {
+        background-color: color-mix(in srgb, var(--tag-color) 16%, transparent) !important;
+        color: var(--ml-label) !important;
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  /* Grouped by sort: the group rows as quiet section headings. */
+  :root[data-ml-layout] #threadTree[rows="thread-card"] .card-layout[data-properties~="dummy"] {
+    background: transparent !important;
+
+    & .card-container {
+      block-size: 100% !important;
+      margin: 0 !important;
+      padding-inline: 18px 14px !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    & .thread-card-column {
+      block-size: 100% !important;
+      justify-content: center !important;
+    }
+    & .thread-card-dynamic-row {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+    & .subject {
+      font-size: 13px !important;
+      font-weight: 700 !important;
+      color: var(--ml-label) !important;
+    }
+    & .sort-header-details {
+      order: 2;
+      margin-inline-start: auto !important;
+      padding: 0 !important;
+      font-size: 12px !important;
+      color: var(--ml-secondary) !important;
+
+      & span {
+        font-weight: 400 !important;
+      }
+    }
+    & .thread-card-button {
+      order: 3;
+    }
+  }
+
+  /* Nothing selected: Mail's placeholder instead of an empty pane. */
+  :root[data-ml-layout] #messagePane:not(:has(> browser:not([hidden]), > conversation-view:not([hidden]))) {
+    display: grid !important;
+    place-items: center !important;
+    background-color: var(--ml-content) !important;
+
+    &::before {
+      content: "No Message Selected";
+      font-size: 20px;
+      color: var(--ml-tertiary);
+    }
+  }
+
+  /* Room under the folders for the status bar, which overlays the pane. */
+  :root[data-ml-layout] #folderPane {
+    padding-block-end: 26px !important;
+  }
+
+  /* Message list. */
+  :root[data-ml-layout] :is(#threadTree, #threadTree .tree-table, #threadTree tbody) {
+    outline: none !important;
+  }
+
+  :root[data-ml-layout] #threadTree[rows="thread-card"] {
+    --tree-pane-background: var(--ml-content) !important;
+    background-color: var(--ml-content) !important;
+    padding-block: 4px !important;
+    color: var(--ml-label);
+
+    & .card-layout:not([data-properties~="dummy"]) {
+      height: var(--ml-row-height) !important;
+      background: transparent !important;
+
+      & > td {
+        padding-block: 0 !important;
+        padding-inline: var(--ml-inset) !important;
+        background: transparent !important;
+      }
+
+      & .card-container {
+        grid-template-columns: var(--ml-gutter) auto minmax(0, 1fr) !important;
+        column-gap: var(--ml-gap) !important;
+        align-items: center !important;
+        box-sizing: border-box !important;
+        height: var(--ml-row-height) !important;
+        margin: 0 !important;
+        padding-block: 0 !important;
+        padding-inline: var(--ml-padding-start) var(--ml-padding-end) !important;
+        border: none !important;
+        border-radius: var(--ml-radius) !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        color: var(--ml-label) !important;
+        overflow: hidden !important;
+      }
+
+      /* Fixed cells, so a hidden dot column doesn't shift the badge. */
+      & .card-container > * {
+        grid-row: 1 !important;
+      }
+      & .read-status-column {
+        grid-column: 1 !important;
+        inline-size: var(--ml-gutter) !important;
+        block-size: auto !important;
+        align-self: center !important;
+        align-items: center !important;
+        padding: 0 !important;
+      }
+      & .ml-badge {
+        grid-column: 2;
+      }
+      & .card-container > .thread-card-column:not(.read-status-column) {
+        grid-column: 3 !important;
+      }
+
+      /* Unread: a plain dot instead of Thunderbird's status icons. */
+      & .read-status {
+        display: none !important;
+      }
+      & .read-status-column::before {
+        content: "";
+        inline-size: 8px;
+        block-size: 8px;
+        border-radius: 50%;
+      }
+      &[data-properties~="unread"] .read-status-column::before {
+        background-color: var(--ml-unread);
+      }
+
+      & .thread-card-column:not(.read-status-column) {
+        gap: 1px !important;
+        padding-block: 0 !important;
+        min-inline-size: 0;
+      }
+      & .thread-card-row,
+      & .thread-card-dynamic-row {
+        line-height: 18px !important;
+        gap: 6px !important;
+      }
+      & .sender {
+        padding-inline-start: 0 !important;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        color: var(--ml-label) !important;
+      }
+      & .date {
+        font-size: 12px !important;
+        font-weight: 400 !important;
+        opacity: 1 !important;
+        color: var(--ml-secondary) !important;
+        font-variant-numeric: tabular-nums;
+      }
+      & .thread-card-subject-container {
+        flex: 1 1 auto;
+        padding-inline-start: 0 !important;
+        min-inline-size: 0;
+      }
+      & .subject {
+        font-size: 12.5px !important;
+        font-weight: 400 !important;
+        color: var(--ml-label) !important;
+      }
+
+      /* Subject, thread button and icons share the second line. Flex rather
+       * than Thunderbird's grid, so absent pieces leave no gap. */
+      & .thread-card-dynamic-row {
+        display: flex !important;
+        align-items: center !important;
+      }
+      &:not(.children) .thread-card-button {
+        display: none !important;
+      }
+      /* Reply count of a collapsed thread: a quiet pill, not a button. */
+      & .thread-card-button {
+        border: none !important;
+        background-color: var(--ml-control) !important;
+        color: var(--ml-secondary) !important;
+        border-radius: 5px !important;
+        opacity: 1 !important;
+      }
+      /* Replies inside an expanded thread: indented, so Thunderbird's thread
+       * line runs beside the dots rather than through them. */
+      &[data-properties~="thread-children"] > td {
+        padding-inline-start: calc(var(--ml-inset) + 18px) !important;
+      }
+
+      & .thread-card-icon-info {
+        gap: 4px !important;
+        margin-inline-start: auto !important;
+      }
+      /* Flag and spam marks only where they apply, like Mail's flag. */
+      &:not([data-properties~="flagged"]) .tree-button-flag,
+      &:not([data-properties~="junk"]) .tree-button-spam {
+        display: none !important;
+      }
+      & .state {
+        fill: var(--ml-tertiary) !important;
+        stroke: var(--ml-tertiary) !important;
+      }
+      & .tree-button-more {
+        display: none !important;
+      }
+
+      /* Separator: a hairline under the text column only, gone next to the
+       * selection. */
+      & .card-container::after {
+        content: "";
+        position: absolute;
+        inset-block-end: 0;
+        inset-inline-start: calc(var(--ml-padding-start) + var(--ml-gutter) + 2 * var(--ml-gap) + var(--ml-badge-size));
+        inset-inline-end: var(--ml-padding-end);
+        block-size: 1px;
+        background-color: var(--ml-separator);
+      }
+      &.selected .card-container::after,
+      &:has(+ .selected) .card-container::after {
+        display: none;
+      }
+    }
+
+    /* Selection: accent fill while the list has focus, grey otherwise. */
+    & .card-layout.selected .card-container {
+      background-color: var(--ml-unfocused) !important;
+    }
+    &:focus-within .card-layout.selected .card-container {
+      background-color: var(--ml-accent) !important;
+      --ml-label: #ffffff;
+      --ml-secondary: rgba(255, 255, 255, 0.72);
+      --ml-unread: #ffffff;
+    }
+  }
+
+  /* List View: one line per message, for scanning a long folder. */
+  :root[data-ml-layout][data-ml-list="compact"] {
+    --ml-row-height: 34px;
+    --ml-badge-size: 22px;
+    --ml-gap: 8px;
+    --ml-padding-start: 4px;
+    --ml-radius: 7px;
+
+    & #threadTree[rows="thread-card"] .card-layout:not([data-properties~="dummy"]) {
+      & .thread-card-column:not(.read-status-column) {
+        display: grid !important;
+        grid-template-columns: minmax(0, 30%) auto minmax(0, 1fr) auto auto !important;
+        grid-template-areas: "sender thread subject icons date" !important;
+        column-gap: 10px !important;
+        align-items: center !important;
+      }
+      & .thread-card-row,
+      & .thread-card-dynamic-row {
+        display: contents !important;
+      }
+      & .sender {
+        grid-area: sender !important;
+        font-weight: 500 !important;
+      }
+      &[data-properties~="unread"] .sender {
+        font-weight: 700 !important;
+      }
+      & .thread-card-button {
+        grid-area: thread !important;
+      }
+      & .thread-card-subject-container {
+        grid-area: subject !important;
+      }
+      & .subject {
+        color: var(--ml-secondary) !important;
+      }
+      & .thread-card-icon-info {
+        grid-area: icons !important;
+        margin: 0 !important;
+      }
+      & .date {
+        grid-area: date !important;
+      }
+      & .account-indicator,
+      & .state {
+        display: none !important;
+      }
+    }
+  }
+
+  /* single, minimal: the folder pane starts below the window buttons, and a
+   * conversation's subject gets a row as tall as the list header, its rule
+   * level with the header's (see src/conversation-view.css). */
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) {
+    --ml-conversation-header-height: var(--ml-top-row);
+    --ml-conversation-header-padding: 0px;
+    --ml-conversation-rule-inset: 0px;
+
+    & #folderPane {
+      padding-block-start: var(--ml-top-row) !important;
+    }
+  }
+
+  /* Folder pane header: gone, or (quiet) Get Messages and the folder view
+   * menu as quiet icons at the end of a row as tall as the list header
+   * (extensions.mail-look.folderHeader). single and minimal have their
+   * toolbar there instead. */
+  :root[data-ml-layout]:is(:not([data-ml-folder-header="quiet"]), [data-ml-layout="single"], [data-ml-layout="minimal"]) #folderPaneHeaderBar {
+    display: none !important;
+  }
+
+  :root[data-ml-layout][data-ml-folder-header="quiet"]:not([data-ml-layout="single"], [data-ml-layout="minimal"]) #folderPaneHeaderBar {
+    /* Shown even when hidden from its own menu: the pref decides. */
+    display: flex !important;
+    box-sizing: border-box !important;
+    block-size: var(--ml-header-height) !important;
+    align-items: center !important;
+    gap: 2px !important;
+    padding-block: 0 !important;
+    padding-inline: 12px 9px !important;
+    border: none !important;
+    background-color: var(--sidebar-background) !important;
+
+    & #folderPaneWriteMessage {
+      display: none !important;
+    }
+
+    & :is(#folderPaneGetMessages, #folderPaneMoreButton) {
+      --icon-size: 16px !important;
+      min-inline-size: 30px !important;
+      block-size: 28px !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 7px !important;
+      background-color: transparent !important;
+      background-position: center !important;
+      box-shadow: none !important;
+      color: var(--ml-secondary) !important;
+
+      &:not([disabled]):hover {
+        background-color: var(--ml-hover) !important;
+      }
+    }
+  }
+}
+
+/* Folder pane, when extensions.mail-look.folders asks for Mail's sidebar. */
+@-moz-document url("about:3pane") {
+  :root:is([data-ml-folders="mail"], [data-ml-folders="colorful"]) {
+    & #folderPane {
+      /* Also the colour of the strip Thunderbird lays over the top of the
+       * folder list to hide its scroll shadow. */
+      --sidebar-background: light-dark(#f0f0f2, #232325) !important;
+      background-color: var(--sidebar-background) !important;
+    }
+
+    & #folderTree {
+      padding-inline: 8px !important;
+
+      & li > .container {
+        min-block-size: 28px !important;
+        margin-block: 1px !important;
+        border: none !important;
+        border-radius: 6px !important;
+        outline: none !important;
+        background: transparent !important;
+        color: var(--ml-label) !important;
+      }
+
+      & li:not(.selected) > .container:hover {
+        background-color: var(--ml-hover) !important;
+      }
+
+      & li.selected > .container {
+        background-color: light-dark(rgba(0, 0, 0, 0.09), rgba(255, 255, 255, 0.11)) !important;
+        color: var(--ml-label) !important;
+      }
+
+      & .name {
+        font-size: 13px !important;
+        font-weight: 400 !important;
+      }
+
+      /* Accounts as section headings: small grey caption, no icon; the
+       * disclosure arrow only on hover. */
+      & li[data-server-type] {
+        margin-block-start: 10px !important;
+
+        & > .container {
+          min-block-size: 24px !important;
+          background: transparent !important;
+
+          & > .icon {
+            display: none !important;
+          }
+          & > .name {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            color: var(--ml-secondary) !important;
+          }
+          & > .twisty {
+            opacity: 0;
+          }
+          &:hover > .twisty {
+            opacity: 1;
+          }
+        }
+      }
+
+      /* A folder that can take what's being dragged (Thunderbird marks it
+         while the pointer is over it): Mail's accent fill. The rules above
+         are !important, so this has to be too. */
+      & li.drop-target > .container {
+        background-color: var(--ml-accent) !important;
+        color: #ffffff !important;
+
+        & .name,
+        & .folder-count-badge {
+          color: #ffffff !important;
+        }
+        & > .icon {
+          --icon-color: #ffffff !important;
+          fill: rgba(255, 255, 255, 0.25) !important;
+          stroke: #ffffff !important;
+        }
+      }
+
+      /* Counts as plain numbers, like Mail. */
+      & .folder-count-badge {
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        color: var(--ml-secondary) !important;
+        font-size: 12px !important;
+        font-weight: 400 !important;
+      }
+    }
+  }
+
+  /* mail: one blue for every folder icon. */
+  :root[data-ml-folders="mail"] #folderTree li:not([data-server-type]) > .container > .icon {
+    --icon-color: var(--ml-accent) !important;
+  }
+}
+
+/* Message and thread summary: where the actions go. */
+@-moz-document url("about:message"), url("chrome://messenger/content/multimessageview.xhtml") {
+  :root[data-ml-layout] {
+    --ml-inset: 20px;
+  }
+
+  /* mail, list: the actions are in the toolbar. */
+  :root:is([data-ml-layout="mail"], [data-ml-layout="list"]) #header-view-toolbox {
+    display: none !important;
+  }
+
+  /* single, minimal: the actions get the top row, level with the list
+   * header. */
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #header-view-toolbox {
+    grid-area: actions !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    box-sizing: border-box !important;
+    block-size: var(--ml-top-row) !important;
+    margin: 0 0 12px !important;
+    padding-block: 0 !important;
+    padding-inline: 12px !important;
+    border-block-end: 1px solid var(--ml-separator) !important;
+
+    & > #header-view-toolbar {
+      align-self: center !important;
+      margin: 0 !important;
+    }
+  }
+}
+
+/* Message: the header. */
+@-moz-document url("about:message") {
+  :root[data-ml-layout] {
+    --ml-avatar: 40px;
+  }
+
+  :root[data-ml-layout] #messageHeader {
+    position: relative !important;
+    grid-template-columns: var(--ml-inset) var(--ml-avatar) 12px minmax(0, 1fr) auto var(--ml-inset) !important;
+    grid-template-areas:
+      "actions actions actions actions actions actions"
+      ". avatar . from date ."
+      ". avatar . subject subject ."
+      ". avatar . to crypto ." !important;
+    row-gap: 2px !important;
+    padding: 14px 0 !important;
+    background-color: var(--ml-content) !important;
+    border: none !important;
+    color: var(--ml-label) !important;
+
+    /* Hairline under the header, inset like Mail's. */
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: var(--ml-inset);
+      inset-block-end: 0;
+      block-size: 1px;
+      background-color: var(--ml-separator);
+    }
+
+    /* Holds the first row even without actions, so Cc and the other extra
+     * rows land below the To line rather than above the sender. */
+    &::before {
+      content: "";
+      grid-area: actions;
+    }
+    & > .message-header-row {
+      grid-column: 4 / 6;
+    }
+
+    & #headerSenderToolbarContainer,
+    & #expandedtoRow,
+    & #headerSubjectSecurityContainer {
+      display: contents !important;
+    }
+
+    & #header-view-toolbox {
+      grid-area: actions;
+    }
+    & #expandedfromRow {
+      grid-area: from !important;
+      min-inline-size: 0;
+    }
+    & #dateLabel {
+      grid-area: date !important;
+      align-self: center !important;
+      justify-self: end !important;
+      margin: 0 0 0 12px !important;
+      font-size: 12px !important;
+      color: var(--ml-secondary) !important;
+    }
+    & #expandedsubjectRow {
+      grid-area: subject !important;
+    }
+    /* Only what Mail shows: sender, subject, date, To and Cc. Reply-To,
+     * List-ID and the other extra rows go. */
+    & > .message-header-row:not(#headerSenderToolbarContainer, #expandedtoRow, #expandedccRow, #headerSubjectSecurityContainer),
+    & #extraHeadersArea {
+      display: none !important;
+    }
+    /* Encryption and signature marks stay, beside the recipients. */
+    & #expandedButtonsBox {
+      grid-area: crypto !important;
+      align-self: center !important;
+    }
+    & #dateLabelSubject {
+      display: none !important;
+    }
+    /* Names react to hover quietly instead of turning blue: a rounded grey
+     * token with room around the name. The wider padding is taken back by
+     * the margins, so no name moves. */
+    & .header-recipient {
+      padding: 2px 6px !important;
+      margin-inline: -4px !important;
+      border-radius: 6px !important;
+    }
+    & .header-recipient:hover {
+      background-color: var(--ml-hover) !important;
+      color: inherit !important;
+    }
+    & #expandedtoRow > .header-row-grow {
+      grid-area: to !important;
+    }
+
+    /* Sender: name only, in bold; the avatar in its own column. */
+    & #expandedfromLabel {
+      display: none !important;
+    }
+    & #expandedfromBox .recipients-list {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    & #fromRecipient0 {
+      position: static !important;
+      margin: -2px -6px !important;
+      font-size: 15px !important;
+
+      & :is(.recipient-single-line, .recipient-multi-line-name) {
+        font-weight: 600 !important;
+      }
+    }
+    & .recipient-multi-line-address,
+    & .recipient-address-book-button {
+      display: none !important;
+    }
+    & #expandedfromBox .recipient-avatar {
+      position: absolute !important;
+      inset-inline-start: var(--ml-inset) !important;
+      inset-block-start: 16px !important;
+      inline-size: var(--ml-avatar) !important;
+      block-size: var(--ml-avatar) !important;
+      margin: 0 !important;
+      border-radius: calc(var(--ml-avatar) * 0.235) !important;
+      background: var(--ml-control) !important;
+      color: var(--ml-secondary) !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+    }
+    /* The add-on's badge (logo or initials) replaces Thunderbird's letter. */
+    & #expandedfromBox .recipient-avatar:has(.ml-badge) > :not(.ml-badge) {
+      display: none !important;
+    }
+    & #expandedfromBox .ml-badge {
+      --ml-badge-size: var(--ml-avatar);
+    }
+
+    & #expandedsubjectBox {
+      margin: 0 !important;
+      padding: 0 !important;
+      font-size: 13px !important;
+      line-height: 18px !important;
+      font-weight: 400 !important;
+      color: var(--ml-label) !important;
+    }
+
+    & #expandedtoRow .row-heading,
+    & .message-header-label {
+      color: var(--ml-secondary) !important;
+      opacity: 1 !important;
+    }
+    & :is(#expandedtoBox, #expandedccRow) {
+      font-size: 12px !important;
+      color: var(--ml-secondary) !important;
+    }
+    & #expandedccLabel {
+      margin: 0 4px 0 0 !important;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      color: var(--ml-secondary) !important;
+    }
+  }
+
+  /* The message itself gets the header's side margins; mail keeps its own
+   * 8px on top, so 12px here lines text up with the header at 20px. */
+  :root[data-ml-layout] #messagepanebox {
+    background-color: var(--ml-content) !important;
+
+    & > #messagepane {
+      margin-inline: 12px !important;
+    }
+  }
+
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #messageHeader {
+    padding-block-start: 0 !important;
+
+    & #expandedfromBox .recipient-avatar {
+      inset-block-start: calc(var(--ml-top-row) + 14px) !important;
+    }
+  }
+
+  /* reader: the actions on the sender's line, the date below them. */
+  :root[data-ml-layout="reader"] #messageHeader {
+    grid-template-areas:
+      ". avatar . from actions ."
+      ". avatar . subject date ."
+      ". avatar . to crypto ." !important;
+
+    & #header-view-toolbox {
+      justify-self: end;
+    }
+  }
+}
+
+/* Thread summary (a collapsed thread or several messages selected): Mail's
+ * conversation look, a badge beside each message. */
+@-moz-document url("chrome://messenger/content/multimessageview.xhtml") {
+  :root[data-ml-layout] {
+    & body {
+      background-color: var(--ml-content) !important;
+      color: var(--ml-label) !important;
+    }
+
+    & #headingWrapper {
+      position: relative !important;
+      display: grid !important;
+      grid-template-columns: var(--ml-inset) minmax(0, 1fr) auto var(--ml-inset) !important;
+      grid-template-areas:
+        "actions actions actions actions"
+        ". heading . ." !important;
+      padding: 14px 0 !important;
+      background-color: var(--ml-content) !important;
+      border: none !important;
+
+      &::after {
+        content: "";
+        position: absolute;
+        inset-inline: var(--ml-inset);
+        inset-block-end: 0;
+        block-size: 1px;
+        background-color: var(--ml-separator);
+      }
+    }
+
+    & #heading {
+      grid-area: heading !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 2px !important;
+      margin: 0 !important;
+    }
+    & #summaryTitle {
+      font-size: 17px !important;
+      font-weight: 700 !important;
+    }
+    & #summarySubtitle {
+      margin: 0 !important;
+      font-size: 12px !important;
+      font-weight: 400 !important;
+      color: var(--ml-secondary) !important;
+    }
+
+    & #content {
+      padding: 4px 12px !important;
+    }
+
+    & #messageList {
+      margin: 0 !important;
+      padding: 0 !important;
+
+      & > li {
+        position: relative !important;
+        display: grid !important;
+        grid-template-columns: 34px minmax(0, 1fr) !important;
+        column-gap: 12px !important;
+        margin: 0 !important;
+        padding: 12px 8px !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+
+        &::after {
+          content: "";
+          position: absolute;
+          inset-inline: 54px 8px;
+          inset-block-end: 0;
+          block-size: 1px;
+          background-color: var(--ml-separator);
+        }
+      }
+
+      & .ml-badge {
+        grid-row: 1 / span 2;
+      }
+
+      & .item-header {
+        grid-column: 2;
+        display: flex !important;
+        align-items: baseline !important;
+        gap: 8px !important;
+        margin: 0 !important;
+        font-size: 13px !important;
+      }
+      & .left-block {
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      & :is(.author, .subject) {
+        font-weight: 600 !important;
+        color: var(--ml-label) !important;
+        text-decoration: none !important;
+      }
+      & .date,
+      & .count,
+      & .item-header > .author {
+        margin-inline-start: auto;
+        font-size: 12px !important;
+        font-weight: 400 !important;
+        color: var(--ml-secondary) !important;
+      }
+      & .snippet {
+        grid-column: 2;
+        display: -webkit-box !important;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        margin: 2px 0 0 !important;
+        font-size: 12.5px !important;
+        line-height: 17px !important;
+        color: var(--ml-secondary) !important;
+        white-space: normal !important;
+      }
+
+      /* Unread: Mail's dot left of the badge. Flag: only where set. */
+      & > li.unread::before {
+        content: "" !important;
+        position: absolute !important;
+        inset-inline-start: -4px !important;
+        inset-block-start: 25px !important;
+        inline-size: 8px !important;
+        block-size: 8px !important;
+        border-radius: 50% !important;
+        background-color: var(--ml-unread) !important;
+      }
+      & > li:not(.starred) .star {
+        display: none !important;
+      }
+      & .star {
+        inset-inline: auto 8px !important;
+        inset-block: auto 12px !important;
+      }
+    }
+
+    & #footer {
+      padding: 8px 8px !important;
+      font-size: 11px !important;
+      color: var(--ml-tertiary) !important;
+    }
+  }
+
+  /* single, minimal: the actions at the very top, like a message's. */
+  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #headingWrapper {
+    padding-block-start: 0 !important;
+  }
+
+  /* reader: the actions beside the title. */
+  :root[data-ml-layout="reader"] #headingWrapper {
+    grid-template-areas: ". heading actions ." !important;
+
+    & #header-view-toolbox {
+      grid-area: actions !important;
+      align-self: center !important;
+    }
+  }
+}
+
+/* Menus in every Thunderbird window (context menus, the app menu, dropdowns,
+ * the menu bar): Mail's menus, a light rounded sheet with the item under the
+ * pointer in the accent colour. Letters stay plain: user.js turns off the
+ * underlined access keys (ui.key.menuAccessKey). */
+:is(menupopup, panel) {
+  --panel-background-color: light-dark(#f6f6f7, #2c2c2f) !important;
+  --panel-text-color: light-dark(rgba(0, 0, 0, 0.86), rgba(255, 255, 255, 0.88)) !important;
+  --panel-border-color: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.13)) !important;
+  --panel-separator-color: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12)) !important;
+  --panel-border-radius: 10px !important;
+  /* The popup window reserves --panel-box-shadow-margin around the sheet;
+   * the shadow has to fit in it or it gets cut off. */
+  --panel-box-shadow: 0 4px 14px light-dark(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.45)) !important;
+  --panel-box-shadow-margin: 20px !important;
+  --menuitem-border-radius: 5px !important;
+  --menuitem-padding: 4px 10px !important;
+  --ml-menu-accent: light-dark(#0a64e1, #0a5ad2);
+}
+
+menupopup {
+  --panel-padding: 5px !important;
+}
+
+menupopup :is(menu, menuitem):not([disabled])[_moz-menuactive] {
+  background-color: var(--ml-menu-accent) !important;
+  color: #ffffff !important;
+
+  & :is(.menu-text, .menu-accel, .menu-highlightable-text) {
+    color: inherit !important;
+  }
+}
+
+menupopup > menuseparator {
+  padding-block: 4px !important;
+  padding-inline: 10px !important;
+}
+
+/* The app menu's rows are buttons. */
+panel :is(.subviewbutton, .panel-subview-footer-button) {
+  border-radius: 5px !important;
+  padding: 4px 10px !important;
+
+  &:not([disabled]):is(:hover, :focus-visible, [open]) {
+    background-color: var(--ml-menu-accent) !important;
+    color: #ffffff !important;
+  }
+}
