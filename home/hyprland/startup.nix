@@ -16,6 +16,8 @@ let
   # hyprland.nix), so there is nothing to collide with.
   execOnce = dropCaps ([
     "awww-daemon"
+    # light/dark follower (home/theme.nix); before xsettingsd, whose config it writes
+    "theme-follow"
     "xsettingsd"
     "hyprctl setcursor 'Capitaine Cursors - White' 24"
     "wl-clip-persist --clipboard regular"   #

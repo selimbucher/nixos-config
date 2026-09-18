@@ -23,10 +23,11 @@
       });
     })
     inputs.claude-code-nix.overlays.default
-    # Slightly larger icons at Nautilus's smallest zoom steps; an overlay rather
-    # than a systemPackages override so the D-Bus-activated copy is the same one.
+    # Nautilus with larger icons at its smallest zoom steps and without Recent
+    # and Starred (pkgs/nautilus.nix); an overlay rather than a systemPackages
+    # override so the D-Bus-activated copy is the same one.
     (final: prev: {
-      nautilus = final.callPackage ./pkgs/nautilus-icon-sizes.nix { inherit (prev) nautilus; };
+      nautilus = final.callPackage ./pkgs/nautilus.nix { inherit (prev) nautilus; };
     })
   ] ++ lib.optional config.deviceConfig.wineFork (import ./overlays/yabridge-wine11.nix);
 

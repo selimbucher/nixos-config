@@ -1,57 +1,52 @@
 { inputs, lib, pkgs, config, osConfig, ... }:
 
 let
-  # Track home/theme.nix rather than hard-coding a colour here, so the bars
-  # hyprbars draws on undecorated windows match the header bars GTK draws on
-  # decorated ones.
-  isLight = config.gtk.colorScheme == "light";
-
   # hover glyphs, shared with the GTK header bars (home/theme.nix)
   glyphs = pkgs.callPackage ../../pkgs/titlebutton-glyphs.nix { };
 
-  barColor = if isLight then "rgb(f6f6f6)" else "rgb(2e2e32)";
-  lightBarText = "rgb(4d4d4d)";
-  darkBarText = "rgb(e8e8e8)";
-  barTextColor = if isLight then lightBarText else darkBarText;
-  barInactiveButton = if isLight then "rgb(cecece)" else "rgb(4d4d4d)";
+  # Bar and border colours come from the palette the GTK header bars use, so
+  # the bars hyprbars draws on undecorated windows match the header bars GTK
+  # draws on decorated ones. Which half applies is read from
+  # org.gnome.desktop.interface color-scheme when the config loads; theme-follow
+  # (home/theme.nix) re-applies them live when it changes.
+  palette = import ../../pkgs/desktop-palette.nix;
+  # A macOS window is a hairline plus a large, soft, low-opacity shadow; the
+  # shadow is what reads as "border", not the 1px itself.
+  hyprColours = p: lib.concatStringsSep ", " [
+    ''bar = "rgb(${p.headerbar})"''
+    ''title = "rgb(${p.title})"''
+    ''control_idle = "rgb(${p.controlIdle})"''
+    ''border_active = "rgba(${p.borderActive})"''
+    ''border_inactive = "rgba(${p.borderInactive})"''
+  ];
+
+  darkBarText = "rgb(${palette.dark.title})";
   kittyBg = "rgb(${lib.removePrefix "#" config.programs.kitty.settings.background})";
 
-  # A macOS window is a hairline plus a large, soft, low-opacity shadow —
-  # the shadow is what reads as "border", not the 1px itself.
-  borderActive = if isLight then "rgba(00000026)" else "rgba(ffffff1f)";
-  borderInactive = if isLight then "rgba(00000014)" else "rgba(ffffff0f)";
-
-  # hyprbars has no way to detect client-side decorations (Hyprland exposes no
-  # CSD/SSD field to window rules -- checked `hyprctl clients -j`), so it has to
-  # be a list. The list is inverted on purpose: hyprbars' updateRules() reads
-  # `hyprbars:no_bar` as one overwritable prop, so a catch-all followed by
-  # exceptions works, and the *default* is "no bar". That way a newly installed
-  # GTK/Electron app never shows two rows of window controls -- worst case it
-  # loses the hyprbars bar and keeps its own, which is the harmless direction.
+  # Which windows get a hyprbars bar is decided by the window itself, in the
+  # patched plugin (pkgs/hyprbars-svg-icons.patch): a bar exactly when the
+  # client asks the compositor to decorate it (xdg-decoration server-side, or
+  # X11 without the no-borders hint). GTK/libadwaita apps and Chromium/Electron
+  # apps drawing their own frame ask for nothing or for client-side, so they
+  # never get a second row of buttons; kitty, Qt, wine, Obsidian's "native
+  # frame" or Brave's "system title bar" ask for server-side and get one. No
+  # app list. A `hyprbars:no_bar` window rule still overrides it either way.
   #
-  # Listed here: apps with no decorations of their own, which need hyprbars.
-  # `bar`/`title` tint that app's bar to its own background. Hyprland rounds
-  # all four corners of every surface (its rounding shader mirrors the pixel
-  # into one quadrant; there is no per-corner setting in 0.56) and hyprbars
-  # only paints behind the top two, so under a light bar a dark app shows a
-  # light cut-out at each top corner. A bar in the app's own colour is what
-  # makes that vanish — and it is what macOS Terminal does with a dark profile.
-  ssdApps = [
+  # What remains per app is colour: Hyprland rounds all four corners of every
+  # surface (the rounding shader mirrors into one quadrant; 0.56 has no
+  # per-corner setting) and hyprbars only paints behind the top two, so under a
+  # light bar a dark app shows a light cut-out at each top corner. Tinting the
+  # bar to the app's own background hides that, as macOS Terminal does.
+  barColours = [
     { class = "^(kitty)$"; bar = kittyBg; title = darkBarText; }
     { class = "^(fastfetch-terminal)$"; bar = kittyBg; title = darkBarText; }
     # Reapertips dark theme: col_main_bg / col_toolbar_text
     { class = "^(REAPER)$"; bar = "rgb(323232)"; title = "rgb(c2c6ce)"; }
-    { class = "^(.*\\\\.exe)$"; } # wine (Native Access, installers, ...) — varies per app
-    { class = "^(org\\\\.kde\\\\..*)$"; } # Qt/KDE apps use server-side decorations here
-    { class = "^(pavucontrol)$"; }
   ];
 
-  ssdRule =
-    { class, bar ? null, title ? null }:
-    "        hl.window_rule({ match = { class = \"${class}\" }, [\"hyprbars:no_bar\"] = false"
-    + lib.optionalString (bar != null) ", [\"hyprbars:bar_color\"] = \"${bar}\""
-    + lib.optionalString (title != null) ", [\"hyprbars:title_color\"] = \"${title}\""
-    + " })";
+  barColourRule =
+    { class, bar, title }:
+    "        hl.window_rule({ match = { class = \"${class}\" }, [\"hyprbars:bar_color\"] = \"${bar}\", [\"hyprbars:title_color\"] = \"${title}\" })";
 in
 {
   wayland.windowManager.hyprland = {
@@ -92,6 +87,12 @@ in
       (pkgs.callPackage ../../pkgs/hyprland-csd-minimize.nix {
         inherit (pkgs.hyprlandPlugins) mkHyprlandPlugin;
       })
+      # Floating windows open where the app's window was last left; see
+      # pkgs/hyprland-window-memory/main.cpp. After hyprbars: it places windows
+      # by their title bar, which hyprbars adds as they open.
+      (pkgs.callPackage ../../pkgs/hyprland-window-memory {
+        inherit (pkgs.hyprlandPlugins) mkHyprlandPlugin;
+      })
     ];
 
     xwayland.enable = true;
@@ -107,6 +108,17 @@ in
       fetchTerminal = { _var = ''kitty --class=fastfetch-terminal -e bash -c "fastfetch; exec bash"''; };
       lock = { _var = "hyprlock"; };
       editor = { _var = "code"; };
+      appearance = {
+        _var = lib.generators.mkLuaInline ''
+          (function()
+            local light = { ${hyprColours palette.light} }
+            local dark = { ${hyprColours palette.dark} }
+            local p = io.popen("${pkgs.dconf}/bin/dconf read /org/gnome/desktop/interface/color-scheme 2>/dev/null")
+            local scheme = p and p:read("a") or ""
+            if p then p:close() end
+            return scheme:find("prefer-dark", 1, true) and dark or light
+          end)()'';
+      };
 
       # ----------------------------------------------------------------- env
       env = [
@@ -194,8 +206,8 @@ in
           # thicker than 1px stops reading as macOS immediately.
           border_size = 1;
           col = {
-            active_border = borderActive;
-            inactive_border = borderInactive;
+            active_border = lib.generators.mkLuaInline "appearance.border_active";
+            inactive_border = lib.generators.mkLuaInline "appearance.border_inactive";
           };
           # small gaps for tiled windows (hyprland defaults are 5/20)
           gaps_in = 1;
@@ -224,7 +236,7 @@ in
             enabled = osConfig.deviceConfig.shadow;
             range = 40;
             render_power = 2;
-            offset = "0 12";
+            offset = "0 7";
             color = "rgba(00000055)";
             color_inactive = "rgba(00000022)";
           };
@@ -232,11 +244,12 @@ in
           blur = {
             enabled = osConfig.deviceConfig.blur;
             # size 3 / passes 2 was imperceptible behind the shell's 55-86%-opaque
-            # dark panels — this is a proper macOS-style frost. At 6/3 a
-            # terminal's text was still readable through a glass panel; 10/4
-            # is the first setting that dissolves it. passes costs the most,
-            # so drop to 3 before touching size if it shows in the framerate.
-            size = 10;
+            # dark panels — this is a proper macOS-style frost. size is how far
+            # the blur reaches: at 10 it smears colour from well outside the
+            # panel, so it stays at 6. The extra pass softens what is inside
+            # that radius instead, and is the expensive half — drop it back to
+            # 3 before touching size if it shows in the framerate.
+            size = 6;
             passes = 4;
             vibrancy = 0.1696;
             noise = 0.01;
@@ -259,7 +272,10 @@ in
           force_default_wallpaper = 1;
           disable_hyprland_logo = true;
           focus_on_activate = true;
-          vrr = 2;                   # fullscreen-only — avoids OLED desktop flicker/brightness shifts
+          # VRR only for fullscreen games (content type game). Off on the desktop
+          # (OLED flicker/brightness shifts) and for other fullscreen windows:
+          # every VRR switch re-syncs the eDP panel, a ~1s blank screen.
+          vrr = 3;
         };
 
         input = {
@@ -317,8 +333,8 @@ in
               -- 28px is the macOS title bar height; the traffic lights are
               -- 12px circles inset from the left edge with 8px between them.
               bar_height                 = 28,
-              bar_color                  = "${barColor}",
-              col                        = { text = "${barTextColor}" },
+              bar_color                  = appearance.bar,
+              col                        = { text = appearance.title },
               bar_text_size              = 11,
               -- same family as the GTK header bars (see home/theme.nix)
               bar_text_font              = "Inter",
@@ -330,7 +346,7 @@ in
               bar_button_padding         = 8,
               -- plain circles; the hovered one shows its glyph (patched)
               icon_on_hover              = true,
-              inactive_button_color      = "${barInactiveButton}",
+              inactive_button_color      = appearance.control_idle,
               on_double_click            = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\" })'",
             },
           },
@@ -356,11 +372,9 @@ in
           action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\" })'",
         })
 
-        -- One bar per window: no bar by default, re-enabled only for the
-        -- undecorated apps in ssdApps. Order matters -- the catch-all has to
-        -- come first so the per-class rules can overwrite it.
-        hl.window_rule({ match = { class = ".*" }, ["hyprbars:no_bar"] = true })
-${lib.concatMapStringsSep "\n" ssdRule ssdApps}
+        -- per-app bar colours; whether a window has a bar at all is up to
+        -- the window (see barColours in the let block)
+${lib.concatMapStringsSep "\n" barColourRule barColours}
       end
 
       -- csd-minimize needs no config here: its default command is patched in

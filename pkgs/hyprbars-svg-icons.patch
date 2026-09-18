@@ -67,15 +67,45 @@
 +    g_pGlobalState->preReloadListener.reset();
 +    g_pGlobalState->reloadedListener.reset();
  }
+--- a/barDeco.hpp
++++ b/barDeco.hpp
+@@ -49,6 +49,9 @@
+     PHLWINDOW                          getOwner();
+ 
+     void                               updateRules();
++    // whether the client asked the compositor to decorate it (see barDeco.cpp)
++    bool                       wantsServerDecorations();
++    std::optional<bool>        m_lastWantsServerDecorations;
+     void                               onConfigReloaded();
+ 
+     WP<CHyprBar>                       m_self;
 --- a/barDeco.cpp
 +++ b/barDeco.cpp
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,11 @@
  #include "barDeco.hpp"
 +#include <hyprgraphics/image/Image.hpp>
++// m_decorations (xdg_toplevel -> its decoration object) is private; the layout
++// is unaffected, this only lifts the access check for this translation unit.
++#define private public
++#include <hyprland/src/protocols/XDGDecoration.hpp>
++#undef private
++#include <hyprland/src/protocols/XDGShell.hpp>
  
  #include <hyprland/src/Compositor.hpp>
  #include <hyprland/src/desktop/state/FocusState.hpp>
-@@ -55,7 +56,8 @@
+@@ -37,6 +44,11 @@
+ CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
+     m_pWindow = pWindow;
+ 
++    // decide before the first layout pass, so a window that draws its own frame
++    // never reserves room for a bar, not even for one frame
++    m_lastWantsServerDecorations = wantsServerDecorations();
++    m_hidden                     = !*m_lastWantsServerDecorations;
++
+     const auto PMONITOR         = pWindow->m_monitor.lock();
+     PMONITOR->m_scheduledRecalc = true;
+ 
+@@ -55,7 +67,8 @@
  }
  
  CHyprBar::~CHyprBar() {
@@ -85,7 +115,7 @@
  }
  
  SDecorationPositioningInfo CHyprBar::getPositioningInfo() {
-@@ -357,10 +359,14 @@
+@@ -357,10 +370,14 @@
          const auto scaledButtonsPad = BARBUTTONPADDING * scale;
  
          auto       color = button.bgcol;
@@ -102,7 +132,7 @@
                  button.iconTex = nullptr;
          }
  
-@@ -397,15 +403,29 @@
+@@ -397,15 +414,29 @@
  
          // check if hovering here
          const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
@@ -137,7 +167,7 @@
          }
  
          if (!button.iconTex || button.iconTex->m_texID == 0)
-@@ -415,7 +435,7 @@
+@@ -415,7 +446,7 @@
          const auto iconY = barBox->y + barBox->height / 2.0 - button.iconTex->m_size.y / 2.0;
          CBox       pos   = {iconX, iconY, button.iconTex->m_size.x, button.iconTex->m_size.y};
  
@@ -146,7 +176,66 @@
              g_pHyprOpenGL->renderTexture(button.iconTex, pos, {.a = a});
          offset += scaledButtonsPad + scaledButtonSize;
  
-@@ -677,9 +697,9 @@
+@@ -429,6 +460,10 @@
+ }
+ 
+ void CHyprBar::draw(PHLMONITOR pMonitor, const float& a) {
++    // a client may switch between its own frame and ours while mapped
++    if (m_lastWantsServerDecorations != wantsServerDecorations())
++        updateRules();
++
+     const auto ENABLED = g_pGlobalState->config.enabled->value();
+ 
+     if (m_bLastEnabledState != ENABLED) {
+@@ -642,14 +677,44 @@
+     return m_pWindow.lock();
+ }
+ 
++// A bar exactly when the window asks for server-side decorations: an X11
++// window without the "no borders" hint (those never get a CHyprBar at all), or
++// an xdg toplevel whose xdg-decoration request is not client-side. GTK and
++// libadwaita never create a decoration object, and Chromium/Electron ask for
++// client-side while they draw their own frame, so none of them get one. Hyprland
++// answers every request with server-side regardless, so the request is what
++// tells us the client's intent. mostRecentlyRequested 0 means it never chose.
++bool CHyprBar::wantsServerDecorations() {
++    const auto PWINDOW = m_pWindow.lock();
++    if (!PWINDOW)
++        return false;
++
++    if (PWINDOW->m_isX11)
++        return !PWINDOW->m_X11DoesntWantBorders;
++
++    const auto XDG      = PWINDOW->m_xdgSurface.lock();
++    const auto TOPLEVEL = XDG ? XDG->m_toplevel.lock() : nullptr;
++    if (!TOPLEVEL || !PROTO::xdgDecoration)
++        return false;
++
++    for (const auto& [resource, deco] : PROTO::xdgDecoration->m_decorations) {
++        if (deco && CXDGToplevelResource::fromResource(resource) == TOPLEVEL)
++            return deco->mostRecentlyRequested != ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
++    }
++
++    return false;
++}
++
+ void CHyprBar::updateRules() {
+     const auto PWINDOW              = m_pWindow.lock();
+     auto       prevHidden           = m_hidden;
+     auto       prevForcedTitleColor = m_bForcedTitleColor;
+ 
+-    m_bForcedBarColor   = std::nullopt;
+-    m_bForcedTitleColor = std::nullopt;
+-    m_hidden            = false;
++    m_bForcedBarColor             = std::nullopt;
++    m_bForcedTitleColor           = std::nullopt;
++    m_lastWantsServerDecorations  = wantsServerDecorations();
++    // an explicit hyprbars:no_bar rule below still overrides this
++    m_hidden                      = !*m_lastWantsServerDecorations;
+ 
+     if (PWINDOW->m_ruleApplicator->m_otherProps.props.contains(g_pGlobalState->nobarRuleIdx))
+         m_hidden = truthy(PWINDOW->m_ruleApplicator->m_otherProps.props.at(g_pGlobalState->nobarRuleIdx)->effect);
+@@ -677,9 +742,9 @@
  
      for (auto& b : g_pGlobalState->buttons) {
          const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};

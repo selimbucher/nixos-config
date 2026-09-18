@@ -47,6 +47,8 @@ in
     (bind "${mainMod} + Q" (var "terminal"))
     (bind "${mainMod} + SHIFT + Q" (var "fetchTerminal"))
     (bind "${mainMod} + C" "hl.dsp.window.close()")
+    # minimize: same target as the yellow traffic light, so kiwi's dock sees it
+    (bind "${mainMod} + D" ''hl.dsp.window.move({ workspace = "special:minimized", follow = false })'')
     (bind "${mainMod} + E" (var "fileManager"))
     (bind "${mainMod} + I" (sh "kiwi-settings"))
     (bind "${mainMod} + H" ''hl.dsp.exec_cmd(editor .. " ~/.nixos")'')
