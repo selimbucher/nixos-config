@@ -93,6 +93,11 @@ in
       (pkgs.callPackage ../../pkgs/hyprland-window-memory {
         inherit (pkgs.hyprlandPlugins) mkHyprlandPlugin;
       })
+      # Announces window moves and resizes on the event socket (Hyprland
+      # itself doesn't), so kiwi's auto-hiding dock sees a window dragged or
+      # resized into its strip without polling. Ships with kiwi-shell, which
+      # follows this nixpkgs, so it is built against this same Hyprland.
+      inputs.kiwi.packages.${pkgs.stdenv.hostPlatform.system}.hyprland-geometry-events
     ];
 
     xwayland.enable = true;
