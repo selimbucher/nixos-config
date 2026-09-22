@@ -35,5 +35,8 @@
     pictures  = "$HOME/Pictures";
     templates = "$HOME/Templates";
     videos    = "$HOME/Videos";
+    # home-manager added a Projects directory (default ~/Projects), which
+    # createDirectories then made again on every activation
+    projects  = null;
   };
 }
