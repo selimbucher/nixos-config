@@ -164,6 +164,11 @@ watch_host_deaths() {
   local prev="" cur pid plugin ts out tgt n vanished
   while :; do
     sleep 2
+    # Without REAPER there is nothing to report, and the /proc-wide pgrep -f
+    # below cost ~3% of a core every 2s around the clock (batlog, 2026-09-21).
+    if ! pgrep -x .reaper-wrapped >/dev/null 2>&1; then
+      prev=""; sleep 8; continue
+    fi
     cur=""
     for pid in $(pgrep -f 'yabridge-host.exe.so' 2>/dev/null | sort); do
       # pgrep -f also matches unrelated processes that merely mention the
