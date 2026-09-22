@@ -241,21 +241,13 @@ in
             color_inactive = "rgba(00000022)";
           };
 
+          # The blur itself (size, passes, vibrancy, contrast, noise, xray) is
+          # kiwi-shell's: it sets it for its glass at start and after every
+          # reload (kiwi_blur, widgets/services/theme.ts). Only whether windows
+          # blur at all stays here.
           blur = {
             enabled = osConfig.deviceConfig.blur;
-            # size 3 / passes 2 was imperceptible behind the shell's 55-86%-opaque
-            # dark panels — this is a proper macOS-style frost. size is how far
-            # the blur reaches: at 10 it smears colour from well outside the
-            # panel, so it stays at 6. The extra pass softens what is inside
-            # that radius instead, and is the expensive half — drop it back to
-            # 3 before touching size if it shows in the framerate.
-            size = 6;
-            passes = 4;
-            vibrancy = 0.1696;
-            noise = 0.01;
-            contrast = 1.4;
             ignore_opacity = true;
-            new_optimizations = true;
           };
         };
 
