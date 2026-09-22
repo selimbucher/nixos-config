@@ -6,6 +6,7 @@
     ./hardware-configuration.nix
     ../../common.nix
     ./batlog.nix
+    ./idle.nix
   ];
 
   networking.hostName = "laptop";
