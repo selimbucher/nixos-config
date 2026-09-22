@@ -4,23 +4,13 @@ let
   stable = inputs.nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system};
 in
 {
-  home.packages = [ stable.activitywatch stable.awatcher ];
+  home.packages = [ stable.activitywatch ];
 
   # Local data store (REST API on :5600).
   systemd.user.services.aw-server = {
     Unit.Description = "ActivityWatch server";
     Service.ExecStart = "${stable.activitywatch}/bin/aw-server";
     Install.WantedBy = [ "default.target" ];
-  };
-
-  # Window + AFK watcher with Wayland/Hyprland support (replaces the X11 watchers).
-  systemd.user.services.awatcher = {
-    Unit = {
-      Description = "ActivityWatch awatcher (Wayland window + AFK)";
-      After = [ "aw-server.service" ];
-    };
-    Service.ExecStart = "${stable.awatcher}/bin/awatcher";
-    Install.WantedBy = [ "graphical-session.target" ];
   };
 
   # Push today's usage to the life-system box every 30 min.
