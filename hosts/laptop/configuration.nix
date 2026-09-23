@@ -28,17 +28,17 @@
   #
   # Measured 2026-09-22 on the panel, blur 6x4: late frames / GPU power, for
   # a small animation, then a translucent window moving over another.
-  # Without xray:
   #   default  23-41% 1.7 W    43-48% 2.2 W
   #   750         0%  2.0 W     7-20% 3.5 W
-  #   900         0%  2.2 W     0-1%  4.3 W
-  # With xray (windows blur the wallpaper; kiwi-shell sets it):
-  #   600       0.3%  1.3 W       0%  1.8 W
-  #   750         0%  1.0 W       0%  1.9 W   <- lowest clean for both
+  #   900         0%  2.2 W     0-1%  4.3 W   <- lowest clean for both
+  # The 3-4 W is only while something is dragged; idle the GPU sleeps (RC6)
+  # whatever the floor says. xray would halve it, at the price of every
+  # window blurring the wallpaper instead of what is behind it — WhiteSur
+  # paints window backgrounds at 96%, so that colour showed through.
   # card[0-9], not card*: that would also match the connectors
   # (card1-eDP-1), which have no such attribute.
   services.udev.extraRules = ''
-    ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card[0-9]", DRIVERS=="i915", ATTR{gt/gt0/rps_min_freq_mhz}="750"
+    ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card[0-9]", DRIVERS=="i915", ATTR{gt/gt0/rps_min_freq_mhz}="900"
   '';
 
   deviceConfig = {
