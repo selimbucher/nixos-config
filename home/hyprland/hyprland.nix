@@ -270,16 +270,15 @@ in
           vrr = 3;
         };
 
-        # Click to focus, and the pointer stays where it is, as on macOS and
-        # Windows: picking a window from the dock or the switcher doesn't
-        # yank the pointer into it. The pointer's window still gets scrolling
-        # and hover; the keyboard moves only with a click.
+        # The pointer stays where it is, as on macOS and Windows: picking a
+        # window from the dock or the switcher focuses it without yanking the
+        # pointer into it. Focus still follows the pointer from there on.
         cursor.no_warps = true;
 
         input = {
           kb_layout = "ch";
           kb_variant = "de";
-          follow_mouse = 2;
+          follow_mouse = 1;
           sensitivity = 0.5;
           touchpad = {
             natural_scroll = true;
