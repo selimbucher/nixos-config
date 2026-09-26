@@ -6,6 +6,14 @@
     # Stable, intentionally un-followed: activitywatch is broken/uncached on
     # unstable (aw-webui CI failure) but prebuilt & cached on stable.
     nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-25.05";
+    # Wine's build closure, pinned away from nixpkgs on purpose:
+    # wine-d2d1-dcomp is a fork, so Hydra has never cached it and never will.
+    # Any change to its inputs — including an ordinary nixpkgs bump, which
+    # moves stdenv/glibc/mesa/gstreamer under it — costs a ~1h local rebuild.
+    # Pinning means `nix flake update` no longer drags Wine along; bump this
+    # deliberately when you actually want a newer Wine build closure, and
+    # expect to pay the hour then.
+    nixpkgs-wine.url = "github:NixOS/nixpkgs/e554fab72f81915600f3f449b786fd9af40439a5";
 
     secrets.url = "git+ssh://git@github.com/selimbucher/nixos-secrets";
 

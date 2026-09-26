@@ -21,8 +21,17 @@
 # ROLLBACK: remove this overlay from common.nix and rebuild — but wine 11
 # upgrades the ~/.wine* prefixes one-way on first launch, so also restore the
 # prefix backups taken before the first wine-11 start.
+{ inputs }:
 final: prev:
 let
+  # Wine is built from nixpkgs-wine (pinned in flake.nix), NOT from the system
+  # nixpkgs — see the note on that input. Only the Wine build closure comes
+  # from here; yabridge below still tracks the system nixpkgs, since its
+  # rebuild is minutes rather than an hour.
+  winePkgs = import inputs.nixpkgs-wine {
+    inherit (prev.stdenv.hostPlatform) system;
+    config.allowUnfree = true;
+  };
   # giang17's d2d1-dcomp Wine fork (wine 11.16 based, NOT staging): implements
   # the D2D 1.3 + DirectComposition path that JUCE 8.0.x plugin editors
   # hardwire (pre-8.0.13 JUCE has no software fallback at all). Without it,
@@ -58,7 +67,7 @@ let
   # EXIT STRATEGY: if oeksound ships soothe3 on JUCE >= 8.0.13 (asked via
   # wine-fixes/soothe3-d2d/oeksound-email.md), point `yabridge` back at
   # prev.wineWow64Packages.staging and delete all of this.
-  wine-d2d1-dcomp = prev.wineWow64Packages.unstable.overrideAttrs (old: {
+  wine-d2d1-dcomp = winePkgs.wineWow64Packages.unstable.overrideAttrs (old: {
     pname = "wine-wow64-d2d1-dcomp-hwe-1116-loopguard";
     src = builtins.fetchGit {
       url = "https://github.com/giang17/wine";

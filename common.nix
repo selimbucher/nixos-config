@@ -33,7 +33,8 @@
     (final: prev: {
       brave = final.callPackage ./pkgs/brave.nix { inherit (prev) brave; };
     })
-  ] ++ lib.optional config.deviceConfig.wineFork (import ./overlays/yabridge-wine11.nix);
+  ] ++ lib.optional config.deviceConfig.wineFork
+    (import ./overlays/yabridge-wine11.nix { inherit inputs; });
 
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.permittedInsecurePackages = [
