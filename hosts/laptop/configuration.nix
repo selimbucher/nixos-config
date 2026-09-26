@@ -17,6 +17,10 @@
     "nvme_core.io_timeout=10" # dropped irq behind VMD: poll after 10s, not 30s
   ];
 
+  # Puts resume= on the cmdline so the 16G swap can hold a hibernation image
+  # (15G RAM, so it fits). Without it suspend-to-disk silently boots fresh.
+  boot.resumeDevice = "/dev/disk/by-uuid/3f0c641f-e5cc-4a08-ade9-5b0ed7d72179";
+
   # i915's GSC proxy must bind in initrd or boot waits ~18s for it
   boot.initrd.kernelModules = [ "mei" "mei_me" "mei_gsc" "mei_gsc_proxy" ];
 
