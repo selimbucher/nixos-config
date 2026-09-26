@@ -29,6 +29,10 @@
     (final: prev: {
       nautilus = final.callPackage ./pkgs/nautilus.nix { inherit (prev) nautilus; };
     })
+    # Brave with its GTK theme and custom frame pinned (pkgs/brave.nix)
+    (final: prev: {
+      brave = final.callPackage ./pkgs/brave.nix { inherit (prev) brave; };
+    })
   ] ++ lib.optional config.deviceConfig.wineFork (import ./overlays/yabridge-wine11.nix);
 
   nixpkgs.config.allowUnfree = true;
