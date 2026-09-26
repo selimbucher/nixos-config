@@ -192,7 +192,9 @@
         (orderless-match-face-3 (:foreground ,(c :yellow) :weight semibold))
         (marginalia-documentation (:foreground ,(c :dim)))
         (completions-annotations (:foreground ,(c :dim)))
-        (consult-file (:foreground ,(c :fg)))
+        ;; also a search group's title when the file is at the root (vertico
+        ;; shows the candidate's text then): styled as those titles
+        (consult-file (:inherit popup-name :weight medium :foreground ,(c :fg)))
         (consult-line-number (:foreground ,(c :dim)))
         (consult-line-number-prefix (:foreground ,(c :dim)))
         (consult-highlight-match (:foreground ,(c :accent) :weight semibold))
@@ -447,7 +449,8 @@ or `toast' (bottom right, sized to TEXT)."
 
 (defun look--mini-hide ()
   (let ((mf (look--mini-frame)))
-    (when (and (frame-parameter mf 'parent-frame) (not (active-minibuffer-window)))
+    (when (and (frame-parameter mf 'parent-frame) (frame-visible-p mf)
+               (not (active-minibuffer-window)))
       (make-frame-invisible mf t))))
 
 ;; prompts: shown unless vertico's popup is showing this minibuffer. Emacs
@@ -498,6 +501,12 @@ or `toast' (bottom right, sized to TEXT)."
     (setq look--mini-hide-timer (run-at-time 3 nil #'look--mini-hide)))
   nil)
 (add-hook 'set-message-functions #'look--toast)
+;; a message taken back (the next key, or `(message nil)') leaves the toast
+;; empty: it goes with it
+(add-function :after clear-message-function
+              (lambda (&rest _)
+                (when (timerp look--mini-hide-timer) (cancel-timer look--mini-hide-timer))
+                (look--mini-hide)))
 ;; y-or-n-p echoes the answer once the question is gone: no toast for that
 (defvar look--asking nil)
 (advice-add 'y-or-n-p :around

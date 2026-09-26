@@ -39,6 +39,14 @@ no match counter."
           (popup--placeholder-update))
       (apply #'completing-read (propertize prompt 'face 'minibuffer-prompt) collection args))))
 
+;; what's typed, in the interface font like the placeholder; the results below
+;; keep theirs (a code search shows code)
+(defun popup--input-face ()
+  (when (and (bound-and-true-p vertico-posframe-mode) (bound-and-true-p vertico--input))
+    (overlay-put (make-overlay (minibuffer-prompt-end) (point-max) nil nil t)
+                 'face 'popup-name)))
+(add-hook 'minibuffer-setup-hook #'popup--input-face 90)
+
 ;;; Go to File (C-p)
 
 (defvar popup--file-icons (make-hash-table :test #'equal))
