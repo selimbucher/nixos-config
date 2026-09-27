@@ -160,8 +160,8 @@ watch_gui_stall &
 # Capture a mini-bundle the moment any host vanishes while REAPER is alive,
 # so every death can be root-caused individually.
 watch_host_deaths() {
-  declare -A name
-  local prev="" cur pid plugin ts out tgt n vanished
+  declare -A name owner
+  local prev="" cur pid plugin ts out tgt n vanished o
   while :; do
     sleep 2
     # Without REAPER there is nothing to report, and the /proc-wide pgrep -f
@@ -178,6 +178,9 @@ watch_host_deaths() {
         plugin="$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | sed -n 3p)"
         plugin="${plugin##*/}"; plugin="${plugin%.vst3}"; plugin="${plugin%.clap}"
         name[$pid]="${plugin:-unknown}"
+        # yabridge passes the PID of the process that loaded the plugin as
+        # the host's last argument.
+        owner[$pid]="$(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null | sed -n 5p)"
       fi
       cur="$cur$pid"$'\n'
     done
@@ -188,6 +191,15 @@ watch_host_deaths() {
         tgt="$(readlink -f "$LOGROOT/sessions/current-yabridge.log" 2>/dev/null)"
         for pid in $vanished; do
           plugin="${name[$pid]:-unknown}"
+          # A plugin scan (reaper -__vst_scan__, also named .reaper-wrapped)
+          # loads each plugin in a throwaway child and exits, and its host
+          # exits cleanly with it. Same when any owner goes away. Neither is
+          # a host death (2026-09-27: 46 false bundles from one re-scan).
+          o="${owner[$pid]:-}"
+          if [ -n "$o" ] && { [ ! -d "/proc/$o" ] ||
+               tr '\0' ' ' < "/proc/$o/cmdline" 2>/dev/null | grep -q -- '-__vst_scan__'; }; then
+            unset "name[$pid]" "owner[$pid]"; continue
+          fi
           ts="$(date +%Y-%m-%d_%H%M%S)"
           out="$LOGROOT/$ts-hostdeath-$plugin"
           mkdir -p "$out"
@@ -204,7 +216,7 @@ watch_host_deaths() {
           journalctl -q --no-pager -k --since '-3 min' > "$out/journal-kernel.txt" 2>&1
           pgrep -af 'yabridge-host|bin/reaper' > "$out/survivors.txt" 2>&1
           notify "Wine host for '$plugin' died (REAPER still up) — bundle: $out"
-          unset "name[$pid]"
+          unset "name[$pid]" "owner[$pid]"
         done
       fi
     fi
