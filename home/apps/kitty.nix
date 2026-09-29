@@ -6,6 +6,9 @@
     settings = {
       # General behavior
       confirm_os_window_close = 0;
+      # the window-memory plugin places and sizes windows; kitty's own
+      # memory (the last kitty closed, often a big tiled one) overrides it
+      remember_window_size = "no";
       
       # Fonts
       font_family      = "JetBrains Mono";
