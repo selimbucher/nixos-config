@@ -77,10 +77,14 @@ in
       # exec-once hyprctl load; see the extraConfig guard below for why that
       # still does not make the plugin available within this same pass.
       # Patched to draw an SVG as a button icon, to show only the hovered
-      # button's glyph, and to light that button up in an unfocused window too;
-      # see pkgs/hyprbars-svg-icons.patch.
+      # button's glyph, and to light that button up in an unfocused window too
+      # (pkgs/hyprbars-svg-icons.patch), and to run a button's action in the
+      # compositor (pkgs/hyprbars-dispatch-actions.patch).
       (pkgs.hyprlandPlugins.hyprbars.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [ ../../pkgs/hyprbars-svg-icons.patch ];
+        patches = (old.patches or [ ]) ++ [
+          ../../pkgs/hyprbars-svg-icons.patch
+          ../../pkgs/hyprbars-dispatch-actions.patch
+        ];
       }))
       # Makes the CSD minimize button work; see the header of the package for
       # why Hyprland drops the request on its own.
@@ -352,7 +356,10 @@ in
         -- traffic lights (leftmost first): close, minimize, zoom.
         -- minimize targets kiwi-shell's special:minimized workspace, so the
         -- dock dims the window's dot and can restore it (dock icon click,
-        -- alt-tab confirm, or any activation of the window)
+        -- alt-tab confirm, or any activation of the window). It runs in the
+        -- compositor ("dispatch:", pkgs/hyprbars-dispatch-actions.patch)
+        -- rather than through a shell and hyprctl, which took 35-55 ms before
+        -- the window started going.
         -- icons are the SVGs the GTK header bars use (home/theme.nix), so
         -- both kinds of title bar show identical glyphs; fg_color is required
         -- by add_button but unused for an SVG icon
@@ -362,7 +369,7 @@ in
         })
         hl.plugin.hyprbars.add_button({
           bg_color = "rgb(fdc92d)", fg_color = "rgb(90591d)", size = 14, icon = "${glyphs}/minimize.svg",
-          action = "hyprctl dispatch 'hl.dsp.window.move({ workspace = \"special:minimized\", follow = false })'",
+          action = "dispatch:hl.dsp.window.move({ workspace = \"special:minimized\", follow = false, window = \"{window}\" })",
         })
         hl.plugin.hyprbars.add_button({
           bg_color = "rgb(28d33f)", fg_color = "rgb(0e650e)", size = 14, icon = "${glyphs}/maximize.svg",

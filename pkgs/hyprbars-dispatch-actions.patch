@@ -1,0 +1,33 @@
+--- a/barDeco.cpp
++++ b/barDeco.cpp
+@@ -29,6 +29,8 @@
+ #include <hyprland/src/layout/LayoutManager.hpp>
+ #include <hyprland/src/render/OpenGL.hpp>
+ #include <hyprland/src/state/MonitorState.hpp>
++#include <hyprland/src/debug/HyprCtl.hpp>
++#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
+ 
+ #include "globals.hpp"
+ #include "BarPassElement.hpp"
+@@ -298,8 +300,19 @@
+         Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - barButtonPadding - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
+ 
+         if (VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + b.size + barButtonPadding, currentPos.y + b.size)) {
+-            // hit on close
+-            g_pKeybindManager->m_dispatchers["exec"](b.cmd);
++            // An action "dispatch:<dispatch>" runs in the compositor, as
++            // `hyprctl dispatch <dispatch>` would, without starting a shell
++            // and hyprctl first; "{window}" in it names this bar's window.
++            // Anything else is a command to run.
++            if (b.cmd.starts_with("dispatch:")) {
++                std::string dispatch = b.cmd.substr(std::string_view{"dispatch:"}.size());
++                const auto  WINDOW   = std::format("address:0x{:x}", reinterpret_cast<uintptr_t>(m_pWindow.lock().get()));
++                for (size_t at = dispatch.find("{window}"); at != std::string::npos; at = dispatch.find("{window}", at + WINDOW.size()))
++                    dispatch.replace(at, std::string_view{"{window}"}.size(), WINDOW);
++                // after the click is handled, not in the middle of it
++                g_pEventLoopManager->doLater([dispatch] { g_pHyprCtl->getReply("dispatch " + dispatch); });
++            } else
++                g_pKeybindManager->m_dispatchers["exec"](b.cmd);
+             return true;
+         }
+ 
