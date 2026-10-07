@@ -2,10 +2,10 @@
 # on the hetzner box), auto-mounted at ~/Drive with full VFS caching so it
 # behaves like a local folder.
 #
-# The password comes from the private nixos-secrets flake (like hetznerIp), so
-# a fresh machine needs no bootstrap. writeText puts it in the store —
-# acceptable on these single-user hosts; rclone-config.service obscures it
-# into rclone.conf at activation.
+# The password comes from the private nixos-secrets flake (like hetznerIp);
+# see README.md for installing without access to it. writeText puts it in the
+# store — acceptable on these single-user hosts; rclone-config.service
+# obscures it into rclone.conf at activation.
 { inputs, config, pkgs, lib, ... }:
 {
   # Pink folder icon for ~/Drive in Nautilus (WhiteSur's folder_color_pink).

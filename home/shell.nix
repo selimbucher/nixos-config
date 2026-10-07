@@ -1,4 +1,4 @@
-{ inputs, config, pkgs, hostName, ... }:
+{ inputs, config, pkgs, lib, hostName, ... }:
 {
   home.shellAliases = {
     rebuild = "sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
@@ -37,7 +37,9 @@
 
   programs.ssh = {
     enable = true;
-    matchBlocks."hetzner" = {
+    # Omitted entirely under secrets-stub: an empty HostName would make ssh
+    # reject the whole config file.
+    matchBlocks."hetzner" = lib.mkIf (inputs.secrets.hetznerIp != "") {
       hostname = inputs.secrets.hetznerIp;
       user = "root";
       extraOptions = {

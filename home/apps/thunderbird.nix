@@ -100,8 +100,11 @@ in
       user_pref("extensions.mail-look.folders", "colorful");
       user_pref("extensions.mail-look.folderHeader", "hidden");
       // Sender logos from ~/Documents/Code/mail-logos, behind its path token;
-      // empty shows initials only.
-      user_pref("extensions.mail-look.logoBaseURL", "https://logos.selim.one/${inputs.secrets.mailLogosToken}/");
+      // empty (as under secrets-stub) shows initials only.
+      user_pref("extensions.mail-look.logoBaseURL", "${
+        lib.optionalString (inputs.secrets.mailLogosToken != "")
+          "https://logos.selim.one/${inputs.secrets.mailLogosToken}/"
+      }");
     '';
 
     # Appended to the userChrome.css that home/theme.nix writes.
