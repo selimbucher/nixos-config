@@ -30,6 +30,7 @@ let
       systemctl --user stop asus-numberpad-driver
     else
       [ -f ${conf} ] && sed -i 's/^enabled *=.*/enabled = 1/' ${conf}
+      systemctl --user reset-failed asus-numberpad-driver 2>/dev/null
       systemctl --user start asus-numberpad-driver
     fi
   '';
@@ -61,7 +62,13 @@ lib.mkIf config.deviceConfig.numberpad {
 
   environment.systemPackages = [ toggle ];
 
-  systemd.user.services.asus-numberpad-driver.wantedBy = lib.mkForce [ ];
+  systemd.user.services.asus-numberpad-driver = {
+    wantedBy = lib.mkForce [ ];
+    # on demand: a failed start is reported, not retried five times a second,
+    # and its traceback goes to the journal instead of /dev/null
+    serviceConfig.Restart = lib.mkForce "no";
+    serviceConfig.StandardError = lib.mkForce "journal";
+  };
 
   # inotify on the driver's config: it writes enabled = 0 when it turns the
   # numpad off, and the daemon has nothing left to do then
