@@ -33,6 +33,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Zenbook touchpad NumberPad (modules/numberpad.nix)
+    asus-numberpad-driver = {
+      # master, not the v7.2.3 tag: the tag predates the user-service NixOS module
+      url = "github:asus-linux-drivers/asus-numberpad-driver";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     whitesur-src = {
       url = "github:vinceliuice/WhiteSur-icon-theme";
       flake = false;

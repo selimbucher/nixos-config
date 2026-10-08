@@ -49,6 +49,15 @@
       '';
     };
 
+    numberpad = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        An ASUS touchpad with the NumberPad LED grid (modules/numberpad.nix):
+        SUPER+N lights it and turns taps into digits, on demand only.
+      '';
+    };
+
     hibernateAfter = lib.mkOption {
       type = lib.types.str;
       default = "30min";

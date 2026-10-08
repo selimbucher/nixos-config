@@ -77,6 +77,7 @@
     passwordLogin = false;
     passwordLock = false;
     battery = true;
+    numberpad = true;
     # true = patched wine + yabridge like the desktop (~1h local build per nixpkgs bump)
     wineFork = true;
   };

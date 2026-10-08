@@ -6,10 +6,11 @@
 { writeShellApplication
 , openssh
 , tigervnc
+, jq
 }:
 writeShellApplication {
   name = "tardis";
-  runtimeInputs = [ openssh tigervnc ];
+  runtimeInputs = [ openssh tigervnc jq ];
   text = ''
     conf=''${XDG_CONFIG_HOME:-$HOME/.config}/tardis
     mkdir -p "$conf"
@@ -27,7 +28,8 @@ writeShellApplication {
     Inside the desktop: Alt+F1 opens the applications menu, Ctrl+Esc the
     desktop menu (Super stays with Hyprland). The viewer sends key positions,
     so the remote layout must match the physical keyboard: Swiss German by
-    default, Alt+Shift toggles to US.
+    default, Alt+Shift toggles to US. The desktop scale follows the local
+    monitor; on the lab side `~/.local/bin/scale 1|2` switches it by hand.
 
     Optional:
       ssh-copy-id USER@tardis-b11           # no SSH password prompts afterwards
@@ -84,6 +86,16 @@ writeShellApplication {
       port=$((5900 + disp))
       # shellcheck disable=SC2029
       ssh "$host" "DISPLAY=:$disp setxkbmap -layout ch,us -variant de, -option grp:alt_shift_toggle" 2>/dev/null || true
+      # HiDPI: match the remote desktop to the local monitor scale (GTK, fonts, cursor)
+      scale=1
+      if command -v hyprctl >/dev/null; then
+        scale=$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused)][0].scale // 1 | round' || echo 1)
+      fi
+      # shellcheck disable=SC2029
+      ssh "$host" "export DISPLAY=:$disp
+        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor -n -t int -s $scale
+        xfconf-query -c xsettings -p /Xft/DPI -n -t int -s $((96 * scale))
+        xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s $((24 * scale))" 2>/dev/null || true
       ssh -f -N -o ExitOnForwardFailure=yes -L "$port:localhost:$port" "$host"
       echo "$host display :$disp, tunnel on $port"
       if [ -s "$pw_file" ]; then
