@@ -19,6 +19,11 @@ lib.mkIf config.deviceConfig.battery {
   services.logind.settings.Login = {
     HandleLidSwitch = "suspend-then-hibernate";
     HandleLidSwitchExternalPower = "suspend-then-hibernate";
+    # After any wake logind ignores the lid for this long, then re-checks it.
+    # The Zenbook's lid sensor reports a brief "open" while closing, which
+    # aborts the suspend 2-3 s in (lid = wake source); with the default 30 s
+    # the closed laptop then sat awake for half a minute. 3 s: it retries.
+    HoldoffTimeoutSec = "3s";
   };
   systemd.sleep.settings.Sleep.HibernateDelaySec = config.deviceConfig.hibernateAfter;
 
