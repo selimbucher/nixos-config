@@ -46,7 +46,15 @@
         SetEnv = "TERM=xterm-256color";
       };
     };
-};
+    # AIC lab machines (tardis-b11 etc.); `tardis` relies on the shared master
+    # so one login covers the desktop check, the tunnel and the teardown.
+    matchBlocks."tardis-*" = {
+      hostname = "%h.ee.ethz.ch";
+      controlMaster = "auto";
+      controlPath = "~/.ssh/cm-%C";
+      controlPersist = "10m";
+    };
+  };
 
   programs.zsh = {
     enable = true;

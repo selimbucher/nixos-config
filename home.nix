@@ -1,7 +1,9 @@
 { inputs, config, pkgs, lib, hostName, ... }:
 {
   imports = 
-    lib.filesystem.listFilesRecursive ./home
+    # emacs is left out of the build; its module stays for later
+    builtins.filter (f: f != ./home/apps/emacs.nix)
+      (lib.filesystem.listFilesRecursive ./home)
     ++ [ 
       inputs.kiwi.homeManagerModules.default 
     ];

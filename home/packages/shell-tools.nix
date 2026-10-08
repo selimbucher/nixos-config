@@ -18,5 +18,9 @@
     gocryptfs
     claude-code
     codex
+    (callPackage ../../pkgs/transcribe { })
+    tigervnc
+    (callPackage ../../pkgs/ethvpn.nix { })
+    (callPackage ../../pkgs/tardis.nix { })
   ];
 }

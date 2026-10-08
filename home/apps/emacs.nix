@@ -14,7 +14,10 @@ in
       treesit-auto
       nix-ts-mode
       markdown-mode
-      treesit-grammars.with-all-grammars
+      # all but cuda, whose upstream tag was moved out from under the
+      # pinned hash; with-all-grammars fails to fetch it
+      (treesit-grammars.with-grammars (g:
+        builtins.attrValues (removeAttrs g [ "tree-sitter-cuda" ])))
       vertico
       vertico-posframe
       orderless

@@ -1,11 +1,19 @@
-{ inputs, pkgs, config, ... }:
+{ inputs, pkgs, config, osConfig, ... }:
 let
+  # Native Access on yabridge's wine: ni-wine brings stock wine-staging, and
+  # its NTK daemon outlives NA, so plugins in ~/.wine-ni then fail with
+  # "wine client error: version mismatch". ni-wine honours $WINE; this only
+  # rewraps the launcher, nothing is rebuilt on the wine side.
+  ni-wine = inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default.overridePythonAttrs (old: {
+    makeWrapperArgs = old.makeWrapperArgs ++ pkgs.lib.optionals osConfig.deviceConfig.wineFork
+      [ "--set-default" "WINE" "${pkgs.wineWow64Packages.yabridge}/bin/wine" ];
+  });
   demucs = pkgs.callPackage ../../pkgs/demucs.nix { };
   basic-pitch = pkgs.callPackage ../../pkgs/basic-pitch.nix { };
 in
 {
   home.packages = with pkgs; [
-    inputs.native-instruments.packages.${pkgs.stdenv.hostPlatform.system}.default
+    ni-wine
     inputs.claude-desktop-bin.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     gparted
@@ -79,7 +87,6 @@ in
     thunderbird
     prismlauncher
     r2modman
-    transcribe
     demucs
     basic-pitch
     (pkgs.callPackage ../../pkgs/stem2midi.nix { inherit demucs basic-pitch; })
