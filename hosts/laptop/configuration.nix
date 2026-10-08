@@ -5,21 +5,33 @@
     ../../options.nix
     ./hardware-configuration.nix
     ../../common.nix
-    ./batlog.nix
-    ./idle.nix
   ];
 
   networking.hostName = "laptop";
+
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+    };
+    # Passwords only from the home LAN (rsync); keys everywhere else
+    extraConfig = ''
+      Match Address 192.168.88.0/24
+        PasswordAuthentication yes
+    '';
+  };
+  users.users.selim.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2hjST+3bGWZhN7UOZshtJRFEr2hRHUUUh69W8tnana selim@desktop"
+  ];
 
   # --- Corsair MP600 CORE XT boot stalls (real fix: disable VMD in BIOS) ---
   boot.kernelParams = [
     "nvme_core.default_ps_max_latency_us=0" # APST deep sleep it never wakes from
     "nvme_core.io_timeout=10" # dropped irq behind VMD: poll after 10s, not 30s
   ];
-
-  # Puts resume= on the cmdline so the 16G swap can hold a hibernation image
-  # (15G RAM, so it fits). Without it suspend-to-disk silently boots fresh.
-  boot.resumeDevice = "/dev/disk/by-uuid/3f0c641f-e5cc-4a08-ade9-5b0ed7d72179";
 
   # i915's GSC proxy must bind in initrd or boot waits ~18s for it
   boot.initrd.kernelModules = [ "mei" "mei_me" "mei_gsc" "mei_gsc_proxy" ];
@@ -57,7 +69,15 @@
     shadow = true;
     scale = 2.0;
     jackBufferSize = 128;
+    # LUKS2 root (nvme0n1p2, encrypted in place 2026-10-08) opened by a
+    # YubiKey touch; the same key gates every login. passwordLogin /
+    # passwordLock add the password on top of the key.
+    luksRoot = "d03d0fa1-9166-410f-9448-d5d2f2caa2f3";
+    yubikey = true;
+    passwordLogin = false;
+    passwordLock = false;
+    battery = true;
     # true = patched wine + yabridge like the desktop (~1h local build per nixpkgs bump)
-    wineFork = false;
+    wineFork = true;
   };
 }

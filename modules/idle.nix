@@ -1,7 +1,14 @@
-# Idle timeouts, on battery only: dim at 2 min, screen off at 4, suspend at 15.
+# Idle timeouts, on battery only: dim at 2 min, screen off at 4, sleep at 15
+# (suspend-then-hibernate, like the lid: sleep.nix). Battery devices only.
 # Idle inhibitors (video playback, `systemd-inhibit --what=idle <cmd>`) hold
 # them off. On AC nothing happens, as before.
-{ pkgs, ... }:
+#
+# Every sleep (lid, idle suspend, hibernate) locks first: logind's
+# PrepareForSleep runs before_sleep_cmd, and hypridle's default inhibit_sleep
+# (2, auto) holds the sleep back until hyprlock has the session lock, provided
+# before_sleep_cmd is loginctl lock-session and lock_cmd mentions hyprlock, so
+# the desktop never shows on wake. Only the YubiKey unlocks (yubikey.nix).
+{ config, lib, pkgs, ... }:
 
 let
   brightnessctl = "${pkgs.brightnessctl}/bin/brightnessctl";
@@ -27,10 +34,10 @@ let
   '';
 
   idleSuspend = pkgs.writeShellScript "idle-suspend" ''
-    ${onBattery} && systemctl suspend
+    ${onBattery} && systemctl suspend-then-hibernate
   '';
 in
-{
+lib.mkIf config.deviceConfig.battery {
   environment.systemPackages = [ pkgs.hypridle ];
 
   # started by Hyprland like the other session daemons: this session never
@@ -40,6 +47,8 @@ in
   # scripts, not inline commands: hyprlang would read $ and # in them
   home-manager.users.selim.xdg.configFile."hypr/hypridle.conf".text = ''
     general {
+      lock_cmd = pidof hyprlock || hyprlock
+      before_sleep_cmd = loginctl lock-session
       after_sleep_cmd = ${idleScreen} on
     }
 

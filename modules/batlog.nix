@@ -1,13 +1,13 @@
 # batlog: samples battery drain, SoC power and per-app CPU/GPU time every 30s
 # on battery (5 min on AC) into /var/lib/batlog; `batlog report`, `batlog ab`.
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   batlog = pkgs.writeScriptBin "batlog"
     (builtins.replaceStrings [ "#!/usr/bin/env python3" ] [ "#!${pkgs.python3}/bin/python3" ]
-      (builtins.readFile ../../pkgs/batlog/batlog.py));
+      (builtins.readFile ../pkgs/batlog/batlog.py));
 in
-{
+lib.mkIf config.deviceConfig.battery {
   environment.systemPackages = [ batlog ];
 
   # package C-state residency (how deep the SoC idles) is read from MSRs

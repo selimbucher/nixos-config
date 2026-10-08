@@ -5,7 +5,15 @@
 { config, lib, pkgs, inputs, ... }:
 
 {
-  imports = [ inputs.qylock.nixosModules.default ];
+  imports = [
+    inputs.qylock.nixosModules.default
+    # device-gated by deviceConfig.* (options.nix)
+    ./modules/luks.nix
+    ./modules/yubikey.nix
+    ./modules/batlog.nix
+    ./modules/idle.nix
+    ./modules/sleep.nix
+  ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 

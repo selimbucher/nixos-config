@@ -26,7 +26,7 @@
 
   # Only ever activated by systemd-gpt-auto-generator finding the "Linux swap"
   # GPT type, so it existed on the disk but not in this config.
-  swapDevices = [ { device = "/dev/disk/by-uuid/3f0c641f-e5cc-4a08-ade9-5b0ed7d72179"; } ];
+  # swap: a file inside the LUKS root, see sleep.nix (nvme0n1p3 is unused)
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;

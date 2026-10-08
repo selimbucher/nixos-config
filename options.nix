@@ -19,6 +19,65 @@
       '';
     };
 
+    luksRoot = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "d03d0fa1-9166-410f-9448-d5d2f2caa2f3";
+      description = ''
+        PARTUUID of a LUKS2 root partition. Stage 1 opens it with a FIDO2
+        touch (modules/luks.nix); null means an unencrypted root.
+      '';
+    };
+
+    yubikey = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        A YubiKey gates every way into the running system: hyprlock, the
+        TTY login and the SDDM greeter (modules/yubikey.nix). passwordLogin
+        and passwordLock add the password on top; they never replace the key.
+      '';
+    };
+
+    battery = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        A device on battery: drain logging (modules/batlog.nix), idle
+        timeouts (modules/idle.nix) and the lid/hibernate policy
+        (modules/sleep.nix).
+      '';
+    };
+
+    hibernateAfter = lib.mkOption {
+      type = lib.types.str;
+      default = "30min";
+      description = ''
+        How long a battery device stays suspended before it hibernates,
+        taking RAM and the disk key with it (modules/sleep.nix).
+      '';
+    };
+
+    passwordLogin = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether the TTY login and the SDDM greeter ask for the password as
+        well as the key, and SDDM shows the greeter at boot. Off = autologin:
+        the disk unlock already was the key. Needs deviceConfig.yubikey.
+      '';
+    };
+
+    passwordLock = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether hyprlock asks for the password as well as the key. Off =
+        key only: the lock screen waits for a key and its touch, nothing to
+        type. Needs deviceConfig.yubikey.
+      '';
+    };
+
     sddmWayland = lib.mkOption {
       type = lib.types.bool;
       default = true;
