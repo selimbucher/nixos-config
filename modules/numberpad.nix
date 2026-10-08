@@ -22,13 +22,14 @@ let
 
   # the driver persists its last state in `enabled`, so set it before each
   # start: the numpad lights up with the daemon instead of waiting for a
-  # corner press
+  # corner press. `enabled *=`: the module's first-run file has no spaces,
+  # the driver's rewrites do.
   toggle = pkgs.writeShellScriptBin "numberpad" ''
     if systemctl --user is-active -q asus-numberpad-driver \
-        && grep -q '^enabled = 1' ${conf} 2>/dev/null; then
+        && grep -q '^enabled *= *1' ${conf} 2>/dev/null; then
       systemctl --user stop asus-numberpad-driver
     else
-      [ -f ${conf} ] && sed -i 's/^enabled = .*/enabled = 1/' ${conf}
+      [ -f ${conf} ] && sed -i 's/^enabled *=.*/enabled = 1/' ${conf}
       systemctl --user start asus-numberpad-driver
     fi
   '';
@@ -72,7 +73,7 @@ lib.mkIf config.deviceConfig.numberpad {
     serviceConfig.Type = "oneshot";
     script = ''
       if systemctl --user is-active -q asus-numberpad-driver \
-          && grep -q '^enabled = 0' ${conf}; then
+          && grep -q '^enabled *= *0' ${conf}; then
         systemctl --user stop asus-numberpad-driver
       fi
     '';

@@ -7,10 +7,11 @@
 , openssh
 , tigervnc
 , jq
+, gawk
 }:
 writeShellApplication {
   name = "tardis";
-  runtimeInputs = [ openssh tigervnc jq ];
+  runtimeInputs = [ openssh tigervnc jq gawk ];
   text = ''
     conf=''${XDG_CONFIG_HOME:-$HOME/.config}/tardis
     mkdir -p "$conf"
@@ -23,13 +24,15 @@ writeShellApplication {
       tardis [MACHINE]       open the desktop (MACHINE e.g. b11; default: last used, else b18)
       tardis off [MACHINE]   stop the desktop on the machine
       tardis user NAME       set the AIC course username
+      tardis scale FACTOR    desktop scale, e.g. 1.75 (default: local monitor scale)
       tardis -h              this help
 
     Inside the desktop: Alt+F1 opens the applications menu, Ctrl+Esc the
     desktop menu (Super stays with Hyprland). The viewer sends key positions,
     so the remote layout must match the physical keyboard: Swiss German by
     default, Alt+Shift toggles to US. The desktop scale follows the local
-    monitor; on the lab side `~/.local/bin/scale 1|2` switches it by hand.
+    monitor or `tardis scale`; on the lab side `~/.local/bin/scale FACTOR`
+    switches it by hand.
 
     Optional:
       ssh-copy-id USER@tardis-b11           # no SSH password prompts afterwards
@@ -86,16 +89,24 @@ writeShellApplication {
       port=$((5900 + disp))
       # shellcheck disable=SC2029
       ssh "$host" "DISPLAY=:$disp setxkbmap -layout ch,us -variant de, -option grp:alt_shift_toggle" 2>/dev/null || true
-      # HiDPI: match the remote desktop to the local monitor scale (GTK, fonts, cursor)
-      scale=1
-      if command -v hyprctl >/dev/null; then
-        scale=$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused)][0].scale // 1 | round' || echo 1)
+      # desktop scale: ~/.config/tardis/scale (e.g. 1.75), else the local monitor
+      # scale. GTK's window scale is integer on X11, so fractions go via font DPI.
+      local scale gdk dpi cur
+      if [ -s "$conf/scale" ]; then
+        scale=$(cat "$conf/scale")
+      elif command -v hyprctl >/dev/null; then
+        scale=$(hyprctl monitors -j 2>/dev/null | jq -r '[.[] | select(.focused)][0].scale // 1' || echo 1)
+      else
+        scale=1
       fi
+      gdk=1; case "$scale" in 2|2.*|3*) gdk=2 ;; esac
+      dpi=$(awk "BEGIN{printf \"%d\", 96*$scale}")
+      cur=$(awk "BEGIN{printf \"%d\", 24*$scale}")
       # shellcheck disable=SC2029
       ssh "$host" "export DISPLAY=:$disp
-        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor -n -t int -s $scale
-        xfconf-query -c xsettings -p /Xft/DPI -n -t int -s $((96 * scale))
-        xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s $((24 * scale))" 2>/dev/null || true
+        xfconf-query -c xsettings -p /Gdk/WindowScalingFactor -n -t int -s $gdk
+        xfconf-query -c xsettings -p /Xft/DPI -n -t int -s $dpi
+        xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s $cur" 2>/dev/null || true
       ssh -f -N -o ExitOnForwardFailure=yes -L "$port:localhost:$port" "$host"
       echo "$host display :$disp, tunnel on $port"
       if [ -s "$pw_file" ]; then
@@ -122,6 +133,7 @@ writeShellApplication {
     case "''${1:-}" in
       -h|--help|help) print_help ;;
       user) printf '%s' "''${2:?username}" > "$user_file"; echo "user set to $2" ;;
+      scale) printf '%s' "''${2:?factor}" > "$conf/scale"; echo "scale set to $2 (applies on next connect)" ;;
       off|kill|stop) do_off "''${2:-}" ;;
       *) do_open "''${1:-}" ;;
     esac
