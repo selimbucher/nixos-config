@@ -53,6 +53,7 @@
       controlMaster = "auto";
       controlPath = "~/.ssh/cm-%C";
       controlPersist = "10m";
+      extraOptions.StrictHostKeyChecking = "accept-new";
     };
   };
 

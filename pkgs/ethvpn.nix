@@ -56,13 +56,23 @@ writeShellApplication {
     do_setup() {
       local login realm pass totp
       read -rp 'nethz login: ' login
+      login=''${login%%@*}
       read -rp 'realm (student/staff) [student]: ' realm
       realm=''${realm:-student}
       read -rsp 'ETH network password: ' pass; echo
-      read -rp 'TOTP secret (optional): ' totp
+      while :; do
+        read -rp 'TOTP secret (base32, 16+ chars; empty = type the code each time): ' totp
+        totp=$(printf '%s' "$totp" | tr -d ' -' | tr '[:lower:]' '[:upper:]')
+        if [ -z "$totp" ]; then break; fi
+        if [ ''${#totp} -ge 16 ] && [ -z "''${totp//[A-Z2-7]/}" ]; then break; fi
+        if [ -z "''${totp//[0-9]/}" ]; then
+          echo "that is a one-time code; the secret is the long base32 string behind the QR code" >&2
+        else
+          echo "not a base32 secret (A-Z and 2-7 only, at least 16 chars)" >&2
+        fi
+      done
       printf '%s' "$login@$realm-net.ethz.ch" | put user
       printf '%s' "$pass" | put password
-      totp=$(printf '%s' "$totp" | tr -d ' -' | tr '[:lower:]' '[:upper:]')
       if [ -n "$totp" ]; then
         printf '%s' "$totp" | put totp
       else
@@ -102,6 +112,8 @@ writeShellApplication {
 
       if printf '%s\n%s\n' "$pass" "$otp" | sudo openconnect --config="$cfg" "$gateway"; then
         rm -f "$cfg"
+        # the backgrounded child brings the interface up a moment after the parent returns
+        for _ in $(seq 1 50); do up && break; sleep 0.1; done
         notify-send -a ethvpn 'ETH VPN' 'connected'
         do_status
       else

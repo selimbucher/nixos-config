@@ -19,7 +19,7 @@ writeShellApplication {
     tardis — AIC remote desktop on the Tardis lab machines
 
     Usage:
-      tardis [MACHINE]       open the desktop (MACHINE e.g. b11; default: last used, else b11)
+      tardis [MACHINE]       open the desktop (MACHINE e.g. b11; default: last used, else b18)
       tardis off [MACHINE]   stop the desktop on the machine
       tardis user NAME       set the AIC course username
       tardis -h              this help
@@ -45,7 +45,7 @@ writeShellApplication {
     target() {
       local m=''${1:-}
       if [ -z "$m" ] && [ -s "$host_file" ]; then m=$(cat "$host_file"); fi
-      m=''${m:-b11}
+      m=''${m:-b18}
       m=''${m#tardis-}
       printf '%s' "$m" > "$host_file"
       echo "$(get_user)@tardis-$m"
@@ -53,7 +53,7 @@ writeShellApplication {
 
     # first display number of a running desktop, empty if none
     display() {
-      ssh "$1" 'vncserver -list 2>/dev/null' | grep -oE '^:[0-9]+' | head -1 | tr -d :
+      ssh "$1" 'vncserver -list 2>/dev/null' | { grep -oE '^:[0-9]+' || true; } | head -1 | tr -d :
     }
 
     do_open() {
@@ -65,7 +65,10 @@ writeShellApplication {
       fi
       disp=$(display "$host")
       if [ -z "$disp" ]; then
-        ssh -t "$host" vncserver
+        # first time: vncpasswd needs a tty. The server itself must start
+        # without one, or its desktop session dies with the SSH session.
+        ssh "$host" 'test -s ~/.vnc/passwd' || ssh -t "$host" vncpasswd
+        ssh "$host" 'vncserver </dev/null >/dev/null 2>&1'
         disp=$(display "$host")
       fi
       if [ -z "$disp" ]; then
