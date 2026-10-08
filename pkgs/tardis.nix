@@ -24,6 +24,9 @@ writeShellApplication {
       tardis user NAME       set the AIC course username
       tardis -h              this help
 
+    Inside the desktop: Alt+F1 opens the applications menu, Ctrl+Esc the
+    desktop menu (Super stays with Hyprland). Layout is set to Swiss German.
+
     Optional:
       ssh-copy-id USER@tardis-b11           # no SSH password prompts afterwards
       vncpasswd ~/.config/tardis/vncpasswd  # no VNC password prompt afterwards
@@ -77,6 +80,8 @@ writeShellApplication {
         return 1
       fi
       port=$((5900 + disp))
+      # shellcheck disable=SC2029
+      ssh "$host" "DISPLAY=:$disp setxkbmap ch de" 2>/dev/null || true
       ssh -f -N -o ExitOnForwardFailure=yes -L "$port:localhost:$port" "$host"
       echo "$host display :$disp, tunnel on $port"
       if [ -s "$pw_file" ]; then
