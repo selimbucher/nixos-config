@@ -103,10 +103,13 @@ writeShellApplication {
       dpi=$(awk "BEGIN{printf \"%d\", 96*$scale}")
       cur=$(awk "BEGIN{printf \"%d\", 24*$scale}")
       # shellcheck disable=SC2029
+      # Qt apps (Virtuoso) read QT_SCALE_FACTOR at start: ~/.xsessionrc is
+      # sourced by the lab's Xsession, so it applies to the next desktop session.
       ssh "$host" "export DISPLAY=:$disp
         xfconf-query -c xsettings -p /Gdk/WindowScalingFactor -n -t int -s $gdk
         xfconf-query -c xsettings -p /Xft/DPI -n -t int -s $dpi
-        xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s $cur" 2>/dev/null || true
+        xfconf-query -c xsettings -p /Gtk/CursorThemeSize -n -t int -s $cur
+        printf 'export QT_SCALE_FACTOR=%s\\nexport QT_SCALE_FACTOR_ROUNDING_POLICY=PassThrough\\n' $scale > ~/.xsessionrc" 2>/dev/null || true
       ssh -f -N -o ExitOnForwardFailure=yes -L "$port:localhost:$port" "$host"
       echo "$host display :$disp, tunnel on $port"
       if [ -s "$pw_file" ]; then
