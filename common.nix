@@ -115,9 +115,14 @@
     enable = true;
     theme = "spinner_alt";
     themePackages = [
-      (pkgs.adi1090x-plymouth-themes.override {
+      # the script is replaced: the original centres on display 0, which is
+      # off-centre everywhere once a monitor of another size is attached
+      ((pkgs.adi1090x-plymouth-themes.override {
         selected_themes = [ "spinner_alt" ];
-      })
+      }).overrideAttrs (o: {
+        # the package's installPhase runs no hooks, so append there
+        installPhase = o.installPhase + "cp ${./pkgs/plymouth/spinner_alt.script} $out/share/plymouth/themes/spinner_alt/spinner_alt.script\n";
+      }))
     ];
   };
 

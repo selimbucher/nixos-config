@@ -1,0 +1,117 @@
+## adi1090x's spinner_alt, fixed for more than one display.
+## Plymouth's script engine draws one canvas (max width x max height over all
+## displays) and centres every display in it. The original placed everything
+## relative to display 0, which is off-centre on every display once a monitor
+## of another size is attached. Centre on the canvas instead, and keep the text
+## inside the "safe" area that every display shows.
+
+// Canvas and safe area
+canvas.w = Window.GetWidth();
+canvas.h = Window.GetHeight();
+safe.w = canvas.w;
+safe.h = canvas.h;
+for (i = 0; Window.GetWidth(i); i++) {
+    if (Window.GetWidth(i) < safe.w) safe.w = Window.GetWidth(i);
+    if (Window.GetHeight(i) < safe.h) safe.h = Window.GetHeight(i);
+}
+safe.x = (canvas.w - safe.w) / 2;
+safe.y = (canvas.h - safe.h) / 2;
+center.x = canvas.w / 2;
+center.y = canvas.h / 2;
+
+// Question prompt
+question = null;
+answer = null;
+
+// Message
+message = null;
+
+// Password prompt
+bullets = null;
+prompt = null;
+bullet.image = Image.Text("*", 1, 1, 1);
+
+// Flow
+state.status = "play";
+state.time = 0.0;
+
+//--------------------------------- Refresh (Logo animation) --------------------------
+
+# cycle through all images
+for (i = 0; i < 60; i++)
+  flyingman_image[i] = Image("progress-" + i + ".png");
+flyingman_sprite = Sprite();
+
+# centre the spinner on the canvas: that is the centre of every display
+flyingman_sprite.SetX(center.x - flyingman_image[0].GetWidth() / 2);
+flyingman_sprite.SetY(center.y - flyingman_image[0].GetHeight() / 2);
+
+progress = 0;
+
+fun refresh_callback ()
+  {
+    flyingman_sprite.SetImage(flyingman_image[Math.Int(progress / 2) % 60]);
+    progress++;
+  }
+
+Plymouth.SetRefreshFunction (refresh_callback);
+
+//------------------------------------- Question prompt -------------------------------
+fun DisplayQuestionCallback(prompt, entry) {
+    question = null;
+    answer = null;
+
+    if (entry == "")
+        entry = "<answer>";
+
+    question.image = Image.Text(prompt, 1, 1, 1);
+    question.sprite = Sprite(question.image);
+    question.sprite.SetX(center.x - question.image.GetWidth() / 2);
+    question.sprite.SetY(safe.y + safe.h - 4 * question.image.GetHeight());
+
+    answer.image = Image.Text(entry, 1, 1, 1);
+    answer.sprite = Sprite(answer.image);
+    answer.sprite.SetX(center.x - answer.image.GetWidth() / 2);
+    answer.sprite.SetY(safe.y + safe.h - 2 * answer.image.GetHeight());
+}
+Plymouth.SetDisplayQuestionFunction(DisplayQuestionCallback);
+
+//------------------------------------- Password prompt -------------------------------
+fun DisplayPasswordCallback(nil, bulletCount) {
+    state.status = "pause";
+    totalWidth = bulletCount * bullet.image.GetWidth();
+    startPos = center.x - totalWidth / 2;
+
+    prompt.image = Image.Text("Enter Password", 1, 1, 1);
+    prompt.sprite = Sprite(prompt.image);
+    prompt.sprite.SetX(center.x - prompt.image.GetWidth() / 2);
+    prompt.sprite.SetY(safe.y + safe.h - 4 * prompt.image.GetHeight());
+
+    // Clear all bullets (user might hit backspace)
+    bullets = null;
+    for (i = 0; i < bulletCount; i++) {
+        bullets[i].sprite = Sprite(bullet.image);
+        bullets[i].sprite.SetX(startPos + i * bullet.image.GetWidth());
+        bullets[i].sprite.SetY(safe.y + safe.h - 2 * bullet.image.GetHeight());
+    }
+}
+Plymouth.SetDisplayPasswordFunction(DisplayPasswordCallback);
+
+//--------------------------- Normal display (unset all text) ----------------------
+fun DisplayNormalCallback() {
+    state.status = "play";
+    bullets = null;
+    prompt = null;
+    message = null;
+    question = null;
+    answer = null;
+}
+Plymouth.SetDisplayNormalFunction(DisplayNormalCallback);
+
+//----------------------------------------- Message --------------------------------
+fun MessageCallback(text) {
+    message.image = Image.Text(text, 1, 1, 1);
+    message.sprite = Sprite(message.image);
+    message.sprite.SetPosition(center.x - message.image.GetWidth() / 2, safe.y + message.image.GetHeight());
+}
+Plymouth.SetMessageFunction(MessageCallback);
