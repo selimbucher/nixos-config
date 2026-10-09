@@ -33,8 +33,11 @@
     "nvme_core.io_timeout=10" # dropped irq behind VMD: poll after 10s, not 30s
   ];
 
-  # i915's GSC proxy must bind in initrd or boot waits ~18s for it
-  boot.initrd.kernelModules = [ "mei" "mei_me" "mei_gsc" "mei_gsc_proxy" ];
+  # i915's GSC proxy must bind in initrd or boot waits ~18s for it. i915 itself
+  # must load in initrd too: Plymouth ignores the firmware's simpledrm device
+  # until a real GPU driver appears, so the LUKS key prompt (luks.nix) would
+  # otherwise go to a splash that is not drawn yet.
+  boot.initrd.kernelModules = [ "i915" "mei" "mei_me" "mei_gsc" "mei_gsc_proxy" ];
 
   # Iris Xe clock floor. The GPU's own governor (SLPC) only clocks up under
   # sustained load and holds near its 300 MHz efficient clock for the short
