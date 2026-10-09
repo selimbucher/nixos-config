@@ -64,7 +64,8 @@
     monitor = [
       { output = "eDP-1";    mode = "2880x1800@120"; position = "0x0";        scale = "2"; bitdepth = 10; }
       { output = "HDMI-A-1"; mode = "2560x1440@60";  position = "-304x-1152"; scale = "1.25"; }
-      { output = "DP-1";     mode = "3840x2160@30";  position = "1440x0";     scale = "2"; }
+      # Acer KG271U: 2560x1440 native; it showed "input not supported" for 3840x2160@30 on a cold boot
+      { output = "DP-1";     mode = "2560x1440@70";  position = "1440x0";     scale = "1.25"; }
     ];
     # WhiteSur renders header bars and sidebars at 96% opacity; without blur
     # behind them that reads as a muddy wallpaper tint rather than vibrancy.
