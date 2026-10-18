@@ -68,6 +68,11 @@ lib.mkIf config.deviceConfig.numberpad {
     # and its traceback goes to the journal instead of /dev/null
     serviceConfig.Restart = lib.mkForce "no";
     serviceConfig.StandardError = lib.mkForce "journal";
+    # the driver only cleans up (backlight off, touchpad ungrabbed) from its
+    # SIGUSR1 handler; on SIGTERM python just dies and the digits stay lit
+    # with nothing behind them. It always exits 1 after cleaning up.
+    serviceConfig.KillSignal = "SIGUSR1";
+    serviceConfig.SuccessExitStatus = [ 1 ];
   };
 
   # inotify on the driver's config: it writes enabled = 0 when it turns the
