@@ -83,6 +83,9 @@ lib.mkMerge [
       assertion = cfg.yubikey || (cfg.passwordLogin && cfg.passwordLock);
       message = "deviceConfig.passwordLogin/passwordLock = false need deviceConfig.yubikey";
     }];
+    # hyprlock comes from home-manager, which defines no PAM service; without
+    # one PAM falls back to "other" (deny all) and the lock screen never opens
+    security.pam.services.hyprlock = { };
   }
   (lib.mkIf cfg.yubikey {
   security.pam.services = {

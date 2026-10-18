@@ -6,6 +6,7 @@ let
   # With a password the pill stays and switches to the key instruction while
   # PAM waits for the touch (check_text shows once the buffer is submitted).
   passwordLock = osConfig.deviceConfig.passwordLock;
+  yubikey = osConfig.deviceConfig.yubikey;
   keyPrompt = "Insert security key to unlock";
 in
 {
@@ -56,7 +57,7 @@ in
       font_family = "Quicksand";
       placeholder_text = "Enter Password";
       fail_text = "Enter Password";
-      check_text = keyPrompt;
+      check_text = if yubikey then keyPrompt else "";
 
       dots_size = 0.3;
       dots_spacing = 0.35;

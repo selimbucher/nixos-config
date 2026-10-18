@@ -16,7 +16,8 @@ lib.mkIf (config.deviceConfig.luksRoot != null) {
   boot.initrd.luks.devices.root = {
     # the partition, not the LUKS UUID: that one only exists after migration
     device = "/dev/disk/by-partuuid/${config.deviceConfig.luksRoot}";
-    crypttabExtraOpts = [
+    # without deviceConfig.yubikey the passphrase prompt comes straight away
+    crypttabExtraOpts = lib.optionals config.deviceConfig.yubikey [
       "fido2-device=auto"
       "token-timeout=${keyWait}"
     ];
@@ -35,8 +36,10 @@ lib.mkIf (config.deviceConfig.luksRoot != null) {
     after = [ "plymouth-start.service" ];
     startLimitIntervalSec = 0; # retry forever
     serviceConfig = {
-      ExecStartPre = "-${plymouth} display-message --text=\"${prompt}\"";
-      ExecStartPost = "-${plymouth} display-message --text=\" \"";
+      ExecStartPre = lib.mkIf config.deviceConfig.yubikey
+        "-${plymouth} display-message --text=\"${prompt}\"";
+      ExecStartPost = lib.mkIf config.deviceConfig.yubikey
+        "-${plymouth} display-message --text=\" \"";
       Restart = "on-failure";
       RestartSec = 1;
     };
