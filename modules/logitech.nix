@@ -2,12 +2,12 @@
 # udev starts a oneshot user service on each connect that sets it again.
 #   solaar config "MX Master 4" dpi        # read
 #   solaar config "MX Master 4" dpi 4000   # try a value live
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
-  dpi = 3000;
+  dpi = config.deviceConfig.mouseDpi;
 in
-{
+lib.mkIf (dpi != null) {
   # solaar CLI + udev rules giving the logged-in user hidraw access
   programs.solaar.enable = true;
 

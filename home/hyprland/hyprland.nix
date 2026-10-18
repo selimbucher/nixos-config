@@ -1,6 +1,8 @@
 { inputs, lib, pkgs, config, osConfig, ... }:
 
 let
+  flatMouse = osConfig.deviceConfig.mouseDpi != null;
+
   # hover glyphs, shared with the GTK header bars (home/theme.nix)
   glyphs = pkgs.callPackage ../../pkgs/titlebutton-glyphs.nix { };
 
@@ -136,12 +138,12 @@ in
       monitor = osConfig.deviceConfig.monitor;
 
       # ------------------------------------------------------------- devices
-      # Mice default to flat (no acceleration) from the input block; the
-      # touchpad opts back into adaptive acceleration.
+      # With deviceConfig.mouseDpi mice are flat (no acceleration) from the
+      # input block; the touchpad opts back into adaptive acceleration.
       device = [
         { name = "epic-mouse-v1"; sensitivity = -0.5; }
-        { name = "asue140d:00-04f3:31b9-touchpad"; accel_profile = "adaptive"; sensitivity = 0.5; }
-      ];
+      ] ++ lib.optional flatMouse
+        { name = "asue140d:00-04f3:31b9-touchpad"; accel_profile = "adaptive"; sensitivity = 0.5; };
 
       # ------------------------------------------------------------ gestures
       # NOTE: the two hyprexpo gestures that used to live here are gone.
@@ -285,13 +287,15 @@ in
           kb_layout = "ch";
           kb_variant = "de";
           follow_mouse = 1;
-          # 1:1, no acceleration; mouse speed comes from its DPI (modules/logitech.nix)
-          accel_profile = "flat";
-          sensitivity = 0.0;
+          sensitivity = 0.5;
           touchpad = {
             natural_scroll = true;
             disable_while_typing = false;
           };
+        } // lib.optionalAttrs flatMouse {
+          # 1:1, no acceleration; mouse speed comes from its DPI (modules/logitech.nix)
+          accel_profile = "flat";
+          sensitivity = 0.0;
         };
 
         gestures = {

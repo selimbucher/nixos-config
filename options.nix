@@ -58,6 +58,18 @@
       '';
     };
 
+    mouseDpi = lib.mkOption {
+      type = lib.types.nullOr lib.types.int;
+      default = null;
+      example = 3000;
+      description = ''
+        Hardware DPI for an MX Master 4, set on every (re)connect
+        (modules/logitech.nix). The pointer then runs flat 1:1 and the
+        touchpad keeps adaptive acceleration. null = Hyprland's default
+        acceleration at sensitivity 0.5, no solaar.
+      '';
+    };
+
     hibernateAfter = lib.mkOption {
       type = lib.types.str;
       default = "30min";
