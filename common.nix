@@ -15,6 +15,7 @@
     ./modules/idle.nix
     ./modules/sleep.nix
     ./modules/numberpad.nix
+    ./modules/logitech.nix
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

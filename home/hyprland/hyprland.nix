@@ -136,10 +136,12 @@ in
       monitor = osConfig.deviceConfig.monitor;
 
       # ------------------------------------------------------------- devices
-      device = {
-        name = "epic-mouse-v1";
-        sensitivity = -0.5;
-      };
+      # Mice default to flat (no acceleration) from the input block; the
+      # touchpad opts back into adaptive acceleration.
+      device = [
+        { name = "epic-mouse-v1"; sensitivity = -0.5; }
+        { name = "asue140d:00-04f3:31b9-touchpad"; accel_profile = "adaptive"; sensitivity = 0.5; }
+      ];
 
       # ------------------------------------------------------------ gestures
       # NOTE: the two hyprexpo gestures that used to live here are gone.
@@ -283,7 +285,9 @@ in
           kb_layout = "ch";
           kb_variant = "de";
           follow_mouse = 1;
-          sensitivity = 0.5;
+          # 1:1, no acceleration; mouse speed comes from its DPI (modules/logitech.nix)
+          accel_profile = "flat";
+          sensitivity = 0.0;
           touchpad = {
             natural_scroll = true;
             disable_while_typing = false;
