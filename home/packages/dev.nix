@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, config, ... }:
 {
   home.packages = with pkgs; [
     python3
@@ -10,6 +10,7 @@
     ocaml-ng.ocamlPackages_4_13.findlib
     ocaml-ng.ocamlPackages_4_13.dune_3
     ocaml-ng.ocamlPackages_4_13.utop
+    ocaml-ng.ocamlPackages_4_13.num
 
     duckdb
     dnsutils
@@ -33,4 +34,7 @@
     neovim
     nodejs
   ];
+
+  # ocamlfind doesn't search the profile's site-lib on its own (needed for `num` in Compiler Design)
+  home.sessionVariables.OCAMLPATH = "${config.home.profileDirectory}/lib/ocaml/4.13.1/site-lib";
 }
