@@ -24,9 +24,31 @@ ls -1t "$SESSIONS" 2>/dev/null | grep -v '^current-' | tail -n +41 | while IFS= 
   rm -f "$SESSIONS/$f"
 done
 
-# reaper-rescue itself refuses cleanup while a REAPER instance is running,
-# so this is safe to call unconditionally.
-reaper-rescue --cleanup-only >>"$LOG" 2>&1
+# Boot every yabridge plugin prefix (the ~/.wine* prefixes yabridgectl syncs
+# plugins from) in parallel while REAPER starts. REAPER loads a project's FX
+# one at a time, and the first plugin from a cold prefix waits for its
+# wineserver, wineboot and services to start: 2-3s per prefix, all of it in
+# series with the rest of the project (measured on track3.RPP: 52.7s -> 47.8s
+# with only this). The warm-up is a GUI-less rundll32 call, which also builds
+# the prefix's font cache; -p60 keeps the server and services up for a minute
+# after it so REAPER's hosts find them running. Prefixes the project doesn't
+# use shut down again by themselves.
+prewarm_prefixes() {
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/yabridgectl/config.toml" p
+  [ -f "$cfg" ] || return 0
+  sed -n "s#^[[:space:]]*['\"]\(/.*\)/drive_c/.*#\1#p" "$cfg" | sort -u |
+  while IFS= read -r p; do
+    [ -f "$p/system.reg" ] || continue
+    ( WINEPREFIX="$p" wineserver-yabridge -p60
+      WINEPREFIX="$p" wine-yabridge rundll32.exe user32.dll,GetDesktopWindow ) </dev/null &
+  done
+}
+
+# reaper-rescue itself refuses cleanup while a REAPER instance is running
+# (then the prefixes are in use and nothing needs warming).
+if reaper-rescue --cleanup-only >>"$LOG" 2>&1; then
+  prewarm_prefixes >>"$LOG" 2>&1
+fi
 
 # All yabridge debug output plus everything the plugins and Wine print.
 # Bump YABRIDGE_DEBUG_LEVEL to 1 or 2 here when hunting a specific bug.

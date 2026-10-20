@@ -1,0 +1,41 @@
+yabridge: bound host termination; SIGKILL the host when it doesn't exit within 2s of SIGINT (a plugin stuck in DLL_PROCESS_DETACH otherwise blocks the unloading DAW thread forever and leaks the host).
+
+--- a/src/common/process.cpp
++++ b/src/common/process.cpp
+@@ -17,7 +17,10 @@
+ #include "process.h"
+ 
+ #include <cassert>
++#include <cerrno>
++#include <chrono>
+ #include <iostream>
++#include <thread>
+ 
+ #include <dlfcn.h>
+ #include <spawn.h>
+@@ -238,6 +241,25 @@
+ 
+ void Process::Handle::terminate() const noexcept {
+     kill(pid_, SIGINT);
++
++    // Wine turns SIGINT into a console Ctrl-C event, whose default handler
++    // runs every DLL's DLL_PROCESS_DETACH after it has already killed the
++    // process' other threads. A plugin that waits for one of its own threads
++    // there never returns (Guitar Rig 7 sleeps in a loop), so the host never
++    // exits, and a plain waitpid() would block the thread unloading the
++    // plugin forever. Give the host two seconds to exit and kill it after.
++    using namespace std::chrono_literals;
++    for (int i = 0; i < 200; i++) {
++        int status = 0;
++        const pid_t result = waitpid(pid_, &status, WNOHANG);
++        if (result == pid_ || (result == -1 && errno == ECHILD)) {
++            return;
++        }
++
++        std::this_thread::sleep_for(10ms);
++    }
++
++    kill(pid_, SIGKILL);
+     wait();
+ }
+ 

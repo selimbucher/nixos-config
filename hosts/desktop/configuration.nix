@@ -48,9 +48,9 @@
     sddmWayland = false;
     wineFork = true;
     monitor = [
-      { output = "DP-2";     mode = "2560x1440@240"; position = "0x0";    scale = "1.25"; bitdepth = 10; }
-      { output = "DP-3";     mode = "2560x1440@240"; position = "2048x0"; scale = "1.25"; bitdepth = 10; }
-      { output = "HDMI-A-1"; mode = "3840x2160@60";  position = "4096x0"; scale = "1"; }
+      { output = "DP-2";     mode = "2560x1440@240"; position = "0x0";    scale = "1"; bitdepth = 10; }
+      { output = "DP-3";     mode = "2560x1440@240"; position = "2560x0"; scale = "1"; bitdepth = 10; }
+      { output = "HDMI-A-1"; mode = "3840x2160@60";  position = "5120x0"; scale = "1"; }
     ];
     blur = true;
     # macOS reads as much from the drop shadow as from the corner radius;
@@ -59,7 +59,7 @@
     extraExecOnce = [
       "steam -silent"
     ];
-    scale = 1.25;
+    scale = 1.0;
     jackBufferSize = 64;
   };
 }

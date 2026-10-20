@@ -1,0 +1,24 @@
+--- a/src/common/process.cpp	2026-10-03 19:33:20.567281730 +0200
++++ b/src/common/process.cpp	2026-10-03 19:33:20.582472883 +0200
+@@ -30,10 +30,18 @@
+     // but that doesn't distinguish between actually running processes and
+     // unreaped zombies, and terminated group host processes will always be left
+     // as zombies since there may not be anything left to reap them. Instead
+-    // we'll check whether one of `/proc/<pid>/{cwd,exe,root}` are valid
+-    // symlinks.
++    // we'll check whether `/proc/<pid>/exe` can still be read as a symlink:
++    // for a zombie the link is gone and `readlink()` fails with `ENOENT`.
++    //
++    // NOTE: This must not resolve the link's target (as `fs::canonical()`
++    //       did). When the host's binary is replaced on disk while it is
++    //       running the target reads `<path> (deleted)` and can no longer be
++    //       resolved, even though the process is perfectly alive. On NixOS
++    //       `nix-store --optimise` does exactly that (it swaps store files
++    //       for hard links), and every bridge would then decide the host
++    //       had died and shut itself down.
+     std::error_code err;
+-    fs::canonical("/proc/" + std::to_string(pid) + "/exe", err);
++    fs::read_symlink("/proc/" + std::to_string(pid) + "/exe", err);
+ 
+     // NOTE: We can get a `EACCES` here if we don't have permissions to read
+     //       this process's memory. This does mean that the process is still

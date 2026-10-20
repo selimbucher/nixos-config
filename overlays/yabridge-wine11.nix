@@ -149,6 +149,34 @@ let
       # Creative Cloud desktop corrupts its process heap ~1 min after
       # launch only when schannel is enabled (schannel=d → no fault).
       ./patches/secur32-post-1116-fixes.patch
+      # ntdll-dir-listing-cache.patch (ours, 2026-10-18): a lookup that
+      # misses the exact-case name reads the whole directory to search it
+      # case-insensitively, and lookup_unix_name retries every missing name
+      # as a "name?" reparse point, so each probe for a file that doesn't
+      # exist costs two full directory reads. NI's plug-ins probe a few
+      # thousand product names against installed_products/ and
+      # Native Access/ras3/ (~300 entries each) in their DLL init: ~26k
+      # directory reads, about a third of Kontakt 8's DLL init (perf +
+      # strace). Caches listings of directories whose mtime/ctime are >= 2s
+      # old on local filesystems, revalidated by stat on every use.
+      # Measured load (DLL init, warm prefix, 3 runs each): Kontakt 8
+      # 8.13-8.22s -> 6.24-6.52s, Guitar Rig 7 6.34-6.40s -> 5.76-5.80s.
+      # Lookup results checked identical to stock (case variants, 8.3 names,
+      # umlauts, changes made in-process and from Linux mid-run).
+      # WINE_DISABLE_DIR_CACHE=1 turns it off without a rebuild.
+      # Upstream-worthy.
+      ./patches/ntdll-dir-listing-cache.patch
+      # ntdll-abort-thread-fd-cache-mutex.patch (ours, 2026-10-18): when a
+      # process exits, the server closes the other threads' pipes and a
+      # thread waiting on a server reply inside an uninterrupted section
+      # dies right there in abort_thread() - still holding fd_cache_mutex.
+      # Every later NtClose() then waits for it forever with the server
+      # signals blocked, so that thread can't be killed and the process
+      # never exits (caught live: a Guitar Rig 7 host after unload, mutex
+      # owner tid long gone). The fd cache is consistent at every server
+      # call made under the mutex, so the dying thread releases it.
+      # Upstream bug.
+      ./patches/ntdll-abort-thread-fd-cache-mutex.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''
@@ -321,6 +349,37 @@ in
       # parked on it while Melodyne sat in a popup loop) and flooded it with
       # work (the 09-10 frozen editor). Answer it on the receiving thread.
       ./patches/yabridge-ara-head-tail-any-thread.patch
+      # yabridge-pid-running-deleted-exe.patch (ours, 2026-10-03): the Wine
+      # hosts' watchdog asks pid_running(REAPER) every 5s, implemented as
+      # fs::canonical("/proc/<pid>/exe"). nix-optimise.service replaced
+      # REAPER's binary with a hard link mid-session (19:11:33), the link
+      # became ".reaper-wrapped (deleted)", canonical() failed, and every
+      # host declared REAPER dead and exited ("The native plugin host seems
+      # to have died" x3 while REAPER was alive: Addictive Drums 2, Lounge
+      # Lizard EP-4, Kontakt 8). Read the link instead of resolving it: still
+      # fails for zombies, succeeds for a live process with a replaced exe.
+      # Candidate for upstreaming.
+      ./patches/yabridge-pid-running-deleted-exe.patch
+      # yabridge-bounded-host-terminate.patch (ours, 2026-10-18): unloading a
+      # plugin closes the host's sockets, sends it SIGINT and then waitpid()s
+      # with no timeout. Wine turns the SIGINT into a Ctrl-C event whose
+      # default handler kills all other threads and then runs every
+      # DLL_PROCESS_DETACH; Guitar Rig 7 sleeps in its detach waiting for one
+      # of its (now dead) threads, so the host never exits, the unloading
+      # thread blocks forever, and the host lingers with its memory (the
+      # leaked Kontakt 8 host found hours after REAPER quit). Reproduced in
+      # 2 of 3 Guitar Rig unloads. SIGKILL after 2s; clean exits take <0.1s.
+      ./patches/yabridge-bounded-host-terminate.patch
+      # yabridge-process-bus-bounds.patch (ours, 2026-10-18): REAPER crashed
+      # (SIGSEGV in YaProcessData::repopulate) after Lounge Lizard EP-4's host
+      # died: the host death was caught in a non-process call, so process()
+      # kept running, and REAPER passed 4 input busses where the shared
+      # buffers knew of none, so num_input_channels() indexed past the end.
+      # process() now also stops on the bridge-wide lost-host flag, a bus
+      # without offsets counts as zero channels, and CLAP copies only the
+      # clamped channel count (it copied the host's count, which overruns
+      # when a host passes more channels than the plugin has).
+      ./patches/yabridge-process-bus-bounds.patch
     ];
   });
 }

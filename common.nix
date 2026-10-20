@@ -44,6 +44,15 @@
     (final: prev: {
       brave = final.callPackage ./pkgs/brave.nix { inherit (prev) brave; };
     })
+    # Hyprland 0.56.2 aborts when a client (kiwi's app-capture) asks to
+    # capture a window that has no monitor, which happens while the only
+    # monitor is unplugged or drops off the bus. The patch fails that
+    # capture instead. Drop it once nixpkgs ships a Hyprland with the fix.
+    (final: prev: {
+      hyprland = prev.hyprland.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./overlays/patches/hyprland-screenshare-no-monitor.patch ];
+      });
+    })
   ] ++ lib.optional config.deviceConfig.wineFork
     (import ./overlays/yabridge-wine11.nix { inherit inputs; });
 
@@ -175,6 +184,18 @@
   };
 
   services.printing.enable = true;
+  services.printing.drivers = [ pkgs.hplip ];
+  # USB-attached HP ENVY 4520 (hplip's hpcups driver).
+  hardware.printers = {
+    ensureDefaultPrinter = "ENVY4520";
+    ensurePrinters = [{
+      name = "ENVY4520";
+      description = "HP ENVY 4520";
+      deviceUri = "usb://HP/ENVY%204520%20series?serial=TH86R5H1B60660&interface=1";
+      model = "drv:///hp/hpcups.drv/hp-envy_4520_series.ppd";
+      ppdOptions.PageSize = "A4";
+    }];
+  };
 
   services.pipewire = {
     enable = true;

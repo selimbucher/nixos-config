@@ -26,26 +26,29 @@ notify() { command -v notify-send >/dev/null 2>&1 && notify-send "reaper-rescue"
 
 # REAPER's cmdline is just the nix profile wrapper path, so identify it by the
 # executable: /nix/store/...-reaper-*/opt/REAPER/.reaper-wrapped
+# One find instead of a readlink per process: the loop cost ~0.8s, and
+# reaper-logged runs this before every REAPER start.
 find_reaper() {
-  local p exe
-  for p in /proc/[0-9]*; do
-    exe="$(readlink "$p/exe" 2>/dev/null)" || continue
-    case "$exe" in
-      */opt/REAPER/*) basename "$p" ;;
-    esac
-  done
+  find /proc -mindepth 2 -maxdepth 2 -name exe -lname '*/opt/REAPER/*' 2>/dev/null | cut -d/ -f3
 }
 
 # yabridge hosts run as wine-preloader with "yabridge-host.exe.so ..." cmdline.
 # Require both the cmdline match and a wine/yabridge executable so shells that
 # merely mention the pattern are never matched.
+#
+# A host whose main thread has already exited (its other threads still
+# running) has no readable exe link; those are recognised by comm, or they
+# would outlive their wineserver forever (the 2026-10-18 leaked Kontakt host).
 find_hosts() {
   local pid exe
   for pid in $(pgrep -f 'yabridge-host' 2>/dev/null); do
-    exe="$(readlink "/proc/$pid/exe" 2>/dev/null)" || continue
-    case "$exe" in
-      *wine*|*yabridge*) echo "$pid" ;;
-    esac
+    if exe="$(readlink "/proc/$pid/exe" 2>/dev/null)"; then
+      case "$exe" in
+        *wine*|*yabridge*) echo "$pid" ;;
+      esac
+    elif [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = "yabridge-host.e" ]; then
+      echo "$pid"
+    fi
   done
 }
 
@@ -87,13 +90,20 @@ cleanup_wine() {
   fi
   # wineserver-yabridge (media.nix) is yabridge's pinned wine — the interactive
   # `wineserver` (wine-staging) must never touch the plugin prefixes.
+  # -k takes the prefix's processes down with its server, waits for the
+  # server to exit (SIGKILLing it after ~10s) and fails when no server is
+  # running, so the -k9 sweep is only needed where one was: a clean start no
+  # longer pays a fixed second for it.
+  local killed=""
   while IFS= read -r p; do
-    WINEPREFIX="$p" wineserver-yabridge -k 2>/dev/null
+    WINEPREFIX="$p" wineserver-yabridge -k 2>/dev/null && killed="$killed$p"$'\n'
   done < <(prefixes)
-  sleep 1
-  while IFS= read -r p; do
-    WINEPREFIX="$p" wineserver-yabridge -k9 2>/dev/null
-  done < <(prefixes)
+  if [ -n "$killed" ]; then
+    sleep 1
+    while IFS= read -r p; do
+      [ -n "$p" ] && WINEPREFIX="$p" wineserver-yabridge -k9 2>/dev/null
+    done <<<"$killed"
+  fi
   find "$RUNDIR" -maxdepth 1 -name 'yabridge-*' -exec rm -rf {} + 2>/dev/null
   echo "Wine/yabridge leftovers cleaned (prefixes: $(prefixes | tr '\n' ' '))."
 }

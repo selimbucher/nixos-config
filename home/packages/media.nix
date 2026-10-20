@@ -86,6 +86,13 @@ in
       exec ${yabridgeWine}/bin/wineserver "$@"
     '')
 
+    # The same for wine itself: reaper-logged boots the plugin prefixes with
+    # it before REAPER starts. Without deviceConfig.wineFork, the `wine` on
+    # PATH is a different build that must not touch those prefixes.
+    (writeShellScriptBin "wine-yabridge" ''
+      exec ${yabridgeWine}/bin/wine "$@"
+    '')
+
     # Kept as an alias for muscle memory — reaper-logged (home/apps/
     # reaper-tools.nix) cleans ALL ~/.wine* prefixes and captures crash logs.
     (writeShellScriptBin "reaper-launch" ''

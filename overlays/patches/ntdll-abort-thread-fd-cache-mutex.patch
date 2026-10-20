@@ -1,0 +1,85 @@
+ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise the process can't exit: plug-in hosts linger forever after unload).
+
+--- a/dlls/ntdll/unix/server.c
++++ b/dlls/ntdll/unix/server.c
+@@ -105,6 +105,11 @@
+ static pid_t server_pid;
+ pthread_mutex_t fd_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+ 
++/* Which thread holds fd_cache_mutex, so that a thread that dies holding it
++ * can let go of it, see server_abort_thread_sections(). */
++static pthread_t fd_cache_owner;
++static volatile BOOL fd_cache_owned;
++
+ /* atomically exchange a 64-bit value */
+ static inline LONG64 interlocked_xchg64( LONG64 *dest, LONG64 val )
+ {
+@@ -328,6 +333,11 @@
+ {
+     pthread_sigmask( SIG_BLOCK, &server_block_set, sigset );
+     mutex_lock( mutex );
++    if (mutex == &fd_cache_mutex)
++    {
++        fd_cache_owner = pthread_self();
++        fd_cache_owned = TRUE;
++    }
+ }
+ 
+ 
+@@ -336,6 +346,7 @@
+  */
+ void server_leave_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigset )
+ {
++    if (mutex == &fd_cache_mutex) fd_cache_owned = FALSE;
+     mutex_unlock( mutex );
+     pthread_sigmask( SIG_SETMASK, sigset, NULL );
+ }
+@@ -933,6 +944,28 @@
+     }
+ }
+ 
++
++/***********************************************************************
++ *           server_abort_thread_sections
++ *
++ * Called by a thread that is about to die in abort_thread(). That happens
++ * inside a server call when the server closes our pipes, i.e. when another
++ * thread terminates the process (or this thread), and the call may be inside
++ * an uninterrupted section. Exiting with fd_cache_mutex held deadlocks the
++ * process: every later NtClose() waits for it forever with the server
++ * signals blocked, so that thread can't be killed either and the process
++ * never exits. The fd cache is consistent at every server call made under
++ * the mutex, so it is safe to release here.
++ */
++void server_abort_thread_sections(void)
++{
++    if (fd_cache_owned && pthread_equal( fd_cache_owner, pthread_self() ))
++    {
++        fd_cache_owned = FALSE;
++        pthread_mutex_unlock( &fd_cache_mutex );
++    }
++}
++
+ 
+ /***********************************************************************
+  *           wine_server_send_fd
+--- a/dlls/ntdll/unix/thread.c
++++ b/dlls/ntdll/unix/thread.c
+@@ -1515,6 +1515,7 @@
+ void abort_thread( int status )
+ {
+     pthread_sigmask( SIG_BLOCK, &server_block_set, NULL );
++    server_abort_thread_sections();
+     if (InterlockedDecrement( &nb_threads ) <= 0) abort_process( status );
+     pthread_exit_wrapper( status );
+ }
+--- a/dlls/ntdll/unix/unix_private.h
++++ b/dlls/ntdll/unix/unix_private.h
+@@ -220,6 +220,7 @@
+ extern timeout_t server_start_time;
+ extern sigset_t server_block_set;
+ extern pthread_mutex_t fd_cache_mutex;
++extern void server_abort_thread_sections(void);
+ extern struct _KUSER_SHARED_DATA *user_shared_data;
+ extern ULONG process_cookie;
+ 

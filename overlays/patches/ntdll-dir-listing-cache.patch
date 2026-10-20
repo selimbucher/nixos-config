@@ -1,0 +1,318 @@
+ntdll: cache directory listings for case-insensitive lookups (every probe for a missing file read its whole directory twice; NI plug-ins probe thousands of product names per load).
+
+--- a/dlls/ntdll/unix/file.c
++++ b/dlls/ntdll/unix/file.c
+@@ -3000,6 +3000,297 @@
+ }
+ 
+ 
++#if defined(__linux__) && defined(HAVE_STRUCT_STAT_ST_MTIM)
++
++/***********************************************************************
++ *           Directory listing cache
++ *
++ * find_file_in_dir() does a case-insensitive lookup the hard way: it reads
++ * the whole directory and converts every entry to UTF-16.  Programs that
++ * probe for many files which don't exist pay for that on every probe, twice
++ * (lookup_unix_name() retries every missing name as a "name?" reparse point).
++ * Native Instruments plug-ins check a few thousand product names against two
++ * ~300 entry directories each time they load, which costs them seconds.
++ *
++ * So remember the listings of directories that haven't changed for a while.
++ * A listing is keyed by device and inode and checked against the directory's
++ * mtime and ctime on every use.  Creating, removing or renaming an entry
++ * always updates both, and a listing is only cached once both are at least
++ * DIR_CACHE_MIN_AGE seconds old, so a change made right after the directory
++ * was read can't end up with the old (coarse-grained) timestamp.  Only local
++ * filesystems that maintain these timestamps are cached, and directories
++ * that are case-insensitive themselves never are.  WINE_DISABLE_DIR_CACHE=1
++ * turns the cache off.
++ */
++
++#define DIR_CACHE_SLOTS       32
++#define DIR_CACHE_MAX_BYTES   (8 * 1024 * 1024)
++#define DIR_CACHE_MAX_ENTRY   (2 * 1024 * 1024)
++#define DIR_CACHE_MIN_AGE     2  /* seconds */
++
++struct dir_cache_name
++{
++    unsigned int   unix_off;        /* offset of the NUL-terminated on-disk name in strings */
++    unsigned int   name_off;        /* offset of the UTF-16 name in strings */
++    unsigned short len;             /* length of the UTF-16 name */
++    unsigned short short_len;       /* length of the hashed 8.3 name, 0 if the name is a legal 8.3 name */
++    WCHAR          short_name[12];
++};
++
++struct dir_cache_entry
++{
++    dev_t                  dev;
++    ino_t                  ino;
++    struct timespec        mtime;
++    struct timespec        ctime;
++    unsigned int           count;
++    unsigned int           lru;
++    size_t                 bytes;
++    struct dir_cache_name *names;
++    char                  *strings;
++};
++
++static pthread_mutex_t dir_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
++static struct dir_cache_entry dir_cache[DIR_CACHE_SLOTS];
++static size_t dir_cache_bytes;
++static unsigned int dir_cache_clock;
++static int dir_cache_disabled = -1;
++
++static BOOL dir_cache_enabled(void)
++{
++    if (dir_cache_disabled == -1)
++    {
++        const char *env = getenv( "WINE_DISABLE_DIR_CACHE" );
++        dir_cache_disabled = env && *env && *env != '0';
++    }
++    return !dir_cache_disabled;
++}
++
++static BOOL dir_cache_fs_supported( const struct statfs *stfs )
++{
++    switch ((unsigned int)stfs->f_type)
++    {
++    case 0xef53:      /* ext2/3/4 */
++    case 0x9123683e:  /* btrfs */
++    case 0x58465342:  /* xfs */
++    case 0x01021994:  /* tmpfs */
++    case 0xf2f52010:  /* f2fs */
++        return TRUE;
++    }
++    return FALSE;
++}
++
++static BOOL dir_cache_same_state( const struct dir_cache_entry *entry, const struct stat *st )
++{
++    return entry->dev == st->st_dev && entry->ino == st->st_ino &&
++           entry->mtime.tv_sec == st->st_mtim.tv_sec && entry->mtime.tv_nsec == st->st_mtim.tv_nsec &&
++           entry->ctime.tv_sec == st->st_ctim.tv_sec && entry->ctime.tv_nsec == st->st_ctim.tv_nsec;
++}
++
++static void dir_cache_free( struct dir_cache_entry *entry )
++{
++    free( entry->names );
++    free( entry->strings );
++    dir_cache_bytes -= entry->bytes;
++    memset( entry, 0, sizeof(*entry) );
++}
++
++/* append len bytes at an offset aligned for WCHARs, growing the buffer as needed */
++static BOOL dir_cache_append( char **buf, size_t *size, size_t *used, const void *data, size_t len,
++                              unsigned int *offset )
++{
++    size_t pos = (*used + sizeof(WCHAR) - 1) & ~(sizeof(WCHAR) - 1);
++
++    if (pos + len > DIR_CACHE_MAX_ENTRY) return FALSE;
++    if (pos + len > *size)
++    {
++        size_t new_size = max( *size * 2, pos + len + 4096 );
++        char *new_buf = realloc( *buf, new_size );
++        if (!new_buf) return FALSE;
++        *buf = new_buf;
++        *size = new_size;
++    }
++    memcpy( *buf + pos, data, len );
++    *offset = pos;
++    *used = pos + len;
++    return TRUE;
++}
++
++/* read a directory into a new cache entry; fails if it can't or shouldn't be cached */
++static BOOL dir_cache_read( int root_fd, const char *dir, const struct stat *st, struct dir_cache_entry *entry )
++{
++    struct dir_cache_name *names = NULL, *new_names;
++    unsigned int count = 0, alloc = 0;
++    char *strings = NULL;
++    size_t size = 0, used = 0;
++    struct statfs stfs;
++    struct timespec now;
++    struct stat st_after;
++    struct dirent *de;
++    WCHAR buffer[MAX_DIR_ENTRY_LEN];
++    DIR *dirp = NULL;
++    int fd, ret, flags;
++
++    /* only trust a listing whose timestamps are old enough, see above */
++    clock_gettime( CLOCK_REALTIME, &now );
++    if (now.tv_sec - st->st_mtim.tv_sec < DIR_CACHE_MIN_AGE ||
++        now.tv_sec - st->st_ctim.tv_sec < DIR_CACHE_MIN_AGE)
++        return FALSE;
++
++    if ((fd = openat( root_fd, dir, O_RDONLY | O_DIRECTORY )) == -1) return FALSE;
++    /* On these filesystems get_dir_case_sensitivity_stat() comes down to the
++     * casefold flag. Case-insensitive directories are never searched, so
++     * there is nothing to cache for them. */
++    if (fstatfs( fd, &stfs ) == -1 || !dir_cache_fs_supported( &stfs ) ||
++        (ioctl( fd, EXT2_IOC_GETFLAGS, &flags ) != -1 && (flags & EXT4_CASEFOLD_FL)) ||
++        !(dirp = fdopendir( fd )))
++    {
++        close( fd );
++        return FALSE;
++    }
++
++    for (;;)
++    {
++        struct dir_cache_name *name;
++
++        errno = 0;
++        if (!(de = readdir( dirp )))
++        {
++            if (errno) goto failed;  /* never cache a partial listing */
++            break;
++        }
++        if (count == alloc)
++        {
++            alloc = max( alloc * 2, 64 );
++            if (alloc * sizeof(*names) > DIR_CACHE_MAX_ENTRY ||
++                !(new_names = realloc( names, alloc * sizeof(*names) )))
++                goto failed;
++            names = new_names;
++        }
++        name = &names[count];
++        ret = ntdll_umbstowcs( de->d_name, strlen(de->d_name), buffer, MAX_DIR_ENTRY_LEN );
++        if (!dir_cache_append( &strings, &size, &used, de->d_name, strlen(de->d_name) + 1, &name->unix_off ) ||
++            !dir_cache_append( &strings, &size, &used, buffer, ret * sizeof(WCHAR), &name->name_off ))
++            goto failed;
++        name->len = ret;
++        name->short_len = 0;
++        if (!is_legal_8dot3_name( buffer, ret ))
++            name->short_len = hash_short_file_name( buffer, ret, name->short_name );
++        count++;
++    }
++
++    /* the directory must not have changed while we were reading it */
++    if (fstat( dirfd( dirp ), &st_after ) == -1) goto failed;
++    closedir( dirp );
++    dirp = NULL;
++
++    entry->dev   = st->st_dev;
++    entry->ino   = st->st_ino;
++    entry->mtime = st->st_mtim;
++    entry->ctime = st->st_ctim;
++    if (!dir_cache_same_state( entry, &st_after )) goto failed;
++    entry->count   = count;
++    entry->names   = names;
++    entry->strings = strings;
++    entry->bytes   = alloc * sizeof(*names) + size;
++    return TRUE;
++
++failed:
++    if (dirp) closedir( dirp );
++    free( names );
++    free( strings );
++    memset( entry, 0, sizeof(*entry) );
++    return FALSE;
++}
++
++/* the same matching rules as the loop in find_file_in_dir(), in the same order */
++static NTSTATUS dir_cache_search( const struct dir_cache_entry *entry, char *unix_name, int pos,
++                                  const WCHAR *name, int length, BOOLEAN is_name_8_dot_3 )
++{
++    unsigned int i;
++
++    for (i = 0; i < entry->count; i++)
++    {
++        const struct dir_cache_name *n = &entry->names[i];
++
++        if ((n->len == length && !wcsnicmp( (const WCHAR *)(entry->strings + n->name_off), name, length )) ||
++            (is_name_8_dot_3 && n->short_len == length && !wcsnicmp( n->short_name, name, length )))
++        {
++            unix_name[pos - 1] = '/';
++            strcpy( unix_name + pos, entry->strings + n->unix_off );
++            return STATUS_SUCCESS;
++        }
++    }
++    return STATUS_OBJECT_NAME_NOT_FOUND;
++}
++
++/***********************************************************************
++ *           dir_cache_find
++ *
++ * Look a name up in the cached listing of the directory unix_name (which
++ * find_file_in_dir() has NUL-terminated at pos - 1).  Returns
++ * STATUS_MORE_PROCESSING_REQUIRED when the directory can't be cached; the
++ * caller then searches it the hard way.
++ */
++static NTSTATUS dir_cache_find( int root_fd, char *unix_name, int pos, const WCHAR *name, int length,
++                                BOOLEAN is_name_8_dot_3 )
++{
++    struct dir_cache_entry new_entry, *entry = NULL;
++    NTSTATUS status;
++    struct stat st;
++    unsigned int i;
++
++    if (!dir_cache_enabled()) return STATUS_MORE_PROCESSING_REQUIRED;
++    if (fstatat( root_fd, unix_name, &st, 0 ) == -1 || !S_ISDIR( st.st_mode ))
++        return STATUS_MORE_PROCESSING_REQUIRED;
++
++    mutex_lock( &dir_cache_mutex );
++    for (i = 0; i < DIR_CACHE_SLOTS; i++)
++    {
++        if (!dir_cache[i].names || !dir_cache_same_state( &dir_cache[i], &st )) continue;
++        dir_cache[i].lru = ++dir_cache_clock;
++        status = dir_cache_search( &dir_cache[i], unix_name, pos, name, length, is_name_8_dot_3 );
++        mutex_unlock( &dir_cache_mutex );
++        return status;
++    }
++    mutex_unlock( &dir_cache_mutex );
++
++    if (!dir_cache_read( root_fd, unix_name, &st, &new_entry )) return STATUS_MORE_PROCESSING_REQUIRED;
++    status = dir_cache_search( &new_entry, unix_name, pos, name, length, is_name_8_dot_3 );
++
++    mutex_lock( &dir_cache_mutex );
++    for (i = 0; i < DIR_CACHE_SLOTS; i++)
++    {
++        /* replace an older listing of the same directory */
++        if (dir_cache[i].names && dir_cache[i].dev == st.st_dev && dir_cache[i].ino == st.st_ino)
++        {
++            entry = &dir_cache[i];
++            break;
++        }
++        if (!entry || !dir_cache[i].names || (entry->names && dir_cache[i].lru < entry->lru))
++            entry = &dir_cache[i];
++    }
++    if (entry->names) dir_cache_free( entry );
++    *entry = new_entry;
++    entry->lru = ++dir_cache_clock;
++    dir_cache_bytes += entry->bytes;
++    while (dir_cache_bytes > DIR_CACHE_MAX_BYTES)
++    {
++        struct dir_cache_entry *victim = NULL;
++
++        for (i = 0; i < DIR_CACHE_SLOTS; i++)
++            if (dir_cache[i].names && &dir_cache[i] != entry && (!victim || dir_cache[i].lru < victim->lru))
++                victim = &dir_cache[i];
++        if (!victim) break;
++        dir_cache_free( victim );
++    }
++    mutex_unlock( &dir_cache_mutex );
++    return status;
++}
++
++#endif /* __linux__ && HAVE_STRUCT_STAT_ST_MTIM */
++
++
+ /***********************************************************************
+  *           find_file_in_dir
+  *
+@@ -3038,6 +3329,15 @@
+     is_name_8_dot_3 = is_name_8_dot_3 && length >= 8 && name[4] == '~';
+ #endif
+ 
++#if defined(__linux__) && defined(HAVE_STRUCT_STAT_ST_MTIM)
++    switch (dir_cache_find( root_fd, unix_name, pos, name, length, is_name_8_dot_3 ))
++    {
++    case STATUS_SUCCESS: return STATUS_SUCCESS;
++    case STATUS_OBJECT_NAME_NOT_FOUND: goto not_found;
++    default: break;  /* not cacheable, search it the hard way */
++    }
++#endif
++
+     if (!is_name_8_dot_3 && !get_dir_case_sensitivity( root_fd, unix_name )) goto not_found;
+ 
+     /* now look for it through the directory */

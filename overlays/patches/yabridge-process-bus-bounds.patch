@@ -1,0 +1,79 @@
+diff --git a/src/common/audio-shm.h b/src/common/audio-shm.h
+index cb2b20a..4d4bea0 100644
+--- a/src/common/audio-shm.h
++++ b/src/common/audio-shm.h
+@@ -140,12 +140,19 @@ class AudioShmBuffer {
+      */
+     void resize(const Config& new_config);
+ 
++    // The host can pass more busses than the plugin had when the buffers were
++    // laid out (REAPER did after a plugin host died), so a bus we have no
++    // offsets for has zero channels rather than reading past the vector.
+     inline size_t num_input_channels(const uint32_t bus) const {
+-        return config_.input_offsets[bus].size();
++        return bus < config_.input_offsets.size()
++                   ? config_.input_offsets[bus].size()
++                   : 0;
+     }
+ 
+     inline size_t num_output_channels(const uint32_t bus) const {
+-        return config_.output_offsets[bus].size();
++        return bus < config_.output_offsets.size()
++                   ? config_.output_offsets[bus].size()
++                   : 0;
+     }
+ 
+     /**
+diff --git a/src/common/serialization/clap/process.cpp b/src/common/serialization/clap/process.cpp
+index a2905f2..fdbf14e 100644
+--- a/src/common/serialization/clap/process.cpp
++++ b/src/common/serialization/clap/process.cpp
+@@ -70,8 +70,7 @@ void Process::repopulate(const clap_process_t& process,
+             // We copy the actual input audio for every bus to the shared memory
+             // object
+             for (uint32_t channel = 0;
+-                 channel < process.audio_inputs[port].channel_count;
+-                 channel++) {
++                 channel < audio_inputs_[port].channel_count; channel++) {
+                 std::copy_n(process.audio_inputs[port].data32[channel],
+                             frames_count_,
+                             shared_audio_buffers.input_channel_ptr<float>(
+@@ -82,8 +81,7 @@ void Process::repopulate(const clap_process_t& process,
+                 clap::audio_buffer::AudioBufferType::Double64;
+ 
+             for (uint32_t channel = 0;
+-                 channel < process.audio_inputs[port].channel_count;
+-                 channel++) {
++                 channel < audio_inputs_[port].channel_count; channel++) {
+                 std::copy_n(process.audio_inputs[port].data64[channel],
+                             frames_count_,
+                             shared_audio_buffers.input_channel_ptr<double>(
+diff --git a/src/plugin/bridges/clap-impls/plugin-proxy.cpp b/src/plugin/bridges/clap-impls/plugin-proxy.cpp
+index 193bbcf..771778e 100644
+--- a/src/plugin/bridges/clap-impls/plugin-proxy.cpp
++++ b/src/plugin/bridges/clap-impls/plugin-proxy.cpp
+@@ -266,7 +266,8 @@ clap_plugin_proxy::plugin_process(const struct clap_plugin* plugin,
+     assert(plugin && plugin->plugin_data && process);
+     auto self = static_cast<clap_plugin_proxy*>(plugin->plugin_data);
+ 
+-    if (self->host_connection_lost_) {
++    // The bridge-wide flag covers a host that died during some other call
++    if (self->host_connection_lost_ || self->bridge_.host_connection_lost_) {
+         return CLAP_PROCESS_ERROR;
+     }
+ 
+diff --git a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+index f0c8847..6bf2a41 100644
+--- a/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
++++ b/src/plugin/bridges/vst3-impls/plugin-proxy.cpp
+@@ -230,7 +230,9 @@ tresult PLUGIN_API Vst3PluginProxyImpl::setProcessing(TBool state) {
+ 
+ tresult PLUGIN_API
+ Vst3PluginProxyImpl::process(Steinberg::Vst::ProcessData& data) {
+-    if (host_connection_lost_) {
++    // The bridge-wide flag covers a host that died during some other call;
++    // the host may then reconfigure busses the shared buffers don't know of
++    if (host_connection_lost_ || bridge_.host_connection_lost_) {
+         return Steinberg::kInternalError;
+     }
+ 

@@ -1,0 +1,43 @@
+diff -ru a/src/managers/screenshare/ScreenshareManager.cpp b/src/managers/screenshare/ScreenshareManager.cpp
+--- a/src/managers/screenshare/ScreenshareManager.cpp	2026-10-18 23:26:47.476499296 +0200
++++ b/src/managers/screenshare/ScreenshareManager.cpp	2026-10-18 23:26:47.497692856 +0200
+@@ -112,6 +112,11 @@
+     if (type == SHARE_NONE)
+         return {};
+ 
++    // A session that stopped inside its constructor never fired the stopped
++    // listener below (it is attached afterwards), so drop it here instead of
++    // handing the same dead session to every later capture of that target.
++    std::erase_if(m_managedSessions, [](const auto& s) { return !s || !s->m_session || s->m_session->m_stopped; });
++
+     auto it = std::ranges::find_if(m_managedSessions, [&](const auto& session) {
+         if (session->m_session->m_client != client || session->m_session->m_type != type)
+             return false;
+diff -ru a/src/managers/screenshare/ScreenshareSession.cpp b/src/managers/screenshare/ScreenshareSession.cpp
+--- a/src/managers/screenshare/ScreenshareSession.cpp	2026-10-18 23:26:47.476448492 +0200
++++ b/src/managers/screenshare/ScreenshareSession.cpp	2026-10-18 23:26:47.497513084 +0200
+@@ -80,12 +80,21 @@
+     if (g_pEventLoopManager)
+         g_pEventLoopManager->addTimer(m_shareStopTimer);
+ 
++    // A window can be monitorless for a moment, e.g. while its only monitor
++    // is being unplugged; a capture requested then has nothing to read from.
++    // Stopping leaves the formats empty, so the frame is sent `failed`.
++    const auto PMONITOR = monitor();
++    if (!PMONITOR) {
++        stop();
++        return;
++    }
++
+     // scale capture box since it's in logical coords; round to integer pixel
+     // dims so m_bufferSize matches the int32 size we send to the client
+-    m_captureBox.scale(monitor()->m_scale).round();
++    m_captureBox.scale(PMONITOR->m_scale).round();
+ 
+-    m_listeners.monitorDestroyed   = monitor()->m_events.disconnect.listen([this]() { stop(); });
+-    m_listeners.monitorModeChanged = monitor()->m_events.modeChanged.listen([this]() {
++    m_listeners.monitorDestroyed   = PMONITOR->m_events.disconnect.listen([this]() { stop(); });
++    m_listeners.monitorModeChanged = PMONITOR->m_events.modeChanged.listen([this]() {
+         calculateConstraints();
+         m_events.constraintsChanged.emit();
+     });
