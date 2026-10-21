@@ -146,13 +146,9 @@ in
         { name = "asue140d:00-04f3:31b9-touchpad"; accel_profile = "adaptive"; sensitivity = 0.5; };
 
       # ------------------------------------------------------------ gestures
-      # NOTE: the two hyprexpo gestures that used to live here are gone.
-      # hl.gesture() has no `dispatcher` action (only the built-in names or a
-      # lua callback), and hyprexpo was never in `plugins` anyway — they were
-      # dead config under hyprlang too.
-      gesture = [
-        { fingers = 3; direction = "horizontal"; action = "workspace"; }
-      ];
+      # No workspace swipe here: kiwi-shell registers its own, the way macOS
+      # moves through desktops (one per swipe, through kiwi's empty ones too),
+      # with three fingers up for Mission Control.
 
       # -------------------------------------------------------- window rules
       # (the hyprbars:no_bar rules live in extraConfig, see the guard there)
@@ -296,23 +292,6 @@ in
           # 1:1, no acceleration; mouse speed comes from its DPI (modules/logitech.nix)
           accel_profile = "flat";
           sensitivity = 0.0;
-        };
-
-        gestures = {
-          workspace_swipe_distance = 400;
-
-          # INVERT SCROLLING (Touchpad)
-          workspace_swipe_invert = true;
-
-          workspace_swipe_min_speed_to_force = 20;
-          workspace_swipe_cancel_ratio = 0.2;
-
-          # BEHAVIOR
-          # Creates a new empty workspace if you swipe past the last one
-          workspace_swipe_create_new = true;
-
-          # Continuous swiping (go 1 -> 2 -> 3 in one long drag)
-          workspace_swipe_forever = true;
         };
       };
     };
