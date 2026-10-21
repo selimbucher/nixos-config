@@ -44,15 +44,6 @@
     (final: prev: {
       brave = final.callPackage ./pkgs/brave.nix { inherit (prev) brave; };
     })
-    # Hyprland 0.56.2 aborts when a client (kiwi's app-capture) asks to
-    # capture a window that has no monitor, which happens while the only
-    # monitor is unplugged or drops off the bus. The patch fails that
-    # capture instead. Drop it once nixpkgs ships a Hyprland with the fix.
-    (final: prev: {
-      hyprland = prev.hyprland.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [ ./overlays/patches/hyprland-screenshare-no-monitor.patch ];
-      });
-    })
   ] ++ lib.optional config.deviceConfig.wineFork
     (import ./overlays/yabridge-wine11.nix { inherit inputs; });
 
