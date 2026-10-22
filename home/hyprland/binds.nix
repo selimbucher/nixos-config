@@ -21,16 +21,6 @@ let
   # in hyprland.nix (terminal, editor, ...)
   sh = cmd: exec (builtins.toJSON cmd);
   var = name: exec name;
-
-  # SUPER+1..0 -> workspace 1..10, SUPER+SHIFT+1..0 -> move window there
-  workspaceBinds = lib.concatMap (i:
-    let
-      key = toString (lib.mod i 10); # 10 lives on the 0 key
-      ws = toString i;
-    in [
-      (bind "${mainMod} + ${key}" ''hl.dsp.focus({ workspace = "${ws}" })'')
-      (bind "${mainMod} + SHIFT + ${key}" ''hl.dsp.window.move({ workspace = "${ws}" })'')
-    ]) (lib.range 1 10);
 in
 {
   # Unlike hyprlang there is no bind/bindl/bindel/bindm split — every bind is
@@ -71,11 +61,10 @@ in
     (bind "${mainMod} + up" ''hl.dsp.focus({ direction = "up" })'')
     (bind "${mainMod} + down" ''hl.dsp.focus({ direction = "down" })'')
   ]
-  ++ workspaceBinds
+  # No numbered workspace binds, nor a scratchpad: kiwi-shell's desktops
+  # aren't Hyprland's numbers, and a special workspace shown over them is
+  # outside them
   ++ [
-    (bind "${mainMod} + S" ''hl.dsp.workspace.toggle_special("magic")'')
-    (bind "${mainMod} + SHIFT + S" ''hl.dsp.window.move({ workspace = "special:magic" })'')
-
     # bindel — volume/brightness, held down, works on the lock screen
     (lockedRepeat "XF86AudioRaiseVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"))
     (lockedRepeat "XF86AudioLowerVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"))
