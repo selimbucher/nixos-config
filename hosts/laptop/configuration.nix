@@ -62,7 +62,7 @@
 
   deviceConfig = {
     monitor = [
-      { output = "eDP-1";    mode = "2880x1800@120"; position = "0x0";        scale = "2"; bitdepth = 10; }
+      { output = "eDP-1";    mode = "2880x1800@60";  position = "0x0";        scale = "2"; bitdepth = 10; }
       # the Acer, whichever port it is on (it came up as DP-1 and DP-2 on
       # different boots). Native 2560x1440; a 3840x2160@30 entry gave "input
       # not supported" on a cold boot. Over HDMI the closest refresh is used.
@@ -83,7 +83,9 @@
     passwordLock = false;
     battery = true;
     numberpad = true;
-    mouseDpi = 3000;
+    # the desktop's MX Master 3 at 1000 DPI with acceleration off, scaled for
+    # this panel: 127.7 logical ppi at scale 2 vs 108.8 ppi on its 27" 1440p
+    mouseDpi = 1200;
     # true = patched wine + yabridge like the desktop (~1h local build per nixpkgs bump)
     wineFork = true;
   };
