@@ -92,17 +92,8 @@ in
           ../../pkgs/hyprbars-drag-release.patch
         ];
       }))
-      # Makes the CSD minimize button work; see the header of the package for
-      # why Hyprland drops the request on its own.
-      (pkgs.callPackage ../../pkgs/hyprland-csd-minimize.nix {
-        inherit (pkgs.hyprlandPlugins) mkHyprlandPlugin;
-      })
-      # Floating windows open where the app's window was last left; see
-      # pkgs/hyprland-window-memory/main.cpp. After hyprbars: it places windows
-      # by their title bar, which hyprbars adds as they open.
-      (pkgs.callPackage ../../pkgs/hyprland-window-memory {
-        inherit (pkgs.hyprlandPlugins) mkHyprlandPlugin;
-      })
+      # Apps' own minimize buttons and windows opening where they were left
+      # are kiwi-shell's now (its plugin's minimize.cpp and memory.cpp).
     ];
 
     xwayland.enable = true;
@@ -372,9 +363,6 @@ in
 ${lib.concatMapStringsSep "\n" barColourRule barColours}
       end
 
-      -- csd-minimize needs no config here: its default command is patched in
-      -- pkgs/hyprland-csd-minimize.nix to target special:minimized, the same
-      -- place the hyprbars minimize button above sends windows.
     '';
   };
 
