@@ -47,7 +47,11 @@
       color7 = "#f4f4f4";
       color15 = "#e5e5e5";
     };
-    
+
+    keybindings = {
+      "kitty_mod+d" = "detach_window new-tab"; # focused window → its own tab
+    };
+
     # This handles the custom include line from your original config
     extraConfig = ''
       include ./theme.conf
