@@ -80,12 +80,16 @@ in
       # still does not make the plugin available within this same pass.
       # Patched to draw an SVG as a button icon, to show only the hovered
       # button's glyph, and to light that button up in an unfocused window too
-      # (pkgs/hyprbars-svg-icons.patch), and to run a button's action in the
-      # compositor (pkgs/hyprbars-dispatch-actions.patch).
+      # (pkgs/hyprbars-svg-icons.patch), to run a button's action in the
+      # compositor (pkgs/hyprbars-dispatch-actions.patch), and to end a
+      # title-bar drag wherever the button is let go: over a panel or the
+      # dock the window stayed stuck to the pointer
+      # (pkgs/hyprbars-drag-release.patch).
       (pkgs.hyprlandPlugins.hyprbars.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ../../pkgs/hyprbars-svg-icons.patch
           ../../pkgs/hyprbars-dispatch-actions.patch
+          ../../pkgs/hyprbars-drag-release.patch
         ];
       }))
       # Makes the CSD minimize button work; see the header of the package for

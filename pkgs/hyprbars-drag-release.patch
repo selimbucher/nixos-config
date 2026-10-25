@@ -1,0 +1,36 @@
+--- a/barDeco.cpp
++++ b/barDeco.cpp
+@@ -138,14 +138,18 @@
+ }
+ 
+ void CHyprBar::onMouseButton(Event::SCallbackInfo& info, IPointer::SButtonEvent e) {
+-    if (!inputIsValid())
+-        return;
+-
++    // A release ends what a press on this bar began, wherever the pointer is
++    // by then. Let go over a layer (a panel, a dock) it was ignored: the drag
++    // never ended and the window stayed on the pointer until the next click.
+     if (e.state != WL_POINTER_BUTTON_STATE_PRESSED) {
+-        handleUpEvent(info);
++        if (m_bDraggingThis || m_bDragPending || m_bCancelledDown || inputIsValid())
++            handleUpEvent(info);
+         return;
+     }
+ 
++    if (!inputIsValid())
++        return;
++
+     handleDownEvent(info, std::nullopt);
+ }
+ 
+@@ -262,7 +266,9 @@
+ }
+ 
+ void CHyprBar::handleUpEvent(Event::SCallbackInfo& info) {
+-    if (m_pWindow.lock() != Desktop::focusState()->window())
++    // (the bar pressed on ends its press, even if the focus has gone
++    // elsewhere meanwhile)
++    if (m_pWindow.lock() != Desktop::focusState()->window() && !m_bDraggingThis && !m_bCancelledDown)
+         return;
+ 
+     if (m_bCancelledDown)
