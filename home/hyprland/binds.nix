@@ -65,13 +65,11 @@ in
   # aren't Hyprland's numbers, and a special workspace shown over them is
   # outside them
   ++ [
-    # bindel — volume/brightness, held down, works on the lock screen
-    (lockedRepeat "XF86AudioRaiseVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"))
-    (lockedRepeat "XF86AudioLowerVolume" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 && wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"))
-    (lockedRepeat "XF86AudioMute" (sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
+    # The volume and screen brightness keys are kiwi-shell's while nothing
+    # here binds them: it makes the change itself (sixteen steps, held down,
+    # on the lock screen too), no process per press.
+    # bindel — held down, works on the lock screen
     (lockedRepeat "XF86AudioMicMute" (sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"))
-    (lockedRepeat "XF86MonBrightnessUp" (sh "brightnessctl -e4 -n10 set 4%+"))
-    (lockedRepeat "XF86MonBrightnessDown" (sh "brightnessctl -e4 -n10 set 4%-"))
 
     # bindl — media keys, work on the lock screen
     (locked "XF86AudioNext" (sh "playerctl next"))
