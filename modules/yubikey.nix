@@ -60,8 +60,13 @@ let
     };
   };
   # exits 0 once a FIDO token is present; the monitor starts before the
-  # first check so a key plugged in between the two is not missed
+  # first check so a key plugged in between the two is not missed.
+  # SIGUSR1 (sleep.nix, after a hibernation) gives up: hyprlock, opened by
+  # its own SIGUSR1, waits for this before it exits, and while it lingers
+  # hypridle's `pidof hyprlock || hyprlock` starts no new lock. The 2 s let
+  # hyprlock begin to unlock first, or it would only ask again.
   waitForKey = pkgs.writeShellScript "pam-wait-for-fido" ''
+    trap 'sleep 2; exit 1' USR1
     present() {
       for d in /dev/hidraw*; do
         ${udevadm} info -q property "$d" 2>/dev/null | ${grep} -qx ID_FIDO_TOKEN=1 && return 0

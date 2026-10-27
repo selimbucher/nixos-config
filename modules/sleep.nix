@@ -32,10 +32,15 @@ lib.mkIf config.deviceConfig.battery {
   # two. Plain suspend resumes keep the lock screen (nothing was touched).
   # With passwordLock the password is still owed, so hyprlock stays (and
   # asks for its own touch again: the one redundant touch left).
+  # Its key wait (pam-wait-for-fido, its child) is told too: hyprlock only
+  # exits once that returns, and a hyprlock left running kept the next lid
+  # close from locking (hypridle starts none while one runs).
   environment.etc."systemd/system-sleep/hyprlock-after-hibernate" = lib.mkIf (!config.deviceConfig.passwordLock) { source =
     pkgs.writeShellScript "hyprlock-after-hibernate" ''
-      if [ "$1" = post ] && [ "$SYSTEMD_SLEEP_ACTION" = hibernate ]; then
+      if [ "$1" = post ] && [ "$SYSTEMD_SLEEP_ACTION" = hibernate ] \
+        && locks=$(${pkgs.procps}/bin/pgrep -d, -x hyprlock); then
         ${pkgs.procps}/bin/pkill -x -USR1 hyprlock
+        ${pkgs.procps}/bin/pkill -USR1 -P "$locks"
       fi
       exit 0
     ''; };
