@@ -286,6 +286,9 @@ in
           kb_variant = "de";
           follow_mouse = 1;
           sensitivity = 0.5;
+          # Hyprland's 600 ms / 25 Hz is the sluggish part of "holding a key"
+          repeat_delay = 250;
+          repeat_rate = 40;
           touchpad = {
             natural_scroll = true;
             disable_while_typing = false;
