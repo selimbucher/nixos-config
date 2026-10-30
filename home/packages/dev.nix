@@ -11,6 +11,8 @@
     ocaml-ng.ocamlPackages_4_13.dune_3
     ocaml-ng.ocamlPackages_4_13.utop
     ocaml-ng.ocamlPackages_4_13.num
+    # Menhir: parser generator needed by the LLVMlite parser (Compiler Design hw03+)
+    ocaml-ng.ocamlPackages_4_13.menhir
 
     duckdb
     dnsutils
