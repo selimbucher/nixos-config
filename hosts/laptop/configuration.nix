@@ -62,9 +62,9 @@
 
   # VA-API for Iris Xe. Without it Brave had no video decoder at all: batlog
   # saw 0 video-engine time over 11 h of YouTube in October, 17.6 W against a
-  # ~10 W baseline, VP9/AV1 decoded on the P-cores. The Brave side is the
-  # flag in pkgs/brave.nix. AMD hosts need nothing here, Mesa ships radeonsi's
-  # VA driver itself.
+  # ~10 W baseline, VP9/AV1 decoded on the P-cores. Brave needs nothing extra,
+  # nixpkgs' wrapper already passes the VA-API decode flag. AMD hosts need
+  # nothing here either, Mesa ships radeonsi's VA driver itself.
   hardware.graphics.extraPackages = [ pkgs.intel-media-driver ];
   deviceConfig = {
     monitor = [
