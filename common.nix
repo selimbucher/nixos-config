@@ -339,7 +339,13 @@
 
   programs.steam.enable = true;
 
-  programs.gamemode.enable = true;
+  programs.gamemode = {
+    enable = true;
+    # While a game runs, pin it to one L3 group: one CCD on the 5950X, the
+    # P-cores on the laptop. Cross-CCD traffic is what costs Zen 3 frames in
+    # CPU-bound games.
+    settings.cpu.pin_cores = "yes";
+  };
 
   programs.hyprland = {
     enable = true;

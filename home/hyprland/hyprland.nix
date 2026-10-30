@@ -259,6 +259,13 @@ in
           new_status = "master";
         };
 
+        render = {
+          # A fullscreen game (content type game) scans out its own buffer,
+          # no compositor pass per frame. 2 = games only; the bar, blur and
+          # shadows are untouched for everything else.
+          direct_scanout = 2;
+        };
+
         misc = {
           force_default_wallpaper = 1;
           disable_hyprland_logo = true;
