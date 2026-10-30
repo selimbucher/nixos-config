@@ -141,6 +141,16 @@
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # Swap into compressed RAM first; a disk swap (laptop: /swapfile, sleep.nix)
+  # keeps its lower priority and stays the hibernation target, systemd skips
+  # zram when it picks one. 2026-10-28 the laptop had 2.6 GB in the swapfile
+  # with Brave, Spotify, VS Code and Claude open.
+  zramSwap.enable = true;
+  boot.kernel.sysctl = {
+    "vm.page-cluster" = 0; # no swap-in readahead, zram is not a disk
+    "vm.swappiness" = 100;
+  };
+
   networking.networkmanager.enable = true;
   networking.firewall = {
     enable = true;
