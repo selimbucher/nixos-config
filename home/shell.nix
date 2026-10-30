@@ -80,6 +80,9 @@
       bs() { pw-metadata -n settings 0 clock.force-quantum "''${1:-0}" >/dev/null && _reaper_audio_reset }
       sr() { pw-metadata -n settings 0 clock.force-rate "''${1:-0}" >/dev/null && _reaper_audio_reset }
       trk() { reaper -nonewinst ~/.config/REAPER/Scripts/pw-tracking-mode.lua >/dev/null 2>&1 }
+      # Claude Code's xterm.js scroll profile ramps the wheel to 36 rows/event; kitty's stays 1-6.
+      # Keep the ramp off in VS Code terminals only.
+      [[ $TERM_PROGRAM == vscode ]] && claude() { command claude --settings '{"wheelScrollAccelerationEnabled":false}' "$@" }
     '';
     dotDir = "${config.xdg.configHome}/zsh";
   };
