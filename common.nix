@@ -205,6 +205,12 @@
     jack.enable = true;
   };
 
+  # A stand-in AVRCP player: without one AirPods send every stem press as
+  # Play, so double/triple press (next/previous track) never arrive.
+  services.pipewire.wireplumber.extraConfig."51-bluez-avrcp" = {
+    "monitor.bluez.properties"."bluez5.dummy-avrcp-player" = true;
+  };
+
   services.pipewire.extraConfig.pipewire."92-low-latency" = {
     "context.properties" = {
       "default.clock.rate" = 48000;
