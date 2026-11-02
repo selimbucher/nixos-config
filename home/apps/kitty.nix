@@ -15,7 +15,8 @@
       bold_font        = "auto";
       italic_font      = "auto";
       bold_italic_font = "auto";
-      font_size        = "11.0";
+      # 12px, VS Code's size on macOS
+      font_size        = "9.0";
 
       # Background and Opacity
       background_opacity = "1.0";

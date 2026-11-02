@@ -1,4 +1,4 @@
-{ inputs, pkgs, config, osConfig, ... }:
+{ inputs, pkgs, lib, config, osConfig, ... }:
 let
   # Native Access on yabridge's wine: ni-wine brings stock wine-staging, and
   # its NTK daemon outlives NA, so plugins in ~/.wine-ni then fail with
@@ -12,6 +12,21 @@ let
   basic-pitch = pkgs.callPackage ../../pkgs/basic-pitch.nix { };
 in
 {
+  # VS Code's code font at 12px, its size on macOS (14 here), as kitty's. Only
+  # where settings.json doesn't say: VS Code keeps the file its own.
+  home.activation.vscodeFontSize = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    f="$HOME/.config/Code/User/settings.json"
+    if ! ${pkgs.jq}/bin/jq -e 'has("editor.fontSize") and has("terminal.integrated.fontSize")' "$f" >/dev/null 2>&1; then
+      tmp=$(mktemp)
+      if { [ -s "$f" ] && cat "$f" || echo '{}'; } | ${pkgs.jq}/bin/jq '{"editor.fontSize": 12, "terminal.integrated.fontSize": 12} + .' > "$tmp" 2>/dev/null; then
+        run mkdir -p "$(dirname "$f")"
+        run mv "$tmp" "$f"
+      else
+        rm -f "$tmp"
+      fi
+    fi
+  '';
+
   home.packages = with pkgs; [
     ni-wine
     inputs.claude-desktop-bin.packages.${pkgs.stdenv.hostPlatform.system}.default

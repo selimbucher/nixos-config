@@ -19,7 +19,7 @@
   ;; bg: editor, side: explorer and echo area, faint: dividers,
   ;; dim: line numbers and secondary text.
   '((xcode
-     :mono "Geist Mono" :mono-height 115 :ui "Inter" :ui-height 105
+     :mono "Geist Mono" :mono-height 100 :ui "Inter" :ui-height 100
      :light (:bg "#ffffff" :side "#f5f5f7" :fg "#1d1d1f" :dim "#a1a1a6" :faint "#e2e2e5"
              :region "#b4d7ff" :accent "#0a64e1" :cursor "#0a64e1"
              :kw "#9b2393" :str "#c41a16" :com "#5d6c79" :fn "#0f68a0" :call "#326d74"
@@ -34,7 +34,7 @@
             :magenta "#fc5fa3" :cyan "#5dd8ff"))
 
     (whitesur
-     :mono "JetBrains Mono" :mono-height 105 :ui "Inter" :ui-height 105
+     :mono "JetBrains Mono" :mono-height 90 :ui "Inter" :ui-height 100
      :light (:bg "#ffffff" :side "#f6f6f6" :fg "#262626" :dim "#a8a8a8" :faint "#e4e4e4"
              :region "#c9dcf9" :accent "#0a64e1" :cursor "#0a64e1"
              :kw "#0a64e1" :str "#1a8a3a" :com "#9a9a9a" :fn "#7c3aa6" :call "#262626"
@@ -51,7 +51,7 @@
     ;; Nicolas Rougier's N Λ N O: almost monochrome; weight and one accent
     ;; carry the structure.
     (nano
-     :mono "Roboto Mono" :mono-height 105 :ui "Inter" :ui-height 105
+     :mono "Roboto Mono" :mono-height 90 :ui "Inter" :ui-height 100
      :light (:bg "#ffffff" :side "#f7f8f9" :fg "#37474f" :dim "#b0bec5" :faint "#e6eaec"
              :region "#e3e8eb" :accent "#673ab7" :cursor "#37474f"
              :kw "#37474f" :str "#673ab7" :com "#9fb0b8" :fn "#263238" :call "#37474f"
@@ -69,7 +69,7 @@
 
     ;; GitHub's Primer code colours
     (github
-     :mono "IBM Plex Mono" :mono-height 105 :ui "Inter" :ui-height 105
+     :mono "IBM Plex Mono" :mono-height 90 :ui "Inter" :ui-height 100
      :light (:bg "#ffffff" :side "#f6f8fa" :fg "#1f2328" :dim "#8c959f" :faint "#dde2e7"
              :region "#c8e1ff" :accent "#0969da" :cursor "#0969da"
              :kw "#cf222e" :str "#0a3069" :com "#6e7781" :fn "#8250df" :call "#8250df"
