@@ -9,6 +9,20 @@
   
   networking.hostName = "desktop";
 
+  # Reach it from the laptop on the home LAN (kiwi testing). Key-only.
+  services.openssh = {
+    enable = true;
+    openFirewall = true;
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+    };
+  };
+  users.users.selim.openssh.authorizedKeys.keys = [
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEHhJsfSWGuKbAGbElK7JuzeTMqvmIAWtQO2D8JxuCJH selim@laptop"
+  ];
+
   # Allow same-user ptrace (classic behavior). Yama's default of 1 blocks
   # gdb from attaching to running processes, which reaper-rescue and the
   # crashwatch wedge watchdog need for live backtraces of Wine plugin hosts.
