@@ -72,7 +72,8 @@
       # the Acer, whichever port it is on (it came up as DP-1 and DP-2 on
       # different boots). Native 2560x1440; a 3840x2160@30 entry gave "input
       # not supported" on a cold boot. Over HDMI the closest refresh is used.
-      { output = "desc:Acer Technologies KG271U TATEE0028511"; mode = "2560x1440@70"; position = "-304x-1152"; scale = "1.25"; }
+      # scale 1 for the apps' room; kiwi sizes itself for it (1.25)
+      { output = "desc:Acer Technologies KG271U TATEE0028511"; mode = "2560x1440@70"; position = "-560x-1440"; scale = "1"; }
     ];
     # WhiteSur renders header bars and sidebars at 96% opacity; without blur
     # behind them that reads as a muddy wallpaper tint rather than vibrancy.
