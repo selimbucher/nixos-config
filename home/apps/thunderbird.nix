@@ -87,6 +87,10 @@ in
       user_pref("toolbar.unifiedtoolbar.buttonstyle", 2);
       // Images and other remote content in messages load without asking.
       user_pref("mailnews.message_display.disable_remote_image", false);
+      // Emoji from the COLR glyphs of Noto Color Emoji. google-fonts' copy
+      // also carries a 19 MB SVG table, which Gecko prefers and parses on the
+      // main thread: the first emoji in a session froze the window for 5 s.
+      user_pref("gfx.font_rendering.opentype_svg.enabled", false);
       // No tab bar while only one tab is open.
       user_pref("mail.tabs.autoHide", true);
       // Nothing in the message pane until a message is picked, instead of

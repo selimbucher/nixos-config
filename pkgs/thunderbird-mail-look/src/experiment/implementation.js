@@ -20,8 +20,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
   GlodaSyntheticView: "resource:///modules/gloda/GlodaSyntheticView.sys.mjs",
 });
 
-// Where the search field and the message actions go; set as data-ml-layout on
-// every mail document, so switching it in the Config Editor applies live.
+// Where the search field and the message actions go. These look prefs are read
+// by mail-look.css through -moz-pref() as well, so switching one in the Config
+// Editor applies live.
 //   mail    actions and search in the toolbar, like Apple Mail
 //   list    actions in the toolbar, search above the message list
 //   single  no toolbar row: search above the list, actions above the message
@@ -29,21 +30,20 @@ ChromeUtils.defineESModuleGetters(lazy, {
 //           pane, compose beside the search
 //   reader  search in the toolbar, actions beside the sender
 var LAYOUT_PREF = "extensions.mail-look.layout";
-// Look of the folder pane, as data-ml-folders on about:3pane:
+// Look of the folder pane:
 //   thunderbird  unchanged
 //   mail         Apple Mail's sidebar: account headings, blue icons, plain counts
 //   colorful     the same, with Thunderbird's coloured folder icons
 var FOLDERS_PREF = "extensions.mail-look.folders";
 // The folder pane's header row (Get Messages, New Message, the folder view
-// menu), as data-ml-folder-header on about:3pane. single and minimal never
-// show it: their top row is the toolbar.
+// menu). single and minimal never show it: their top row is the toolbar.
 //   hidden  gone
 //   quiet   Get Messages and the menu as quiet icons, level with the list
 //           header; compose stays in the toolbar
 var FOLDER_HEADER_PREF = "extensions.mail-look.folderHeader";
-// Rows of the message list, as data-ml-list on about:3pane: cards (two lines)
-// or compact (one line). The list's own Table View / Cards View menu switches
-// it, so Table View gives the compact rows instead of Thunderbird's table.
+// Rows of the message list: cards (two lines) or compact (one line). The
+// list's own Table View / Cards View menu switches it, so Table View gives the
+// compact rows instead of Thunderbird's table.
 var LIST_PREF = "extensions.mail-look.list";
 // Logo service base URL, e.g. "https://logos.selim.one/" (see
 // ~/Documents/Code/mail-logos); the sender's organizational domain is
@@ -98,6 +98,7 @@ var mailLook = class extends ExtensionCommon.ExtensionAPI {
     conversationSheetURL = this.extension.rootURI.resolve("conversation-view.css");
     refreshSenderNames();
     applyToolbar();
+    this.unwatchConversationQueries = watchConversationQueries();
     Services.obs.addObserver(this, "chrome-document-loaded");
     Services.prefs.addObserver(LAYOUT_PREF, this);
     Services.prefs.addObserver(FOLDERS_PREF, this);
@@ -122,6 +123,7 @@ var mailLook = class extends ExtensionCommon.ExtensionAPI {
     if (isAppShutdown) {
       return;
     }
+    this.unwatchConversationQueries();
     Services.obs.removeObserver(this, "chrome-document-loaded");
     Services.prefs.removeObserver(LAYOUT_PREF, this);
     Services.prefs.removeObserver(FOLDERS_PREF, this);
@@ -199,6 +201,29 @@ function refreshSenderNames() {
     Services.prefs.getIntPref("mail.displayname.version", 0) + 1
   );
   Services.prefs.setIntPref(ADDRESS_FORMAT_PREF, format);
+}
+
+// The conversation view asks the index for the selected thread with itself as
+// the listener, and nothing tells an answer for an earlier selection from the
+// current one; its mail tab's Conversation listens in its place. Returns the
+// undo.
+function watchConversationQueries() {
+  const { Gloda } = lazy;
+  const { getMessageCollectionForHeader } = Gloda;
+  Gloda.getMessageCollectionForHeader = function (header, listener, data) {
+    const conversation =
+      listener?.localName == "conversation-view" &&
+      controllers.get(listener.ownerDocument.defaultView)?.conversation;
+    return getMessageCollectionForHeader.call(
+      this,
+      header,
+      conversation ? conversation.listenerFor(listener) : listener,
+      data
+    );
+  };
+  return () => {
+    Gloda.getMessageCollectionForHeader = getMessageCollectionForHeader;
+  };
 }
 
 // Puts the layout's items in the mail space's toolbar, once per layout
@@ -305,7 +330,6 @@ class MainWindow {
 
   update() {
     const tab = this.tabmail.currentTabInfo;
-    this.root.dataset.mlLayout = currentLayout();
     this.root.dataset.mlTab = tab?.mode.name ?? "";
 
     // Where the panes of the open mail tab start, in window pixels: single
@@ -345,7 +369,6 @@ class MainWindow {
     this.win.removeEventListener("autocomplete", this.onSearchEvent, true);
     this.win.removeEventListener("search", this.onSearchEvent, true);
     this.win.QuickSearchFocus = this.quickSearchFocus;
-    delete this.root.dataset.mlLayout;
     delete this.root.dataset.mlTab;
     this.root.removeAttribute("data-ml-sidebar");
     this.root.removeAttribute("data-ml-zones");
@@ -429,18 +452,13 @@ class ThreePane {
     }
     const layout = currentLayout();
     const root = this.win.document.documentElement;
-    root.dataset.mlLayout = layout;
-    root.dataset.mlFolders = Services.prefs.getStringPref(FOLDERS_PREF, "thunderbird");
     const folderHeader = Services.prefs.getStringPref(FOLDER_HEADER_PREF, "hidden");
-    root.dataset.mlFolderHeader = folderHeader;
     // Thunderbird's own switch for the header as well, which it reads before
-    // the first paint, so a hidden header doesn't flash until this add-on and
-    // its attributes are there.
+    // the first paint, so the header's room is right from the start.
     const headerHidden = layout == "single" || layout == "minimal" || folderHeader != "quiet";
     if (this.win.document.getElementById("folderPaneHeaderBar").hidden != headerHidden) {
       this.win.folderPane.toggleHeader(headerHidden);
     }
-    root.dataset.mlList = Services.prefs.getStringPref(LIST_PREF, "cards");
     this.search.placeField(layout);
     if (layout == "minimal") {
       root.querySelector("#threadPaneHeaderBar .list-header-bar-container-end").append(this.composeButton);
@@ -462,10 +480,6 @@ class ThreePane {
     for (const badge of this.win.document.querySelectorAll(".ml-badge")) {
       badge.remove();
     }
-    delete this.win.document.documentElement.dataset.mlLayout;
-    delete this.win.document.documentElement.dataset.mlFolders;
-    delete this.win.document.documentElement.dataset.mlFolderHeader;
-    delete this.win.document.documentElement.dataset.mlList;
     this.win.threadPane.updateThreadItemSize();
   }
 }
@@ -528,7 +542,7 @@ class AccountHeadings {
     const folderPane = about3Pane.document.getElementById("folderPane");
     this.folderPane = folderPane;
     const active = () =>
-      ["mail", "colorful"].includes(about3Pane.document.documentElement.dataset.mlFolders);
+      ["mail", "colorful"].includes(Services.prefs.getStringPref(FOLDERS_PREF, "thunderbird"));
     const isHeading = row => !!row?.dataset.serverType;
 
     this.onClick = event => {
@@ -564,7 +578,7 @@ class AccountHeadings {
 
 // A selected thread shows as a conversation (Thunderbird's own view, behind
 // mail.thread.conversation.enabled): the add-on styles it, gives the earlier
-// messages badges and plain names, and falls back to the thread summary when
+// messages badges and plain names, and shows the thread summary instead when
 // Thunderbird's index doesn't know the thread yet.
 class Conversation {
   constructor(about3Pane) {
@@ -574,17 +588,69 @@ class Conversation {
 
     const conversation = this;
     this.displayMessages = messagePane.displayMessages;
-    // Bumped by every display, so a late fallback can't replace a newer one.
+    // Bumped by every display, so an index answer that comes in late can't
+    // replace what's shown since.
     this.generation = 0;
     messagePane.displayMessages = function (messages = []) {
-      const generation = ++conversation.generation;
+      conversation.generation++;
+      conversation.messages = messages;
       const result = conversation.displayMessages.call(this, messages);
       const view = this.conversationView;
       if (view && !view.hidden) {
         conversation.attachView(view);
-        conversation.fallBackIfEmpty(view, messages, generation);
       }
       return result;
+    };
+  }
+
+  // Stands in for the view as the listener of its index query (see
+  // watchConversationQueries): drops answers for an earlier display, and
+  // switches to the summary at once when the index has no conversation, or
+  // none of its messages are still where it found them (the view would stay
+  // empty either way).
+  listenerFor(view) {
+    const generation = this.generation;
+    const current = () => generation == this.generation && !view.hidden;
+    const ignore = { onItemsAdded() {}, onItemsModified() {}, onItemsRemoved() {} };
+    return {
+      ...ignore,
+      onQueryCompleted: collection => {
+        if (!current()) {
+          return;
+        }
+        const conversation = collection.items.at(0)?.conversation;
+        if (!conversation) {
+          this.showSummary(view);
+          return;
+        }
+        // The view only reads items[0].conversation; a stand-in for it keeps
+        // the index's cached object untouched.
+        const standIn = {
+          getMessagesCollection: (listener, data) =>
+            conversation.getMessagesCollection(
+              {
+                ...ignore,
+                onQueryCompleted: messages => {
+                  if (!current()) {
+                    return;
+                  }
+                  if (!messages.items.some(item => item.folderMessage)) {
+                    this.showSummary(view);
+                    return;
+                  }
+                  try {
+                    listener.onQueryCompleted(messages);
+                  } catch (e) {
+                    console.error(e);
+                    this.showSummary(view);
+                  }
+                },
+              },
+              data
+            ),
+        };
+        view.onQueryCompleted({ items: [{ conversation: standIn }] });
+      },
     };
   }
 
@@ -636,22 +702,13 @@ class Conversation {
     }
   }
 
-  // The view needs the thread in Thunderbird's global index; without it, it
-  // stays empty. Show the summary instead.
-  async fallBackIfEmpty(view, messages, generation) {
-    const main = view.shadowRoot.getElementById("mainConversation");
-    for (let waited = 0; waited < 3000 && !main.childElementCount; waited += 250) {
-      await new Promise(resolve => this.win.setTimeout(resolve, 250));
-    }
-    if (main.childElementCount || generation != this.generation || view.hidden) {
-      return;
-    }
+  showSummary(view) {
     const { messagePane, gDBView } = this.win;
     view.hidden = true;
     view.clear();
     messagePane.multiMessageBrowser.contentWindow.gMessageSummary.summarize(
       "thread",
-      messages,
+      this.messages,
       gDBView,
       selected =>
         messagePane.dispatchEvent(
@@ -1049,7 +1106,6 @@ class MessageView {
     if (changedPref == LOGO_PREF) {
       this.fromBox.querySelector(".ml-badge")?.remove();
     }
-    this.win.document.documentElement.dataset.mlLayout = currentLayout();
     this.decorate();
     this.shortenRecipients();
   }
@@ -1082,7 +1138,6 @@ class MessageView {
     this.observer.disconnect();
     this.recipientObserver.disconnect();
     this.fromBox.querySelector(".ml-badge")?.remove();
-    delete this.win.document.documentElement.dataset.mlLayout;
   }
 }
 
@@ -1123,7 +1178,6 @@ class SummaryView {
         badge.remove();
       }
     }
-    this.win.document.documentElement.dataset.mlLayout = currentLayout();
     this.decorate();
   }
 
@@ -1166,7 +1220,6 @@ class SummaryView {
     for (const badge of this.list.querySelectorAll(".ml-badge")) {
       badge.remove();
     }
-    delete this.win.document.documentElement.dataset.mlLayout;
   }
 }
 

@@ -1,14 +1,15 @@
 /* Apple Mail-style Thunderbird: toolbar, list header and search, message list,
- * message header, thread summary. Needs the mail-look add-on
- * (pkgs/thunderbird-mail-look), which sets data-ml-layout on each document and
- * adds the badges, the search field and the scope bar.
+ * message header, thread summary. The extensions.mail-look.* prefs pick the
+ * variants through -moz-pref(), so the look is there from the first paint; the
+ * mail-look add-on (pkgs/thunderbird-mail-look) adds the badges, the search
+ * field and the scope bar, and sets the data-ml-* state attributes.
  * Loaded as part of userChrome.css, so everything overriding Thunderbird needs
  * !important. --ml-row-height must stay a plain px value: the add-on reads it to
  * tell the tree how tall a row is. */
 
 /* Shared by every mail document: colours, badges, quiet icon buttons. */
 @-moz-document url("chrome://messenger/content/messenger.xhtml"), url("about:3pane"), url("about:message"), url("chrome://messenger/content/multimessageview.xhtml") {
-  :root[data-ml-layout] {
+  :root {
     --ml-label: light-dark(rgba(0, 0, 0, 0.85), rgba(255, 255, 255, 0.86));
     --ml-secondary: light-dark(rgba(0, 0, 0, 0.5), rgba(255, 255, 255, 0.55));
     --ml-tertiary: light-dark(rgba(0, 0, 0, 0.28), rgba(255, 255, 255, 0.3));
@@ -29,7 +30,7 @@
   /* Badge: the sender's logo, or initials tinted per sender (the add-on sets
    * --ml-hue). Rounded squares, like app icons, which is what most logos are
    * drawn for. */
-  :root[data-ml-layout] .ml-badge {
+  :root .ml-badge {
     position: relative;
     display: grid;
     place-items: center;
@@ -77,7 +78,7 @@
   }
 
   /* Icon-only actions (the toolbar, the message header, the thread summary). */
-  :root[data-ml-layout] :is(#unifiedToolbarContent .unified-toolbar-button, #button-appmenu, .message-header-view-button) {
+  :root :is(#unifiedToolbarContent .unified-toolbar-button, #button-appmenu, .message-header-view-button) {
     min-inline-size: 30px !important;
     min-block-size: 28px !important;
     padding: 5px 7px !important;
@@ -105,7 +106,7 @@
 
   /* The search field, in the toolbar or the list header: the magnifier in
    * front and a plain "Search" placeholder. */
-  :root[data-ml-layout] :is(global-search-bar, #mlSearch) {
+  :root :is(global-search-bar, #mlSearch) {
     --search-bar-background: transparent !important;
     --search-bar-focus-background: transparent !important;
     --search-bar-border-color: transparent !important;
@@ -149,7 +150,7 @@
 
 /* Main window: the toolbar. */
 @-moz-document url("chrome://messenger/content/messenger.xhtml") {
-  :root[data-ml-layout] {
+  :root {
     /* No spaces button next to the window buttons; in the status bar no
      * offline toggle and no "Connecting to…", "Loading message…" or link
      * text. */
@@ -194,37 +195,41 @@
     }
   }
 
-  :root[data-ml-layout="reader"] #unifiedToolbarContent li.search-bar {
-    flex-basis: 420px !important;
+  @media -moz-pref("extensions.mail-look.layout", "reader") {
+    :root #unifiedToolbarContent li.search-bar {
+      flex-basis: 420px !important;
+    }
   }
 
   /* mail: the toolbar's groups line up with the panes below. Compose and the
    * search sit over the message list (inset like its rows), the message
    * actions start where the message header does, and the app menu closes the
    * row. The add-on measures the panes. */
-  :root[data-ml-layout="mail"][data-ml-zones] #unifiedToolbarContent {
-    & > [item-id="write-message"] {
-      margin-inline-start: max(0px, calc(var(--ml-list-x) - var(--ml-toolbar-x) + var(--ml-compose-start))) !important;
+  @media -moz-pref("extensions.mail-look.layout", "mail") {
+    :root[data-ml-zones] #unifiedToolbarContent {
+      & > [item-id="write-message"] {
+        margin-inline-start: max(0px, calc(var(--ml-list-x) - var(--ml-toolbar-x) + var(--ml-compose-start))) !important;
+      }
+      & > li.search-bar {
+        flex: 0 1 calc(var(--ml-reader-x) - var(--ml-list-x) - var(--ml-compose-start) - 54px) !important;
+        min-inline-size: 120px !important;
+        margin-inline: var(--ml-search-start) 0 !important;
+      }
+      & > [item-id="archive"] {
+        margin-inline-start: var(--ml-actions-start) !important;
+      }
     }
-    & > li.search-bar {
-      flex: 0 1 calc(var(--ml-reader-x) - var(--ml-list-x) - var(--ml-compose-start) - 54px) !important;
-      min-inline-size: 120px !important;
-      margin-inline: var(--ml-search-start) 0 !important;
+    :root {
+      /* From the pane edges to the controls, tuned against the rendered row:
+       * compose's icon lines up with the list's text, the search follows it. */
+      --ml-compose-start: 9px;
+      --ml-search-start: 6px;
+      --ml-actions-start: 27px;
     }
-    & > [item-id="archive"] {
-      margin-inline-start: var(--ml-actions-start) !important;
-    }
-  }
-  :root[data-ml-layout="mail"] {
-    /* From the pane edges to the controls, tuned against the rendered row:
-     * compose's icon lines up with the list's text, the search follows it. */
-    --ml-compose-start: 9px;
-    --ml-search-start: 6px;
-    --ml-actions-start: 27px;
   }
 
   /* Tabs, when there's more than one: Safari's, one row of equal tabs. */
-  :root[data-ml-layout] {
+  :root {
     & #tabs-toolbar {
       background-image: none !important;
       box-shadow: none !important;
@@ -293,7 +298,7 @@
 
   /* The status bar keeps to the folder pane, like the bottom of Mail's
    * sidebar; the message list and message run down to the window's edge. */
-  :root[data-ml-layout][data-ml-tab="mail3PaneTab"][data-ml-sidebar] #status-bar {
+  :root[data-ml-tab="mail3PaneTab"][data-ml-sidebar] #status-bar {
     position: fixed !important;
     inset-block-end: 0 !important;
     inset-inline-start: 0 !important;
@@ -310,40 +315,42 @@
    * message start at the top of the window with their own tools, in a row
    * of the same height. With the folder pane hidden or tabs open, the
    * toolbar stays a row. */
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"])[data-ml-tab="mail3PaneTab"][data-ml-sidebar][tabbarhidden="true"] {
-    & #navigation-toolbox {
-      position: fixed !important;
-      inset-block-start: 0 !important;
-      inset-inline-start: 0 !important;
-      inline-size: var(--ml-sidebar-width) !important;
-      block-size: var(--ml-top-row) !important;
-      z-index: 2 !important;
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-    }
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root[data-ml-tab="mail3PaneTab"][data-ml-sidebar][tabbarhidden="true"] {
+      & #navigation-toolbox {
+        position: fixed !important;
+        inset-block-start: 0 !important;
+        inset-inline-start: 0 !important;
+        inline-size: var(--ml-sidebar-width) !important;
+        block-size: var(--ml-top-row) !important;
+        z-index: 2 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
 
-    & #titlebar,
-    & unified-toolbar,
-    & #unifiedToolbarContainer,
-    & #unifiedToolbar,
-    & #unifiedToolbarContent {
-      min-inline-size: 0 !important;
-      inline-size: auto !important;
-      block-size: 100% !important;
-      background: transparent !important;
-      border: none !important;
-    }
-    & #unifiedToolbarContainer {
-      inline-size: 100% !important;
-      align-items: center !important;
+      & #titlebar,
+      & unified-toolbar,
+      & #unifiedToolbarContainer,
+      & #unifiedToolbar,
+      & #unifiedToolbarContent {
+        min-inline-size: 0 !important;
+        inline-size: auto !important;
+        block-size: 100% !important;
+        background: transparent !important;
+        border: none !important;
+      }
+      & #unifiedToolbarContainer {
+        inline-size: 100% !important;
+        align-items: center !important;
+      }
     }
   }
 }
 
 /* Mail tab: list header, search, message list. */
 @-moz-document url("about:3pane") {
-  :root[data-ml-layout] {
+  :root {
     --ml-header-height: 38px;
     --ml-row-height: 58px;
     --ml-gutter: 10px;
@@ -355,13 +362,15 @@
     --ml-badge-size: 34px;
   }
 
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) {
-    --ml-header-height: var(--ml-top-row);
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root {
+      --ml-header-height: var(--ml-top-row);
+    }
   }
 
   /* List header: the folder in Mail's title style, count beside it, quiet
    * icon buttons; no bar of its own. */
-  :root[data-ml-layout] #threadPaneHeaderBar {
+  :root #threadPaneHeaderBar {
     box-sizing: border-box !important;
     flex: none !important;
     block-size: var(--ml-header-height) !important;
@@ -431,20 +440,22 @@
     }
   }
 
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #threadPaneHeaderBar .list-header-bar-container-start {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 0 !important;
-    line-height: 1.15 !important;
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root #threadPaneHeaderBar .list-header-bar-container-start {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      gap: 0 !important;
+      line-height: 1.15 !important;
 
-    & .thread-pane-count-info {
-      font-size: 11px !important;
+      & .thread-pane-count-info {
+        font-size: 11px !important;
+      }
     }
   }
 
   /* The list header's display menu: no way to hide the header by accident
    * (View > Layout > Message List Header still toggles it). */
-  :root[data-ml-layout] #threadPaneDisplayContext > :is(menuitem[data-l10n-id="thread-pane-header-context-hide"], #separatorAfterSortOptions) {
+  :root #threadPaneDisplayContext > :is(menuitem[data-l10n-id="thread-pane-header-context-hide"], #separatorAfterSortOptions) {
     display: none !important;
   }
 
@@ -454,7 +465,7 @@
   }
 
   /* Scope of a running search: the open folder or all mail. */
-  :root[data-ml-layout] #mlScope {
+  :root #mlScope {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -501,7 +512,7 @@
 
   /* Quick filter bar: only the filter chips, as a quiet row. Text search goes
    * through the one search field. */
-  :root[data-ml-layout] #quick-filter-bar {
+  :root #quick-filter-bar {
     background-color: var(--ml-content) !important;
     border-block-end: 1px solid var(--ml-separator) !important;
 
@@ -568,7 +579,7 @@
 
   /* Tag filter row: the any/all/none choice and the tags as the same quiet
    * pills, each tag marked by its colour dot. */
-  :root[data-ml-layout] #quick-filter-bar {
+  :root #quick-filter-bar {
     & #quickFilterBarSecondFilters {
       padding: 0 16px 6px 10px !important;
     }
@@ -617,7 +628,7 @@
   }
 
   /* Grouped by sort: the group rows as quiet section headings. */
-  :root[data-ml-layout] #threadTree[rows="thread-card"] .card-layout[data-properties~="dummy"] {
+  :root #threadTree[rows="thread-card"] .card-layout[data-properties~="dummy"] {
     background: transparent !important;
 
     & .card-container {
@@ -659,8 +670,14 @@
     }
   }
 
+  /* "No message found" only for a folder that is empty, not while none is
+   * open yet (startup) or an account is (see the folder pane below). */
+  :root:is(:has(#threadPaneFolderName:empty), :has(#paneLayout.account-central)) #placeholderNoMessages {
+    visibility: hidden !important;
+  }
+
   /* Nothing selected: Mail's placeholder instead of an empty pane. */
-  :root[data-ml-layout] #messagePane:not(:has(> browser:not([hidden]), > conversation-view:not([hidden]))) {
+  :root #messagePane:not(:has(> browser:not([hidden]), > conversation-view:not([hidden]))) {
     display: grid !important;
     place-items: center !important;
     background-color: var(--ml-content) !important;
@@ -673,16 +690,16 @@
   }
 
   /* Room under the folders for the status bar, which overlays the pane. */
-  :root[data-ml-layout] #folderPane {
+  :root #folderPane {
     padding-block-end: 26px !important;
   }
 
   /* Message list. */
-  :root[data-ml-layout] :is(#threadTree, #threadTree .tree-table, #threadTree tbody) {
+  :root :is(#threadTree, #threadTree .tree-table, #threadTree tbody) {
     outline: none !important;
   }
 
-  :root[data-ml-layout] #threadTree[rows="thread-card"] {
+  :root #threadTree[rows="thread-card"] {
     --tree-pane-background: var(--ml-content) !important;
     background-color: var(--ml-content) !important;
     padding-block: 4px !important;
@@ -853,51 +870,53 @@
   }
 
   /* List View: one line per message, for scanning a long folder. */
-  :root[data-ml-layout][data-ml-list="compact"] {
-    --ml-row-height: 34px;
-    --ml-badge-size: 22px;
-    --ml-gap: 8px;
-    --ml-padding-start: 4px;
-    --ml-radius: 7px;
+  @media -moz-pref("extensions.mail-look.list", "compact") {
+    :root {
+      --ml-row-height: 34px;
+      --ml-badge-size: 22px;
+      --ml-gap: 8px;
+      --ml-padding-start: 4px;
+      --ml-radius: 7px;
 
-    & #threadTree[rows="thread-card"] .card-layout:not([data-properties~="dummy"]) {
-      & .thread-card-column:not(.read-status-column) {
-        display: grid !important;
-        grid-template-columns: minmax(0, 30%) auto minmax(0, 1fr) auto auto !important;
-        grid-template-areas: "sender thread subject icons date" !important;
-        column-gap: 10px !important;
-        align-items: center !important;
-      }
-      & .thread-card-row,
-      & .thread-card-dynamic-row {
-        display: contents !important;
-      }
-      & .sender {
-        grid-area: sender !important;
-        font-weight: 500 !important;
-      }
-      &[data-properties~="unread"] .sender {
-        font-weight: 700 !important;
-      }
-      & .thread-card-button {
-        grid-area: thread !important;
-      }
-      & .thread-card-subject-container {
-        grid-area: subject !important;
-      }
-      & .subject {
-        color: var(--ml-secondary) !important;
-      }
-      & .thread-card-icon-info {
-        grid-area: icons !important;
-        margin: 0 !important;
-      }
-      & .date {
-        grid-area: date !important;
-      }
-      & .account-indicator,
-      & .state {
-        display: none !important;
+      & #threadTree[rows="thread-card"] .card-layout:not([data-properties~="dummy"]) {
+        & .thread-card-column:not(.read-status-column) {
+          display: grid !important;
+          grid-template-columns: minmax(0, 30%) auto minmax(0, 1fr) auto auto !important;
+          grid-template-areas: "sender thread subject icons date" !important;
+          column-gap: 10px !important;
+          align-items: center !important;
+        }
+        & .thread-card-row,
+        & .thread-card-dynamic-row {
+          display: contents !important;
+        }
+        & .sender {
+          grid-area: sender !important;
+          font-weight: 500 !important;
+        }
+        &[data-properties~="unread"] .sender {
+          font-weight: 700 !important;
+        }
+        & .thread-card-button {
+          grid-area: thread !important;
+        }
+        & .thread-card-subject-container {
+          grid-area: subject !important;
+        }
+        & .subject {
+          color: var(--ml-secondary) !important;
+        }
+        & .thread-card-icon-info {
+          grid-area: icons !important;
+          margin: 0 !important;
+        }
+        & .date {
+          grid-area: date !important;
+        }
+        & .account-indicator,
+        & .state {
+          display: none !important;
+        }
       }
     }
   }
@@ -905,13 +924,15 @@
   /* single, minimal: the folder pane starts below the window buttons, and a
    * conversation's subject gets a row as tall as the list header, its rule
    * level with the header's (see src/conversation-view.css). */
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) {
-    --ml-conversation-header-height: var(--ml-top-row);
-    --ml-conversation-header-padding: 0px;
-    --ml-conversation-rule-inset: 0px;
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root {
+      --ml-conversation-header-height: var(--ml-top-row);
+      --ml-conversation-header-padding: 0px;
+      --ml-conversation-rule-inset: 0px;
 
-    & #folderPane {
-      padding-block-start: var(--ml-top-row) !important;
+      & #folderPane {
+        padding-block-start: var(--ml-top-row) !important;
+      }
     }
   }
 
@@ -919,41 +940,45 @@
    * menu as quiet icons at the end of a row as tall as the list header
    * (extensions.mail-look.folderHeader). single and minimal have their
    * toolbar there instead. */
-  :root[data-ml-layout]:is(:not([data-ml-folder-header="quiet"]), [data-ml-layout="single"], [data-ml-layout="minimal"]) #folderPaneHeaderBar {
-    display: none !important;
-  }
-
-  :root[data-ml-layout][data-ml-folder-header="quiet"]:not([data-ml-layout="single"], [data-ml-layout="minimal"]) #folderPaneHeaderBar {
-    /* Shown even when hidden from its own menu: the pref decides. */
-    display: flex !important;
-    box-sizing: border-box !important;
-    block-size: var(--ml-header-height) !important;
-    align-items: center !important;
-    gap: 2px !important;
-    padding-block: 0 !important;
-    padding-inline: 12px 9px !important;
-    border: none !important;
-    background-color: var(--sidebar-background) !important;
-
-    & #folderPaneWriteMessage {
+  @media (not -moz-pref("extensions.mail-look.folderHeader", "quiet")), -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root #folderPaneHeaderBar {
       display: none !important;
     }
+  }
 
-    & :is(#folderPaneGetMessages, #folderPaneMoreButton) {
-      --icon-size: 16px !important;
-      min-inline-size: 30px !important;
-      block-size: 28px !important;
-      margin: 0 !important;
-      padding: 0 !important;
+  @media -moz-pref("extensions.mail-look.folderHeader", "quiet") and (not -moz-pref("extensions.mail-look.layout", "single")) and (not -moz-pref("extensions.mail-look.layout", "minimal")) {
+    :root #folderPaneHeaderBar {
+      /* Shown even when hidden from its own menu: the pref decides. */
+      display: flex !important;
+      box-sizing: border-box !important;
+      block-size: var(--ml-header-height) !important;
+      align-items: center !important;
+      gap: 2px !important;
+      padding-block: 0 !important;
+      padding-inline: 12px 9px !important;
       border: none !important;
-      border-radius: 7px !important;
-      background-color: transparent !important;
-      background-position: center !important;
-      box-shadow: none !important;
-      color: var(--ml-secondary) !important;
+      background-color: var(--sidebar-background) !important;
 
-      &:not([disabled]):hover {
-        background-color: var(--ml-hover) !important;
+      & #folderPaneWriteMessage {
+        display: none !important;
+      }
+
+      & :is(#folderPaneGetMessages, #folderPaneMoreButton) {
+        --icon-size: 16px !important;
+        min-inline-size: 30px !important;
+        block-size: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        border-radius: 7px !important;
+        background-color: transparent !important;
+        background-position: center !important;
+        box-shadow: none !important;
+        color: var(--ml-secondary) !important;
+
+        &:not([disabled]):hover {
+          background-color: var(--ml-hover) !important;
+        }
       }
     }
   }
@@ -961,142 +986,186 @@
 
 /* Folder pane, when extensions.mail-look.folders asks for Mail's sidebar. */
 @-moz-document url("about:3pane") {
-  :root:is([data-ml-folders="mail"], [data-ml-folders="colorful"]) {
-    & #folderPane {
-      /* Also the colour of the strip Thunderbird lays over the top of the
-       * folder list to hide its scroll shadow. */
-      --sidebar-background: light-dark(#f0f0f2, #232325) !important;
-      background-color: var(--sidebar-background) !important;
-    }
-
-    & #folderTree {
-      padding-inline: 8px !important;
-
-      & li > .container {
-        min-block-size: 28px !important;
-        margin-block: 1px !important;
-        border: none !important;
-        border-radius: 6px !important;
-        outline: none !important;
-        background: transparent !important;
-        color: var(--ml-label) !important;
+  @media -moz-pref("extensions.mail-look.folders", "mail"), -moz-pref("extensions.mail-look.folders", "colorful") {
+    :root {
+      /* Accounts are headings here, so their Account Central page never
+       * shows. Thunderbird still selects the account for a moment while it
+       * restores the open folder at startup; the panes keep their layout
+       * (Thunderbird's templates, about3Pane.css) instead of making room for
+       * the page. */
+      & #paneLayout.account-central {
+        &.layout-classic {
+          grid-template:
+            "folders folderPaneSplitter threads" minmax(auto, 1fr)
+            "folders folderPaneSplitter messagePaneSplitter" min-content
+            "folders folderPaneSplitter message" minmax(auto, var(--messagePaneSplitter-height))
+            / minmax(auto, var(--folderPaneSplitter-width)) min-content minmax(auto, 1fr) !important;
+        }
+        &.layout-vertical {
+          grid-template:
+            "folders folderPaneSplitter threads messagePaneSplitter message" auto
+            / minmax(auto, var(--folderPaneSplitter-width)) min-content minmax(auto, 1fr) min-content minmax(auto, var(--messagePaneSplitter-width)) !important;
+        }
+        &.layout-wide {
+          grid-template:
+            "folders folderPaneSplitter threads" minmax(auto, 1fr)
+            "messagePaneSplitter messagePaneSplitter messagePaneSplitter" min-content
+            "message message message" minmax(auto, var(--messagePaneSplitter-height))
+            / minmax(auto, var(--folderPaneSplitter-width)) min-content minmax(auto, 1fr) !important;
+        }
+        & :is(#threadPane, #messagePane:not(.collapsed-by-splitter)) {
+          display: flex !important;
+        }
+        & #messagePaneSplitter {
+          display: block !important;
+        }
+        & #accountCentralBrowser {
+          display: none !important;
+        }
       }
 
-      & li:not(.selected) > .container:hover {
-        background-color: var(--ml-hover) !important;
+      & #folderPane {
+        /* Also the colour of the strip Thunderbird lays over the top of the
+         * folder list to hide its scroll shadow. */
+        --sidebar-background: light-dark(#f0f0f2, #232325) !important;
+        background-color: var(--sidebar-background) !important;
       }
 
-      & li.selected > .container {
-        background-color: light-dark(rgba(0, 0, 0, 0.09), rgba(255, 255, 255, 0.11)) !important;
-        color: var(--ml-label) !important;
-      }
+      & #folderTree {
+        padding-inline: 8px !important;
 
-      & .name {
-        font-size: 13px !important;
-        font-weight: 400 !important;
-      }
-
-      /* Accounts as section headings: small grey caption, no icon; the
-       * disclosure arrow only on hover. */
-      & li[data-server-type] {
-        margin-block-start: 10px !important;
-
-        & > .container {
-          min-block-size: 24px !important;
+        & li > .container {
+          min-block-size: 28px !important;
+          margin-block: 1px !important;
+          border: none !important;
+          border-radius: 6px !important;
+          outline: none !important;
           background: transparent !important;
+          color: var(--ml-label) !important;
+        }
 
-          & > .icon {
-            display: none !important;
-          }
-          & > .name {
-            font-size: 11px !important;
-            font-weight: 700 !important;
-            color: var(--ml-secondary) !important;
-          }
-          & > .twisty {
-            opacity: 0;
-          }
-          &:hover > .twisty {
-            opacity: 1;
+        & li:not(.selected) > .container:hover {
+          background-color: var(--ml-hover) !important;
+        }
+
+        & li.selected > .container {
+          background-color: light-dark(rgba(0, 0, 0, 0.09), rgba(255, 255, 255, 0.11)) !important;
+          color: var(--ml-label) !important;
+        }
+
+        & .name {
+          font-size: 13px !important;
+          font-weight: 400 !important;
+        }
+
+        /* Accounts as section headings: small grey caption, no icon; the
+         * disclosure arrow only on hover. */
+        & li[data-server-type] {
+          margin-block-start: 10px !important;
+
+          & > .container {
+            min-block-size: 24px !important;
+            background: transparent !important;
+
+            & > .icon {
+              display: none !important;
+            }
+            & > .name {
+              font-size: 11px !important;
+              font-weight: 700 !important;
+              color: var(--ml-secondary) !important;
+            }
+            & > .twisty {
+              opacity: 0;
+            }
+            &:hover > .twisty {
+              opacity: 1;
+            }
           }
         }
-      }
 
-      /* A folder that can take what's being dragged (Thunderbird marks it
-         while the pointer is over it): Mail's accent fill. The rules above
-         are !important, so this has to be too. */
-      & li.drop-target > .container {
-        background-color: var(--ml-accent) !important;
-        color: #ffffff !important;
-
-        & .name,
-        & .folder-count-badge {
+        /* A folder that can take what's being dragged (Thunderbird marks it
+           while the pointer is over it): Mail's accent fill. The rules above
+           are !important, so this has to be too. */
+        & li.drop-target > .container {
+          background-color: var(--ml-accent) !important;
           color: #ffffff !important;
-        }
-        & > .icon {
-          --icon-color: #ffffff !important;
-          fill: rgba(255, 255, 255, 0.25) !important;
-          stroke: #ffffff !important;
-        }
-      }
 
-      /* Counts as plain numbers, like Mail. */
-      & .folder-count-badge {
-        padding: 0 !important;
-        border: none !important;
-        background: transparent !important;
-        color: var(--ml-secondary) !important;
-        font-size: 12px !important;
-        font-weight: 400 !important;
+          & .name,
+          & .folder-count-badge {
+            color: #ffffff !important;
+          }
+          & > .icon {
+            --icon-color: #ffffff !important;
+            fill: rgba(255, 255, 255, 0.25) !important;
+            stroke: #ffffff !important;
+          }
+        }
+
+        /* Counts as plain numbers, like Mail. */
+        & .folder-count-badge {
+          padding: 0 !important;
+          border: none !important;
+          background: transparent !important;
+          color: var(--ml-secondary) !important;
+          font-size: 12px !important;
+          font-weight: 400 !important;
+        }
       }
     }
   }
 
   /* mail: one blue for every folder icon. */
-  :root[data-ml-folders="mail"] #folderTree li:not([data-server-type]) > .container > .icon {
-    --icon-color: var(--ml-accent) !important;
+  @media -moz-pref("extensions.mail-look.folders", "mail") {
+    :root #folderTree li:not([data-server-type]) > .container > .icon {
+      --icon-color: var(--ml-accent) !important;
+    }
   }
 }
 
 /* Message and thread summary: where the actions go. */
 @-moz-document url("about:message"), url("chrome://messenger/content/multimessageview.xhtml") {
-  :root[data-ml-layout] {
+  :root {
     --ml-inset: 20px;
   }
 
   /* mail, list: the actions are in the toolbar. */
-  :root:is([data-ml-layout="mail"], [data-ml-layout="list"]) #header-view-toolbox {
-    display: none !important;
+  @media -moz-pref("extensions.mail-look.layout", "mail"), -moz-pref("extensions.mail-look.layout", "list") {
+    :root #header-view-toolbox {
+      display: none !important;
+    }
   }
 
   /* single, minimal: the actions get the top row, level with the list
    * header. */
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #header-view-toolbox {
-    grid-area: actions !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    box-sizing: border-box !important;
-    block-size: var(--ml-top-row) !important;
-    margin: 0 0 12px !important;
-    padding-block: 0 !important;
-    padding-inline: 12px !important;
-    border-block-end: 1px solid var(--ml-separator) !important;
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root #header-view-toolbox {
+      grid-area: actions !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+      box-sizing: border-box !important;
+      block-size: var(--ml-top-row) !important;
+      margin: 0 0 12px !important;
+      padding-block: 0 !important;
+      padding-inline: 12px !important;
+      border-block-end: 1px solid var(--ml-separator) !important;
 
-    & > #header-view-toolbar {
-      align-self: center !important;
-      margin: 0 !important;
+      & > #header-view-toolbar {
+        align-self: center !important;
+        margin: 0 !important;
+      }
     }
   }
 }
 
 /* Message: the header. */
 @-moz-document url("about:message") {
-  :root[data-ml-layout] {
+  :root {
     --ml-avatar: 40px;
   }
 
-  :root[data-ml-layout] #messageHeader {
+  :root #messageHeader {
     position: relative !important;
     grid-template-columns: var(--ml-inset) var(--ml-avatar) 12px minmax(0, 1fr) auto var(--ml-inset) !important;
     grid-template-areas:
@@ -1254,7 +1323,7 @@
 
   /* The message itself gets the header's side margins; mail keeps its own
    * 8px on top, so 12px here lines text up with the header at 20px. */
-  :root[data-ml-layout] #messagepanebox {
+  :root #messagepanebox {
     background-color: var(--ml-content) !important;
 
     & > #messagepane {
@@ -1262,23 +1331,27 @@
     }
   }
 
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #messageHeader {
-    padding-block-start: 0 !important;
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root #messageHeader {
+      padding-block-start: 0 !important;
 
-    & #expandedfromBox .recipient-avatar {
-      inset-block-start: calc(var(--ml-top-row) + 14px) !important;
+      & #expandedfromBox .recipient-avatar {
+        inset-block-start: calc(var(--ml-top-row) + 14px) !important;
+      }
     }
   }
 
   /* reader: the actions on the sender's line, the date below them. */
-  :root[data-ml-layout="reader"] #messageHeader {
-    grid-template-areas:
-      ". avatar . from actions ."
-      ". avatar . subject date ."
-      ". avatar . to crypto ." !important;
+  @media -moz-pref("extensions.mail-look.layout", "reader") {
+    :root #messageHeader {
+      grid-template-areas:
+        ". avatar . from actions ."
+        ". avatar . subject date ."
+        ". avatar . to crypto ." !important;
 
-    & #header-view-toolbox {
-      justify-self: end;
+      & #header-view-toolbox {
+        justify-self: end;
+      }
     }
   }
 }
@@ -1286,7 +1359,7 @@
 /* Thread summary (a collapsed thread or several messages selected): Mail's
  * conversation look, a badge beside each message. */
 @-moz-document url("chrome://messenger/content/multimessageview.xhtml") {
-  :root[data-ml-layout] {
+  :root {
     & body {
       background-color: var(--ml-content) !important;
       color: var(--ml-label) !important;
@@ -1433,17 +1506,21 @@
   }
 
   /* single, minimal: the actions at the very top, like a message's. */
-  :root:is([data-ml-layout="single"], [data-ml-layout="minimal"]) #headingWrapper {
-    padding-block-start: 0 !important;
+  @media -moz-pref("extensions.mail-look.layout", "single"), -moz-pref("extensions.mail-look.layout", "minimal") {
+    :root #headingWrapper {
+      padding-block-start: 0 !important;
+    }
   }
 
   /* reader: the actions beside the title. */
-  :root[data-ml-layout="reader"] #headingWrapper {
-    grid-template-areas: ". heading actions ." !important;
+  @media -moz-pref("extensions.mail-look.layout", "reader") {
+    :root #headingWrapper {
+      grid-template-areas: ". heading actions ." !important;
 
-    & #header-view-toolbox {
-      grid-area: actions !important;
-      align-self: center !important;
+      & #header-view-toolbox {
+        grid-area: actions !important;
+        align-self: center !important;
+      }
     }
   }
 }
