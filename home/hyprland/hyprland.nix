@@ -127,6 +127,10 @@ in
         { _args = [ "XCURSOR_SIZE" "24" ]; }
         { _args = [ "HYPRCURSOR_SIZE" "24" ]; }
         { _args = [ "ENABLE_HDR_WSI" "1" ]; }
+        # programs.hyprland's cap_sys_nice wrapper runs in glibc's secure mode,
+        # which drops TZDIR: without it GLib apps can't look a zone up by name
+        # (GNOME Calendar started from kiwi gets no time zone)
+        { _args = [ "TZDIR" "/etc/zoneinfo" ]; }
       ];
 
       # ------------------------------------------------------------ monitors
