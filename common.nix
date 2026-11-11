@@ -160,6 +160,15 @@
   networking.firewall.checkReversePath = false;
   networking.networkmanager.plugins = [ pkgs.networkmanager-openconnect ];
 
+  # Tailnet on hetzner's Headscale (github:selimbucher/tailnet, its README says
+  # how to join), so the machines reach each other from any network. Headscale
+  # hands out addresses in join order and keeps them; each host names the
+  # others in networking.hosts (desktop 100.64.0.1, laptop 100.64.0.2).
+  services.tailscale = {
+    enable = true;
+    openFirewall = true;
+  };
+
   time.timeZone = "Europe/Amsterdam";
 
   i18n.defaultLocale = "en_US.UTF-8";

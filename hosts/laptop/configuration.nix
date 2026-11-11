@@ -26,6 +26,7 @@
   users.users.selim.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK2hjST+3bGWZhN7UOZshtJRFEr2hRHUUUh69W8tnana selim@desktop"
   ];
+  networking.hosts."100.64.0.1" = [ "desktop" ];
 
   # --- Corsair MP600 CORE XT boot stalls (real fix: disable VMD in BIOS) ---
   boot.kernelParams = [

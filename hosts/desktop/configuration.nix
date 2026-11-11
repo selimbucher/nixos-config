@@ -9,7 +9,7 @@
   
   networking.hostName = "desktop";
 
-  # Reach it from the laptop on the home LAN (kiwi testing). Key-only.
+  # Reach it from the laptop, at home or over the tailnet (common.nix). Key-only.
   services.openssh = {
     enable = true;
     openFirewall = true;
@@ -22,6 +22,7 @@
   users.users.selim.openssh.authorizedKeys.keys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEHhJsfSWGuKbAGbElK7JuzeTMqvmIAWtQO2D8JxuCJH selim@laptop"
   ];
+  networking.hosts."100.64.0.2" = [ "laptop" ];
 
   # Allow same-user ptrace (classic behavior). Yama's default of 1 blocks
   # gdb from attaching to running processes, which reaper-rescue and the
