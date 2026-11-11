@@ -380,6 +380,25 @@ in
       # clamped channel count (it copied the host's count, which overruns
       # when a host passes more channels than the plugin has).
       ./patches/yabridge-process-bus-bounds.patch
+      # yabridge-ara-host-refs-before-send.patch (ours, 2026-10-23): the
+      # document-controller proxy recorded an audio source's (region
+      # sequence's, modification's, playback region's) host ref only after
+      # the Add* message returned, but Auto-Tune Pro 10.3.1 creates its ARA
+      # audio reader synchronously inside createAudioSource(). The host-side
+      # CreateAudioReader handler then found no source, answered reader 0,
+      # and every readAudioSamples(reader=0) failed: the plugin's analysis
+      # thread zero-filled and retried forever (one core at 100%, no audio
+      # from any playback renderer), its editor thread sat in a Sleep(50)
+      # loop waiting for that analysis, and REAPER's main thread wedged in
+      # notifyModelUpdates behind it (2026-09-27 23:41 and 2026-10-23 20:10
+      # wedges, 19:28 host crash). Record the refs before sending.
+      ./patches/yabridge-ara-host-refs-before-send.patch
+      # yabridge-ara-chunked-audio-reads.patch (ours, 2026-10-23): the Wine
+      # side clamped readAudioSamples() to the 65536-frame shared buffer and
+      # still returned true, so a plugin reading larger blocks (Auto-Tune
+      # reads 173600 frames at once) got the first 65536 frames and stale
+      # memory for the rest. Transfer big reads in several round trips.
+      ./patches/yabridge-ara-chunked-audio-reads.patch
     ];
   });
 }
