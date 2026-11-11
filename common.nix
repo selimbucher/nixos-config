@@ -169,7 +169,7 @@
     openFirewall = true;
   };
 
-  time.timeZone = "Europe/Amsterdam";
+  time.timeZone = "Europe/Zurich";
 
   i18n.defaultLocale = "en_US.UTF-8";
   console = {
