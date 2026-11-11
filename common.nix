@@ -211,6 +211,26 @@
     "monitor.bluez.properties"."bluez5.dummy-avrcp-player" = true;
   };
 
+  # The MiniFuse 4 is the main interface. pipewire-jack orders "physical"
+  # ports by priority.session and REAPER's "Auto-connect jack audio channels
+  # to hardware" takes the first ones, so with stock priorities a plugged-in
+  # Maschine MK3 (1109) beat the MiniFuse (1100) and REAPER came up on the
+  # Maschine (2026-11-03). alsa.lua applies rules before it computes
+  # priorities, so these values stick; capture is +1000 over playback by
+  # WirePlumber convention.
+  services.pipewire.wireplumber.extraConfig."50-minifuse-priority" = {
+    "monitor.alsa.rules" = [
+      {
+        matches = [{ "api.alsa.card.name" = "MiniFuse 4"; "api.alsa.pcm.stream" = "playback"; }];
+        actions.update-props = { "priority.driver" = 1500; "priority.session" = 1500; };
+      }
+      {
+        matches = [{ "api.alsa.card.name" = "MiniFuse 4"; "api.alsa.pcm.stream" = "capture"; }];
+        actions.update-props = { "priority.driver" = 2500; "priority.session" = 2500; };
+      }
+    ];
+  };
+
   services.pipewire.extraConfig.pipewire."92-low-latency" = {
     "context.properties" = {
       "default.clock.rate" = 48000;
