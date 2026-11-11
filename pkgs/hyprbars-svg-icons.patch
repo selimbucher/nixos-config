@@ -81,19 +81,21 @@
      WP<CHyprBar>                       m_self;
 --- a/barDeco.cpp
 +++ b/barDeco.cpp
-@@ -1,4 +1,11 @@
+@@ -1,4 +1,13 @@
  #include "barDeco.hpp"
 +#include <hyprgraphics/image/Image.hpp>
-+// m_decorations (xdg_toplevel -> its decoration object) is private; the layout
-+// is unaffected, this only lifts the access check for this translation unit.
++// m_decorations (xdg_toplevel -> its decoration object) and m_decos (the KDE
++// protocol's) are private; the layout is unaffected, this only lifts the
++// access check for this translation unit.
 +#define private public
 +#include <hyprland/src/protocols/XDGDecoration.hpp>
++#include <hyprland/src/protocols/ServerDecorationKDE.hpp>
 +#undef private
 +#include <hyprland/src/protocols/XDGShell.hpp>
  
  #include <hyprland/src/Compositor.hpp>
  #include <hyprland/src/desktop/state/FocusState.hpp>
-@@ -37,6 +44,11 @@
+@@ -37,6 +46,11 @@
  CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
      m_pWindow = pWindow;
  
@@ -105,7 +107,7 @@
      const auto PMONITOR         = pWindow->m_monitor.lock();
      PMONITOR->m_scheduledRecalc = true;
  
-@@ -55,7 +67,8 @@
+@@ -55,7 +69,8 @@
  }
  
  CHyprBar::~CHyprBar() {
@@ -115,7 +117,7 @@
  }
  
  SDecorationPositioningInfo CHyprBar::getPositioningInfo() {
-@@ -357,10 +370,14 @@
+@@ -357,10 +372,14 @@
          const auto scaledButtonsPad = BARBUTTONPADDING * scale;
  
          auto       color = button.bgcol;
@@ -132,7 +134,7 @@
                  button.iconTex = nullptr;
          }
  
-@@ -397,15 +414,29 @@
+@@ -397,15 +416,29 @@
  
          // check if hovering here
          const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
@@ -167,7 +169,7 @@
          }
  
          if (!button.iconTex || button.iconTex->m_texID == 0)
-@@ -415,7 +446,7 @@
+@@ -415,7 +448,7 @@
          const auto iconY = barBox->y + barBox->height / 2.0 - button.iconTex->m_size.y / 2.0;
          CBox       pos   = {iconX, iconY, button.iconTex->m_size.x, button.iconTex->m_size.y};
  
@@ -176,7 +178,7 @@
              g_pHyprOpenGL->renderTexture(button.iconTex, pos, {.a = a});
          offset += scaledButtonsPad + scaledButtonSize;
  
-@@ -429,6 +460,10 @@
+@@ -429,6 +462,10 @@
  }
  
  void CHyprBar::draw(PHLMONITOR pMonitor, const float& a) {
@@ -187,17 +189,18 @@
      const auto ENABLED = g_pGlobalState->config.enabled->value();
  
      if (m_bLastEnabledState != ENABLED) {
-@@ -642,14 +677,44 @@
+@@ -642,14 +679,59 @@
      return m_pWindow.lock();
  }
  
-+// A bar exactly when the window asks for server-side decorations: an X11
++// A bar exactly when the window asks the compositor to decorate it: an X11
 +// window without the "no borders" hint (those never get a CHyprBar at all), or
-+// an xdg toplevel whose xdg-decoration request is not client-side. GTK and
-+// libadwaita never create a decoration object, and Chromium/Electron ask for
-+// client-side while they draw their own frame, so none of them get one. Hyprland
-+// answers every request with server-side regardless, so the request is what
-+// tells us the client's intent. mostRecentlyRequested 0 means it never chose.
++// a Wayland toplevel whose decoration request is not client-side, on either
++// protocol. GTK4/libadwaita and Chromium/Electron draw their own frame and
++// ask for client-side (or create no decoration object at all), so none of
++// them get a second row of buttons. Hyprland answers every request with
++// server-side regardless, so the request is what tells us the client's
++// intent; a most recently requested mode of 0 means it never chose.
 +bool CHyprBar::wantsServerDecorations() {
 +    const auto PWINDOW = m_pWindow.lock();
 +    if (!PWINDOW)
@@ -208,12 +211,26 @@
 +
 +    const auto XDG      = PWINDOW->m_xdgSurface.lock();
 +    const auto TOPLEVEL = XDG ? XDG->m_toplevel.lock() : nullptr;
-+    if (!TOPLEVEL || !PROTO::xdgDecoration)
++    if (!TOPLEVEL)
 +        return false;
 +
-+    for (const auto& [resource, deco] : PROTO::xdgDecoration->m_decorations) {
-+        if (deco && CXDGToplevelResource::fromResource(resource) == TOPLEVEL)
-+            return deco->mostRecentlyRequested != ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
++    // xdg-decoration: Qt, SDL, wine, Chromium/Electron, GTK4
++    if (PROTO::xdgDecoration) {
++        for (const auto& [resource, deco] : PROTO::xdgDecoration->m_decorations) {
++            if (deco && CXDGToplevelResource::fromResource(resource) == TOPLEVEL)
++                return deco->mostRecentlyRequested != ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
++        }
++    }
++
++    // KDE server-decoration: the only one GTK3 speaks. LibreOffice, GIMP,
++    // Inkscape and every other GTK3 app without a header bar ask for
++    // server-side here; a GTK3 app that draws a header bar asks for client-side.
++    if (PROTO::serverDecorationKDE) {
++        const auto SURFACE = XDG->m_surface.lock();
++        for (const auto& deco : PROTO::serverDecorationKDE->m_decos) {
++            if (deco && SURFACE && deco->m_surf == SURFACE)
++                return deco->m_mostRecentlyRequested != ORG_KDE_KWIN_SERVER_DECORATION_MODE_CLIENT;
++        }
 +    }
 +
 +    return false;
@@ -235,7 +252,7 @@
  
      if (PWINDOW->m_ruleApplicator->m_otherProps.props.contains(g_pGlobalState->nobarRuleIdx))
          m_hidden = truthy(PWINDOW->m_ruleApplicator->m_otherProps.props.at(g_pGlobalState->nobarRuleIdx)->effect);
-@@ -677,9 +742,9 @@
+@@ -677,9 +759,9 @@
  
      for (auto& b : g_pGlobalState->buttons) {
          const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};

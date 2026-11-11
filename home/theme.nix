@@ -11,6 +11,7 @@
   config,
   pkgs,
   lib,
+  osConfig,
   ...
 }:
 let
@@ -733,10 +734,11 @@ let
   # Inter is the closest thing to SF Pro that is already in the font set.
   # NB: the old setting was "Adwaita Sans", which is not installed here at all —
   # fontconfig had been quietly resolving it to Noto Sans.
-  # 10pt is 13.3px, macOS's 13pt system font; GNOME's 11pt is 14.7px.
+  # deviceConfig.uiFontSize: 10pt is 13.3px, macOS's 13pt system font;
+  # GNOME's 11pt is 14.7px.
   uiFont = {
     name = "Inter";
-    size = 10;
+    size = osConfig.deviceConfig.uiFontSize;
   };
 in
 {
@@ -822,8 +824,8 @@ in
   dconf.settings."org/gnome/desktop/interface" = {
     font-name = "${uiFont.name} ${toString uiFont.size}";
     document-font-name = "${uiFont.name} ${toString uiFont.size}";
-    # code at 12px, as in kitty, Emacs and VS Code
-    monospace-font-name = "JetBrains Mono 9";
+    # the code size of kitty, Emacs and VS Code
+    monospace-font-name = "JetBrains Mono ${toString osConfig.deviceConfig.codeFontSize}";
   };
 
   home.packages = [ themeFollow ];

@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, osConfig, ... }:
 
 {
   programs.kitty = {
@@ -15,8 +15,8 @@
       bold_font        = "auto";
       italic_font      = "auto";
       bold_italic_font = "auto";
-      # 12px, VS Code's size on macOS
-      font_size        = "9.0";
+      # deviceConfig.codeFontSize; 9pt is 12px, VS Code's size on macOS
+      font_size        = toString osConfig.deviceConfig.codeFontSize;
 
       # Background and Opacity
       background_opacity = "1.0";

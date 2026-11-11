@@ -27,12 +27,14 @@ let
 
   # Which windows get a hyprbars bar is decided by the window itself, in the
   # patched plugin (pkgs/hyprbars-svg-icons.patch): a bar exactly when the
-  # client asks the compositor to decorate it (xdg-decoration server-side, or
-  # X11 without the no-borders hint). GTK/libadwaita apps and Chromium/Electron
+  # client asks the compositor to decorate it (server-side on xdg-decoration
+  # or on KDE's server-decoration protocol, the only one GTK3 speaks, or X11
+  # without the no-borders hint). GTK4/libadwaita apps and Chromium/Electron
   # apps drawing their own frame ask for nothing or for client-side, so they
-  # never get a second row of buttons; kitty, Qt, wine, Obsidian's "native
-  # frame" or Brave's "system title bar" ask for server-side and get one. No
-  # app list. A `hyprbars:no_bar` window rule still overrides it either way.
+  # never get a second row of buttons; kitty, Qt, wine, LibreOffice, GIMP,
+  # Obsidian's "native frame" or Brave's "system title bar" ask for
+  # server-side and get one. No app list. A `hyprbars:no_bar` window rule
+  # still overrides it either way.
   #
   # What remains per app is colour: Hyprland rounds all four corners of every
   # surface (the rounding shader mirrors into one quadrant; 0.56 has no
@@ -124,6 +126,9 @@ in
       # ----------------------------------------------------------------- env
       env = [
         { _args = [ "GDK_SCALE" (toString osConfig.deviceConfig.scale) ]; }
+        # Emacs's look.el takes its font points from these
+        { _args = [ "LOOK_CODE_SIZE" (toString osConfig.deviceConfig.codeFontSize) ]; }
+        { _args = [ "LOOK_UI_SIZE" (toString osConfig.deviceConfig.uiFontSize) ]; }
         { _args = [ "XCURSOR_SIZE" "24" ]; }
         { _args = [ "HYPRCURSOR_SIZE" "24" ]; }
         { _args = [ "ENABLE_HDR_WSI" "1" ]; }
