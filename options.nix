@@ -141,6 +141,27 @@
       description = "Buffer size for Jack.";
     };
 
+    uiFontSize = lib.mkOption {
+      type = lib.types.int;
+      default = 10;
+      description = ''
+        The interface font (Inter) in points: GTK, dconf and Emacs's UI
+        faces. 10pt is 13.3px, macOS's 13pt system font; GNOME's 11pt is
+        14.7px. A desk monitor sits an arm's length further away than a
+        laptop's panel and wants a step more.
+      '';
+    };
+
+    codeFontSize = lib.mkOption {
+      type = lib.types.int;
+      default = 9;
+      description = ''
+        The code font in points: kitty, the GTK monospace font, Emacs, and
+        the size seeded into VS Code's settings.json (in px, 4/3 of this).
+        9pt is 12px, VS Code's size on macOS.
+      '';
+    };
+
     wineFork = lib.mkOption {
       type = lib.types.bool;
       default = false;

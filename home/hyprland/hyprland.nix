@@ -126,6 +126,9 @@ in
       # ----------------------------------------------------------------- env
       env = [
         { _args = [ "GDK_SCALE" (toString osConfig.deviceConfig.scale) ]; }
+        # Emacs's look.el takes its font points from these
+        { _args = [ "LOOK_CODE_SIZE" (toString osConfig.deviceConfig.codeFontSize) ]; }
+        { _args = [ "LOOK_UI_SIZE" (toString osConfig.deviceConfig.uiFontSize) ]; }
         { _args = [ "XCURSOR_SIZE" "24" ]; }
         { _args = [ "HYPRCURSOR_SIZE" "24" ]; }
         { _args = [ "ENABLE_HDR_WSI" "1" ]; }

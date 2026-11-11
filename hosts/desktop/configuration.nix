@@ -64,6 +64,10 @@
       "steam -silent"
     ];
     scale = 1.0;
+    # 27" at scale 1, an arm's length further away than the laptop's panel:
+    # a step up from the macOS sizes
+    uiFontSize = 11;
+    codeFontSize = 11;
     jackBufferSize = 64;
   };
 }

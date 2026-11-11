@@ -10,15 +10,18 @@ let
   });
   demucs = pkgs.callPackage ../../pkgs/demucs.nix { };
   basic-pitch = pkgs.callPackage ../../pkgs/basic-pitch.nix { };
+  # deviceConfig.codeFontSize in px, VS Code's unit (9pt = 12px)
+  vscodeFontPx = toString (builtins.floor (osConfig.deviceConfig.codeFontSize * 4.0 / 3 + 0.5));
 in
 {
-  # VS Code's code font at 12px, its size on macOS (14 here), as kitty's. Only
-  # where settings.json doesn't say: VS Code keeps the file its own.
+  # VS Code's code font at deviceConfig.codeFontSize, as kitty's (its own
+  # default is 14px). Only where settings.json doesn't say: VS Code keeps the
+  # file its own.
   home.activation.vscodeFontSize = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     f="$HOME/.config/Code/User/settings.json"
     if ! ${pkgs.jq}/bin/jq -e 'has("editor.fontSize") and has("terminal.integrated.fontSize")' "$f" >/dev/null 2>&1; then
       tmp=$(mktemp)
-      if { [ -s "$f" ] && cat "$f" || echo '{}'; } | ${pkgs.jq}/bin/jq '{"editor.fontSize": 12, "terminal.integrated.fontSize": 12} + .' > "$tmp" 2>/dev/null; then
+      if { [ -s "$f" ] && cat "$f" || echo '{}'; } | ${pkgs.jq}/bin/jq '{"editor.fontSize": ${vscodeFontPx}, "terminal.integrated.fontSize": ${vscodeFontPx}} + .' > "$tmp" 2>/dev/null; then
         run mkdir -p "$(dirname "$f")"
         run mv "$tmp" "$f"
       else
