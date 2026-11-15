@@ -1,0 +1,220 @@
+## Login-style unlock screen: the disk passphrase is asked on the blurred
+## wallpaper, under the user's name, in a rounded field. After the
+## passphrase the field gives way to a spinner until the session takes over.
+##
+## One canvas spans all displays (as in spinner_alt), so everything sits on
+## the canvas centre and is sized from the smallest display. plymouthd must
+## run with DeviceScale=1: with its own HiDPI doubling the script would only
+## see half the panel's pixels. The images exist once per scale step
+## (pkgs/plymouth/login/gen.sh) and are never resized here.
+
+user_name = "Selim Bucher";
+
+// --- canvas, safe area, scale step ---
+canvas.w = Window.GetWidth();
+canvas.h = Window.GetHeight();
+safe.h = canvas.h;
+for (i = 0; Window.GetWidth(i); i++)
+    if (Window.GetHeight(i) < safe.h) safe.h = Window.GetHeight(i);
+center.x = canvas.w / 2;
+center.y = canvas.h / 2;
+
+// sizes below are in units of a 1080-line display; u = device pixels per unit
+step = Math.Int(safe.h / 1080 * 4 + 0.5) * 25;
+if (step < 100) step = 100;
+if (step > 250) step = 250;
+u = step / 100;
+fun px(units) { return Math.Int(units * u + 0.5); }
+fun font(size) { return "Quicksand Medium " + Math.Int(size * u * 0.75 + 0.5); }
+fun ease(value, target, rate) { return value + (target - value) * rate; }
+
+// --- background: fades in from black ---
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+bg.image = Image("bg.png");
+fit = canvas.w / bg.image.GetWidth();
+if (canvas.h / bg.image.GetHeight() > fit) fit = canvas.h / bg.image.GetHeight();
+bg.image = bg.image.Scale(Math.Int(bg.image.GetWidth() * fit) + 1, Math.Int(bg.image.GetHeight() * fit) + 1);
+bg.sprite = Sprite(bg.image);
+bg.sprite.SetPosition(center.x - bg.image.GetWidth() / 2, center.y - bg.image.GetHeight() / 2, -100);
+bg.sprite.SetOpacity(0);
+
+// --- field, placeholder, name, spinner ---
+field.image = Image("field-" + step + ".png");
+field.w = field.image.GetWidth();
+field.h = field.image.GetHeight();
+field.x = Math.Int(center.x - field.w / 2);
+field.y = Math.Int(center.y + px(24));
+field.alpha = 0;     // eased towards field.target every frame
+field.target = 0;
+field.shake = 1000;  // frames since a wrong passphrase
+field.sprite = Sprite(field.image);
+field.sprite.SetPosition(field.x, field.y, 10);
+field.sprite.SetOpacity(0);
+
+fun hint_text(text) {
+    hint.image = Image.Text(text, 1, 1, 1, 0.5, font(15));
+    hint.x = Math.Int(center.x - hint.image.GetWidth() / 2);
+    hint.y = Math.Int(field.y + (field.h - hint.image.GetHeight()) / 2);
+    hint.sprite.SetImage(hint.image);
+}
+hint.sprite = Sprite();
+hint.sprite.SetZ(20);
+hint.alpha = 0;
+hint.target = 0;
+hint.wrong = 0;
+hint_text("Enter Password");
+hint.sprite.SetOpacity(0);
+
+name.image = Image.Text(user_name, 1, 1, 1, 1, font(25));
+name.x = Math.Int(center.x - name.image.GetWidth() / 2);
+name.y = Math.Int(field.y - px(20) - name.image.GetHeight());
+name.sprite = Sprite(name.image);
+name.sprite.SetPosition(name.x, name.y, 20);
+name.sprite.SetOpacity(0);
+
+spinner.image = Image("spinner-" + step + ".png");
+spinner.x = Math.Int(center.x - spinner.image.GetWidth() / 2);
+spinner.y = Math.Int(field.y + (field.h - spinner.image.GetHeight()) / 2);
+spinner.alpha = 0;
+spinner.target = 1;   // shown whenever nothing is asked
+spinner.angle = 0;
+spinner.sprite = Sprite();
+spinner.sprite.SetPosition(spinner.x, spinner.y, 20);
+spinner.sprite.SetOpacity(0);
+
+// --- dots ---
+dot.image = Image("dot-" + step + ".png");
+dot.pitch = dot.image.GetWidth() + px(7);
+dot.y = Math.Int(field.y + (field.h - dot.image.GetHeight()) / 2);
+dot.count = 0;
+dot.target = 1;       // 0 once the passphrase was sent: they fade with the field
+dots = null;
+
+message = null;
+question = null;
+answer = null;
+asking = 0;   // a passphrase is being asked
+asked = 0;    // one was sent before; another request means it was wrong
+frame = 0;
+
+fun refresh_callback() {
+    frame++;
+
+    // start: the wallpaper fades in, name and field rise into place
+    progress = frame / 30;
+    if (progress > 1) progress = 1;
+    appear = 1 - (1 - progress) * (1 - progress) * (1 - progress);
+    rise = (1 - appear) * px(10);
+    bg.sprite.SetOpacity(progress);
+    name.sprite.SetOpacity(appear);
+    name.sprite.SetY(name.y + rise);
+
+    // a wrong passphrase shakes the field sideways, dying out in half a second
+    shift = 0;
+    if (field.shake < 28) {
+        shift = Math.Sin(field.shake * 0.9) * px(9) * (1 - field.shake / 28);
+        field.shake++;
+    }
+
+    field.alpha = ease(field.alpha, field.target, 0.2);
+    field.sprite.SetOpacity(field.alpha * appear);
+    field.sprite.SetX(field.x + shift);
+    field.sprite.SetY(field.y + rise);
+
+    hint.alpha = ease(hint.alpha, hint.target, 0.25);
+    hint.sprite.SetOpacity(hint.alpha * field.alpha * appear);
+    hint.sprite.SetX(hint.x + shift);
+    hint.sprite.SetY(hint.y + rise);
+
+    for (i = 0; i < dot.count; i++) {
+        dots[i].x = ease(dots[i].x, dots[i].goal, 0.35);
+        dots[i].alpha = ease(dots[i].alpha, dot.target, 0.3);
+        dots[i].sprite.SetX(dots[i].x + shift);
+        dots[i].sprite.SetOpacity(dots[i].alpha * appear);
+    }
+
+    spinner.alpha = ease(spinner.alpha, spinner.target, 0.15);
+    if (spinner.alpha > 0.01) {
+        spinner.angle += 0.13;
+        spinner.sprite.SetImage(spinner.image.Rotate(spinner.angle));
+    }
+    spinner.sprite.SetOpacity(spinner.alpha * appear);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// --- passphrase: called for the request and again after every key ---
+fun DisplayPasswordCallback(prompt_text, bullet_count) {
+    if (!asking && asked && bullet_count == 0) {
+        field.shake = 0;
+        hint.wrong = 1;
+        hint_text("Wrong password");
+    }
+    if (bullet_count > 0 && hint.wrong) {
+        hint.wrong = 0;
+        hint_text("Enter Password");
+    }
+    if (!asking) {
+        // dots of the passphrase sent before are gone by now
+        for (i = 0; i < dot.count; i++) dots[i].sprite.SetOpacity(0);
+        dot.count = 0;
+        dots = null;
+    }
+    asking = 1;
+    field.target = 1;
+    spinner.target = 0;
+    dot.target = 1;
+    if (bullet_count == 0) hint.target = 1; else hint.target = 0;
+
+    // they stay inside the field: past its width only as many as fit are shown
+    shown = bullet_count;
+    most = Math.Int((field.w - px(40)) / dot.pitch);
+    if (shown > most) shown = most;
+    first = center.x - (shown * dot.pitch - px(7)) / 2;
+    for (i = shown; i < dot.count; i++) dots[i].sprite.SetOpacity(0);
+    for (i = 0; i < shown; i++) {
+        if (i >= dot.count) {
+            // a new dot comes in from half a step to the right
+            dots[i].sprite = Sprite(dot.image);
+            dots[i].sprite.SetOpacity(0);
+            dots[i].sprite.SetZ(30);
+            dots[i].sprite.SetY(dot.y);
+            dots[i].x = first + i * dot.pitch + dot.pitch / 2;
+            dots[i].alpha = 0;
+        }
+        dots[i].goal = first + i * dot.pitch;
+    }
+    dot.count = shown;
+}
+Plymouth.SetDisplayPasswordFunction(DisplayPasswordCallback);
+
+// --- nothing asked: after the passphrase was sent, and between prompts ---
+fun DisplayNormalCallback() {
+    if (asking) asked = 1;
+    asking = 0;
+    field.target = 0;
+    hint.target = 0;
+    dot.target = 0;
+    spinner.target = 1;
+    question = null;
+    answer = null;
+}
+Plymouth.SetDisplayNormalFunction(DisplayNormalCallback);
+
+// --- other questions and messages: small, under the field ---
+fun DisplayQuestionCallback(prompt_text, entry) {
+    question.image = Image.Text(prompt_text, 1, 1, 1, 0.8, font(14));
+    question.sprite = Sprite(question.image);
+    question.sprite.SetPosition(center.x - question.image.GetWidth() / 2, field.y + field.h + px(18), 20);
+    answer.image = Image.Text(entry, 1, 1, 1, 1, font(14));
+    answer.sprite = Sprite(answer.image);
+    answer.sprite.SetPosition(center.x - answer.image.GetWidth() / 2, field.y + field.h + px(44), 20);
+}
+Plymouth.SetDisplayQuestionFunction(DisplayQuestionCallback);
+
+fun MessageCallback(text) {
+    message.image = Image.Text(text, 1, 1, 1, 0.7, font(14));
+    message.sprite = Sprite(message.image);
+    message.sprite.SetPosition(center.x - message.image.GetWidth() / 2, field.y + field.h + px(18), 20);
+}
+Plymouth.SetMessageFunction(MessageCallback);

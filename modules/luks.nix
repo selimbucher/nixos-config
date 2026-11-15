@@ -45,6 +45,13 @@ lib.mkIf (config.deviceConfig.luksRoot != null) {
     };
   };
 
+  # Without a key the passphrase at boot is the only gate, so the session
+  # starts without a second prompt; with one, yubikey.nix decides.
+  services.displayManager = lib.mkIf (!config.deviceConfig.yubikey) {
+    autoLogin = { enable = true; user = "selim"; };
+    defaultSession = "hyprland-uwsm";
+  };
+
   # The root filesystem's device job would give up after 90 s (DefaultDeviceTimeoutSec)
   # and drop to emergency mode while we are still waiting for the key.
   fileSystems."/".options = [ "x-systemd.device-timeout=0" ];
