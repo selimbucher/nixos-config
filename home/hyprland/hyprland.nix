@@ -143,11 +143,14 @@ in
 
       # ------------------------------------------------------------- devices
       # With deviceConfig.mouseDpi mice are flat (no acceleration) from the
-      # input block; the touchpad opts back into adaptive acceleration.
+      # input block; the touchpad is flat too, at twice that speed (flat
+      # sensitivity s moves the pointer 1 + s times as far, 1.0 is the top).
+      # Rules match by name only (`hyprctl devices`): this is the Framework
+      # 13's pad, a pad under another name gets the mouse settings.
       device = [
         { name = "epic-mouse-v1"; sensitivity = -0.5; }
       ] ++ lib.optional flatMouse
-        { name = "asue140d:00-04f3:31b9-touchpad"; accel_profile = "adaptive"; sensitivity = 0.5; };
+        { name = "pixa3854:00-093a:1343-touchpad"; accel_profile = "flat"; sensitivity = 1.0; };
 
       # ------------------------------------------------------------ gestures
       # No workspace swipe here: kiwi-shell registers its own, the way macOS
