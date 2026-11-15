@@ -13,8 +13,13 @@
 { config, lib, pkgs, ... }:
 
 lib.mkIf config.deviceConfig.battery {
-  # dd-created on first activation (~20 s), 16 GiB for 15 GiB of RAM
-  swapDevices = [ { device = "/swapfile"; size = 16 * 1024; } ];
+  # At least the RAM (30.6 GiB): systemd refuses to hibernate once active
+  # anonymous memory exceeds the free swap. dd-created (or resized) at boot.
+  swapDevices = [ { device = "/swapfile"; size = 32 * 1024; } ];
+
+  # upower's default, hybrid-sleep, keeps the RAM image alive on the last few
+  # percent; any wake (a USB-C power event) then discards the disk image
+  services.upower.criticalPowerAction = "Hibernate";
 
   services.logind.settings.Login = {
     HandleLidSwitch = "suspend-then-hibernate";
