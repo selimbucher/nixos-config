@@ -1,20 +1,22 @@
+diff --git a/barDeco.cpp b/barDeco.cpp
+index 6102014..4738d70 100644
 --- a/barDeco.cpp
 +++ b/barDeco.cpp
-@@ -29,6 +29,8 @@
+@@ -34,6 +34,8 @@
  #include <hyprland/src/layout/LayoutManager.hpp>
  #include <hyprland/src/render/OpenGL.hpp>
  #include <hyprland/src/state/MonitorState.hpp>
-+#include <hyprland/src/debug/HyprCtl.hpp>
++#include <hyprland/src/ipc/s1/S1.hpp>
 +#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
  
  #include "globals.hpp"
  #include "BarPassElement.hpp"
-@@ -298,8 +300,19 @@
+@@ -315,8 +317,19 @@ bool CHyprBar::doButtonPress(Config::INTEGER barPadding, Config::INTEGER barButt
          Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - barButtonPadding - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
  
          if (VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + b.size + barButtonPadding, currentPos.y + b.size)) {
 -            // hit on close
--            g_pKeybindManager->m_dispatchers["exec"](b.cmd);
+-            Config::Supplementary::executor()->spawn(b.cmd);
 +            // An action "dispatch:<dispatch>" runs in the compositor, as
 +            // `hyprctl dispatch <dispatch>` would, without starting a shell
 +            // and hyprctl first; "{window}" in it names this bar's window.
@@ -25,9 +27,9 @@
 +                for (size_t at = dispatch.find("{window}"); at != std::string::npos; at = dispatch.find("{window}", at + WINDOW.size()))
 +                    dispatch.replace(at, std::string_view{"{window}"}.size(), WINDOW);
 +                // after the click is handled, not in the middle of it
-+                g_pEventLoopManager->doLater([dispatch] { g_pHyprCtl->getReply("dispatch " + dispatch); });
++                g_pEventLoopManager->doLater([dispatch] { IPC::Socket1::sock()->invoke("dispatch " + dispatch); });
 +            } else
-+                g_pKeybindManager->m_dispatchers["exec"](b.cmd);
++                Config::Supplementary::executor()->spawn(b.cmd);
              return true;
          }
  

@@ -44,6 +44,11 @@
     (final: prev: {
       brave = final.callPackage ./pkgs/brave.nix { inherit (prev) brave; };
     })
+    # Hyprland 0.57 ahead of nixpkgs (flake.nix: nixpkgs-hyprland). kiwi-shell's
+    # plugin follows programs.hyprland.package and so builds against it too.
+    (final: prev:
+      let hyprPkgs = inputs.nixpkgs-hyprland.legacyPackages.${prev.stdenv.hostPlatform.system};
+      in { inherit (hyprPkgs) hyprland hyprlandPlugins; })
   ] ++ lib.optional config.deviceConfig.wineFork
     (import ./overlays/yabridge-wine11.nix { inherit inputs; });
 

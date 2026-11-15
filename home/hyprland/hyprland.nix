@@ -256,6 +256,10 @@ in
           blur = {
             enabled = osConfig.deviceConfig.blur;
             ignore_opacity = true;
+            # the faint anti-aliased rim of a rounded layer (kiwi's pills)
+            # gets as much blur as it is opaque, not all of it: no light halo
+            # around their edge (0.57+)
+            proportional = true;
           };
         };
 

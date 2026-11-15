@@ -206,11 +206,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794050662,
-        "narHash": "sha256-l76sT7yTiyb3xTos3HurVV6503esTKuEZhGNm5Gh3ew=",
+        "lastModified": 1794537128,
+        "narHash": "sha256-DT9X0H5C4+d4HQvnw8cQxL6KUB5CwHck5iX/7PSnFUk=",
         "owner": "selimbucher",
         "repo": "kiwi-shell",
-        "rev": "0d0eab2a517fa636016e00902f9c0dd06e4d0898",
+        "rev": "90968c38e1d3d3c01737b787b8872d59c1f23ebe",
         "type": "github"
       },
       "original": {
@@ -273,6 +273,22 @@
         "owner": "NixOS",
         "ref": "nixos-unstable",
         "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-hyprland": {
+      "locked": {
+        "lastModified": 1794386569,
+        "narHash": "sha256-x9sADJvoVG0L6RejZB+/BB4YiGZFBZrfTlhF4uBq1tQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "d4f25a3e562008648d45bcf2d70bcc7422cad84e",
         "type": "github"
       }
     },
@@ -355,6 +371,7 @@
         "kiwi": "kiwi",
         "native-instruments": "native-instruments",
         "nixpkgs": "nixpkgs_2",
+        "nixpkgs-hyprland": "nixpkgs-hyprland",
         "nixpkgs-stable": "nixpkgs-stable",
         "nixpkgs-wine": "nixpkgs-wine",
         "qylock": "qylock",

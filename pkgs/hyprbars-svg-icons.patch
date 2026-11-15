@@ -1,101 +1,23 @@
---- a/globals.hpp
-+++ b/globals.hpp
-@@ -18,6 +18,7 @@
-     float                size    = 10;
-     std::string          icon    = "";
-     SP<Render::ITexture> iconTex;
-+    float                iconTexScale = 0; // scale an SVG icon was rasterised at
- };
- 
- class CHyprBar;
-@@ -29,6 +30,9 @@
-     uint32_t                  barColorRuleIdx   = 0;
-     uint32_t                  titleColorRuleIdx = 0;
- 
-+    // Owned here, not in function-local statics: see PLUGIN_EXIT.
-+    CHyprSignalListener       windowOpenListener, updateRulesListener, preReloadListener, reloadedListener;
-+
-     struct {
-         SP<Config::Values::CColorValue>      barColor, textColor, inactiveButtonColor;
-         SP<Config::Values::CIntValue>        barHeight;
---- a/main.cpp
-+++ b/main.cpp
-@@ -203,13 +203,18 @@
-         throw std::runtime_error("[hb] Version mismatch");
-     }
- 
-+    // g_pGlobalState is a GNU-unique symbol, so a previously unloaded copy of
-+    // this plugin shares it and may have left its state behind. That state can
-+    // have another layout; never destroy it with this copy's destructor.
-+    if (g_pGlobalState)
-+        new (&g_pGlobalState) UP<SGlobalState>();
-     g_pGlobalState                    = makeUnique<SGlobalState>();
-     g_pGlobalState->nobarRuleIdx      = Desktop::Rule::windowEffects()->registerEffect("hyprbars:no_bar");
-     g_pGlobalState->barColorRuleIdx   = Desktop::Rule::windowEffects()->registerEffect("hyprbars:bar_color");
-     g_pGlobalState->titleColorRuleIdx = Desktop::Rule::windowEffects()->registerEffect("hyprbars:title_color");
- 
--    static auto P  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
--    static auto P3 = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
-+    g_pGlobalState->windowOpenListener  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
-+    g_pGlobalState->updateRulesListener = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
- 
-     g_pGlobalState->config.barColor            = makeShared<Config::Values::CColorValue>("plugin:hyprbars:bar_color", "Change the bar color", 0x88333333);
-     g_pGlobalState->config.textColor           = makeShared<Config::Values::CColorValue>("plugin:hyprbars:col.text", "Change the text color", 0xffffffff);
-@@ -256,8 +261,8 @@
-         HyprlandAPI::addConfigKeyword(PHANDLE, "plugin:hyprbars:hyprbars-button", onNewButton, Hyprlang::SHandlerOptions{});
-     else
-         HyprlandAPI::addLuaFunction(PHANDLE, "hyprbars", "add_button", ::newLuaButton);
--    static auto P4 = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
--    static auto P5 = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
-+    g_pGlobalState->preReloadListener = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
-+    g_pGlobalState->reloadedListener  = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
- 
-     // add deco to existing windows
-     for (auto& w : Desktop::windowState()->windows()) {
-@@ -281,4 +286,14 @@
-     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->barColorRuleIdx);
-     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->titleColorRuleIdx);
-     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->nobarRuleIdx);
-+
-+    // The GNU-unique symbols above keep this library mapped after dlclose, so
-+    // upstream's static listeners were never destroyed: after an unload (any
-+    // rebuild that changes the plugin's store path) they kept firing, adding a
-+    // second bar to new windows and, once the state layout changed, crashing
-+    // Hyprland on the next config reload. Stop listening here.
-+    g_pGlobalState->windowOpenListener.reset();
-+    g_pGlobalState->updateRulesListener.reset();
-+    g_pGlobalState->preReloadListener.reset();
-+    g_pGlobalState->reloadedListener.reset();
- }
---- a/barDeco.hpp
-+++ b/barDeco.hpp
-@@ -49,6 +49,9 @@
-     PHLWINDOW                          getOwner();
- 
-     void                               updateRules();
-+    // whether the client asked the compositor to decorate it (see barDeco.cpp)
-+    bool                       wantsServerDecorations();
-+    std::optional<bool>        m_lastWantsServerDecorations;
-     void                               onConfigReloaded();
- 
-     WP<CHyprBar>                       m_self;
+diff --git a/barDeco.cpp b/barDeco.cpp
+index e57f77b..6102014 100644
 --- a/barDeco.cpp
 +++ b/barDeco.cpp
-@@ -1,4 +1,13 @@
+@@ -1,4 +1,14 @@
  #include "barDeco.hpp"
 +#include <hyprgraphics/image/Image.hpp>
-+// m_decorations (xdg_toplevel -> its decoration object) and m_decos (the KDE
-+// protocol's) are private; the layout is unaffected, this only lifts the
-+// access check for this translation unit.
++// m_decorations (xdg_toplevel -> its decoration object), m_decos (the KDE
++// protocol's) and a Wayland window's xdg surface are private; the layout is
++// unaffected, this only lifts the access check for this translation unit.
 +#define private public
 +#include <hyprland/src/protocols/XDGDecoration.hpp>
 +#include <hyprland/src/protocols/ServerDecorationKDE.hpp>
++#include <hyprland/src/desktop/view/window/WaylandBackend.hpp>
 +#undef private
 +#include <hyprland/src/protocols/XDGShell.hpp>
  
  #include <hyprland/src/Compositor.hpp>
  #include <hyprland/src/desktop/state/FocusState.hpp>
-@@ -37,6 +46,11 @@
+@@ -39,6 +49,11 @@ static CHyprColor configColor(Config::INTEGER color) {
  CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
      m_pWindow = pWindow;
  
@@ -107,7 +29,7 @@
      const auto PMONITOR         = pWindow->m_monitor.lock();
      PMONITOR->m_scheduledRecalc = true;
  
-@@ -55,7 +69,8 @@
+@@ -57,7 +72,8 @@ CHyprBar::CHyprBar(PHLWINDOW pWindow) : IHyprWindowDecoration(pWindow) {
  }
  
  CHyprBar::~CHyprBar() {
@@ -117,7 +39,7 @@
  }
  
  SDecorationPositioningInfo CHyprBar::getPositioningInfo() {
-@@ -357,10 +372,14 @@
+@@ -374,10 +390,14 @@ void CHyprBar::renderBarButtons(Render::CRenderContext& ctx, CBox* barBox, const
          const auto scaledButtonsPad = BARBUTTONPADDING * scale;
  
          auto       color = button.bgcol;
@@ -134,54 +56,53 @@
                  button.iconTex = nullptr;
          }
  
-@@ -397,15 +416,29 @@
+@@ -417,18 +437,26 @@ void CHyprBar::renderBarButtonsText(Render::CRenderContext& ctx, CBox* barBox, c
  
          // check if hovering here
-         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
+         const auto BARBUF     = Vector2D{assignedBoxGlobal().w, sc<double>(HEIGHT)};
 -        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - BARBUTTONPADDING - button.size - noScaleOffset : noScaleOffset), (BARBUF.y - button.size) / 2.0}.floor();
 -        bool       hovering   = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + button.size + BARBUTTONPADDING, currentPos.y + button.size);
 +        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - button.size - noScaleOffset : noScaleOffset), (BARBUF.y - button.size) / 2.0}.floor();
 +        bool       hovering   = VECINRECT(COORDS, currentPos.x, currentPos.y, currentPos.x + button.size, currentPos.y + button.size);
          noScaleOffset += BARBUTTONPADDING + button.size;
  
-+        const bool isSvg = button.icon.starts_with('/');
-+        if (isSvg && button.iconTex && button.iconTexScale != scale)
-+            button.iconTex = nullptr;
-+
-         if ((!button.iconTex || button.iconTex->m_texID == 0) && !button.icon.empty()) {
+         const bool NEEDICON = !button.icon.empty() &&
+             (!button.iconTex || button.iconTex->m_texID == 0 || !button.m_fIconScale.has_value() || std::abs(button.m_fIconScale.value_or(0.F) - scale) > 1e-6);
+         if (NEEDICON) {
 -            // render icon
 -            auto fgcol = button.userfg ? button.fgcol : (button.bgcol.r + button.bgcol.g + button.bgcol.b < 1) ? CHyprColor(0xFFFFFFFF) : CHyprColor(0xFF000000);
-+            if (isSvg) {
+-
+-            button.iconTex =
+-                g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, g_pGlobalState->config.barTextFont->value(), scaledButtonSize);
++            if (button.icon.starts_with('/')) {
 +                // the SVG is drawn over the whole disc, so it carries its own
 +                // placement and colour and looks the same in any toolkit
 +                Hyprgraphics::CImage image(button.icon, Vector2D{std::round(scaledButtonSize), std::round(scaledButtonSize)});
-+                if (image.success() && image.cairoSurface()) {
-+                    button.iconTex      = g_pHyprRenderer->createTexture(image.cairoSurface()->cairo());
-+                    button.iconTexScale = scale;
-+                }
++                if (image.success() && image.cairoSurface())
++                    button.iconTex = g_pHyprRenderer->createTexture(image.cairoSurface()->cairo());
 +            } else {
 +                // render icon
 +                auto fgcol = button.userfg ? button.fgcol : (button.bgcol.r + button.bgcol.g + button.bgcol.b < 1) ? CHyprColor(0xFFFFFFFF) : CHyprColor(0xFF000000);
- 
--            button.iconTex = g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, "sans", scaledButtonSize);
-+                button.iconTex = g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, "sans", scaledButtonSize);
++
++                button.iconTex =
++                    g_pHyprRenderer->renderText(button.icon, fgcol, std::round(button.size * 0.62 * scale), false, g_pGlobalState->config.barTextFont->value(), scaledButtonSize);
 +            }
+             button.m_fIconScale = scale;
          }
  
-         if (!button.iconTex || button.iconTex->m_texID == 0)
-@@ -415,7 +448,7 @@
-         const auto iconY = barBox->y + barBox->height / 2.0 - button.iconTex->m_size.y / 2.0;
+@@ -440,7 +468,7 @@ void CHyprBar::renderBarButtonsText(Render::CRenderContext& ctx, CBox* barBox, c
          CBox       pos   = {iconX, iconY, button.iconTex->m_size.x, button.iconTex->m_size.y};
+         pos.round(); // snap to whole pixels, otherwise the icon is sampled at a half-pixel offset and blurs
  
 -        if (!ICONONHOVER || (ICONONHOVER && m_iButtonHoverState > 0))
 +        if (!ICONONHOVER || (m_iButtonHoverState & (1 << i)) != 0)
-             g_pHyprOpenGL->renderTexture(button.iconTex, pos, {.a = a});
+             g_pHyprOpenGL->renderTexture(ctx, button.iconTex, pos, {.a = a});
          offset += scaledButtonsPad + scaledButtonSize;
  
-@@ -429,6 +462,10 @@
+@@ -454,6 +482,10 @@ void CHyprBar::renderBarButtonsText(Render::CRenderContext& ctx, CBox* barBox, c
  }
  
- void CHyprBar::draw(PHLMONITOR pMonitor, const float& a) {
+ void CHyprBar::draw(Render::CRenderContext& ctx, PHLMONITOR monitor, const float& a, const Render::SWindowRenderPresentation& presentation) {
 +    // a client may switch between its own frame and ours while mapped
 +    if (m_lastWantsServerDecorations != wantsServerDecorations())
 +        updateRules();
@@ -189,8 +110,8 @@
      const auto ENABLED = g_pGlobalState->config.enabled->value();
  
      if (m_bLastEnabledState != ENABLED) {
-@@ -642,14 +679,59 @@
-     return m_pWindow.lock();
+@@ -680,14 +712,60 @@ void CHyprBar::setTitle(std::optional<std::string> title) {
+     damageEntire();
  }
  
 +// A bar exactly when the window asks the compositor to decorate it: an X11
@@ -206,10 +127,11 @@
 +    if (!PWINDOW)
 +        return false;
 +
-+    if (PWINDOW->m_isX11)
-+        return !PWINDOW->m_X11DoesntWantBorders;
++    if (PWINDOW->backend().isX11())
++        return !PWINDOW->backend().traits().suggestsNoBorder;
 +
-+    const auto XDG      = PWINDOW->m_xdgSurface.lock();
++    const auto BACKEND  = dynamic_cast<Desktop::View::CWaylandBackend*>(&PWINDOW->backend());
++    const auto XDG      = BACKEND ? BACKEND->m_resource.lock() : nullptr;
 +    const auto TOPLEVEL = XDG ? XDG->m_toplevel.lock() : nullptr;
 +    if (!TOPLEVEL)
 +        return false;
@@ -252,10 +174,10 @@
  
      if (PWINDOW->m_ruleApplicator->m_otherProps.props.contains(g_pGlobalState->nobarRuleIdx))
          m_hidden = truthy(PWINDOW->m_ruleApplicator->m_otherProps.props.at(g_pGlobalState->nobarRuleIdx)->effect);
-@@ -677,9 +759,9 @@
+@@ -715,9 +793,9 @@ void CHyprBar::damageOnButtonHover() {
  
      for (auto& b : g_pGlobalState->buttons) {
-         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
+         const auto BARBUF     = Vector2D{assignedBoxGlobal().w, sc<double>(HEIGHT)};
 -        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - BARBUTTONPADDING - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
 +        Vector2D   currentPos = Vector2D{(BUTTONSRIGHT ? BARBUF.x - b.size - offset : offset), (BARBUF.y - b.size) / 2.0}.floor();
  
@@ -264,3 +186,82 @@
  
          if (hover != m_bButtonHovered) {
              m_bButtonHovered = hover;
+diff --git a/barDeco.hpp b/barDeco.hpp
+index d0d54d5..e2f6b24 100644
+--- a/barDeco.hpp
++++ b/barDeco.hpp
+@@ -49,6 +49,9 @@ class CHyprBar : public IHyprWindowDecoration {
+     PHLWINDOW                          getOwner();
+ 
+     void                               updateRules();
++    // whether the client asked the compositor to decorate it (see barDeco.cpp)
++    bool                       wantsServerDecorations();
++    std::optional<bool>        m_lastWantsServerDecorations;
+     void                               setTitle(std::optional<std::string> title);
+     void                               onConfigReloaded();
+ 
+diff --git a/globals.hpp b/globals.hpp
+index 2911644..f08996e 100644
+--- a/globals.hpp
++++ b/globals.hpp
+@@ -32,6 +32,9 @@ struct SGlobalState {
+     uint32_t                  barColorRuleIdx   = 0;
+     uint32_t                  titleColorRuleIdx = 0;
+ 
++    // Owned here, not in function-local statics: see PLUGIN_EXIT.
++    CHyprSignalListener       windowOpenListener, updateRulesListener, preReloadListener, reloadedListener;
++
+     struct {
+         SP<Config::Values::CColorValue>      barColor, textColor, inactiveButtonColor;
+         SP<Config::Values::CIntValue>        barHeight;
+diff --git a/main.cpp b/main.cpp
+index 3d88b57..65598c5 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -165,13 +165,18 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+         throw std::runtime_error("[hb] Version mismatch");
+     }
+ 
++    // g_pGlobalState is a GNU-unique symbol, so a previously unloaded copy of
++    // this plugin shares it and may have left its state behind. That state can
++    // have another layout; never destroy it with this copy's destructor.
++    if (g_pGlobalState)
++        new (&g_pGlobalState) UP<SGlobalState>();
+     g_pGlobalState                    = makeUnique<SGlobalState>();
+     g_pGlobalState->nobarRuleIdx      = Desktop::Rule::windowEffects()->registerEffect("hyprbars:no_bar");
+     g_pGlobalState->barColorRuleIdx   = Desktop::Rule::windowEffects()->registerEffect("hyprbars:bar_color");
+     g_pGlobalState->titleColorRuleIdx = Desktop::Rule::windowEffects()->registerEffect("hyprbars:title_color");
+ 
+-    static auto P  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
+-    static auto P3 = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
++    g_pGlobalState->windowOpenListener  = Event::bus()->m_events.window.open.listen([&](PHLWINDOW w) { onNewWindow(w); });
++    g_pGlobalState->updateRulesListener = Event::bus()->m_events.window.updateRules.listen([&](PHLWINDOW w) { onUpdateWindowRules(w); });
+ 
+     g_pGlobalState->config.barColor            = makeShared<Config::Values::CColorValue>("plugin:hyprbars:bar_color", "Change the bar color", 0x88333333);
+     g_pGlobalState->config.textColor           = makeShared<Config::Values::CColorValue>("plugin:hyprbars:col.text", "Change the text color", 0xffffffff);
+@@ -220,8 +225,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+     HyprlandAPI::addLuaFunction(PHANDLE, "hyprbars", "add_button", ::newLuaButton);
+     HyprlandAPI::addLuaFunction(PHANDLE, "hyprbars", "set_title", ::setLuaTitle);
+ 
+-    static auto P4 = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
+-    static auto P5 = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
++    g_pGlobalState->preReloadListener = Event::bus()->m_events.config.preReload.listen([&] { onPreConfigReload(); });
++    g_pGlobalState->reloadedListener  = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
+ 
+     // add deco to existing windows
+     for (auto& w : Desktop::windowState()->windows()) {
+@@ -245,4 +250,14 @@ APICALL EXPORT void PLUGIN_EXIT() {
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->barColorRuleIdx);
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->titleColorRuleIdx);
+     Desktop::Rule::windowEffects()->unregisterEffect(g_pGlobalState->nobarRuleIdx);
++
++    // The GNU-unique symbols above keep this library mapped after dlclose, so
++    // upstream's static listeners were never destroyed: after an unload (any
++    // rebuild that changes the plugin's store path) they kept firing, adding a
++    // second bar to new windows and, once the state layout changed, crashing
++    // Hyprland on the next config reload. Stop listening here.
++    g_pGlobalState->windowOpenListener.reset();
++    g_pGlobalState->updateRulesListener.reset();
++    g_pGlobalState->preReloadListener.reset();
++    g_pGlobalState->reloadedListener.reset();
+ }
