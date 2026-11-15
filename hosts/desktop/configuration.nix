@@ -39,13 +39,19 @@
   boot.kernelModules = [ "ntsync" ];
   services.udev.extraRules = ''
     KERNEL=="ntsync", MODE="0666"
-
-    # t.racks DSP 4x4 Mini Pro (monitor crossover/EQ box). Configured from
-    # Linux via WebHID (github.com/GlassOnTin/opendsp-4x4 in Chromium) —
-    # Chromium can only open the hidraw node if the seated user owns it,
-    # which is what uaccess grants.
-    KERNEL=="hidraw*", ATTRS{idVendor}=="0168", ATTRS{idProduct}=="0821", TAG+="uaccess"
   '';
+
+  # t.racks DSP 4x4 Mini Pro (monitor crossover/EQ box). Configured from
+  # Linux via WebHID (github.com/GlassOnTin/opendsp-4x4 in Chromium) —
+  # Chromium can only open the hidraw node if the seated user owns it,
+  # which is what uaccess grants. 73-seat-late.rules applies the tag, so it
+  # has to be set in an earlier file: extraRules land in 99-local.rules,
+  # where a replugged DSP got no access until the next login.
+  services.udev.packages = [
+    (pkgs.writeTextDir "lib/udev/rules.d/70-tracks-dsp.rules" ''
+      KERNEL=="hidraw*", ATTRS{idVendor}=="0168", ATTRS{idProduct}=="0821", TAG+="uaccess"
+    '')
+  ];
 
   # MT7921 Bluetooth + MX Master 3S workarounds live in ./bluetooth.nix.
 
