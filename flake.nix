@@ -14,6 +14,11 @@
     # deliberately when you actually want a newer Wine build closure, and
     # expect to pay the hour then.
     nixpkgs-wine.url = "github:NixOS/nixpkgs/e554fab72f81915600f3f449b786fd9af40439a5";
+    # Hyprland and its plugins only, from a newer nixos-unstable than the rest
+    # of the system (0.57.2: decoration:blur:proportional). Plugins come from
+    # the same nixpkgs so they share Hyprland's headers and toolchain. Drop
+    # this once nixpkgs itself carries 0.57+.
+    nixpkgs-hyprland.url = "github:NixOS/nixpkgs/d4f25a3e562008648d45bcf2d70bcc7422cad84e";
 
     secrets.url = "git+ssh://git@github.com/selimbucher/nixos-secrets";
 

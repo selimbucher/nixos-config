@@ -58,6 +58,8 @@ in
     loupe
     foliate
     transmission_4-gtk
+    # vendor .deb repacked, see pkgs/free-download-manager.nix
+    (pkgs.callPackage ../../pkgs/free-download-manager.nix { })
     snapshot
     evince
     gnome-calculator
