@@ -28,6 +28,14 @@
   ];
   networking.hosts."100.64.0.1" = [ "desktop" ];
 
+  # Builds the Pi's SD image (~/.pi). Its vendor kernel comes from
+  # nixos-raspberrypi's cache: `nix build --extra-substituters <url>`.
+  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+  nix.settings.extra-trusted-substituters = [ "https://nixos-raspberrypi.cachix.org" ];
+  nix.settings.extra-trusted-public-keys = [
+    "nixos-raspberrypi.cachix.org-1:4iMO9LXa8BqhU+Rpg6LQKiGa2lsNh/j2oiYLNOQ5sPI="
+  ];
+
   # amdgpu must load in initrd: Plymouth ignores the firmware's simpledrm
   # device until a real GPU driver appears, so the LUKS prompt (luks.nix)
   # would otherwise go to a splash that is not drawn yet. VA-API needs

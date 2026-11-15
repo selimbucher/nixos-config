@@ -17,6 +17,9 @@
     rbh             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.hetzner --target-host hetzner";
     update-hetzner  = "nix flake update --flake ${config.home.homeDirectory}/.hetzner";
     uh              = "nix flake update --flake ${config.home.homeDirectory}/.hetzner";
+    rebuild-pi      = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.pi --target-host pi --build-host pi";
+    rbp             = "nixos-rebuild switch --flake ${config.home.homeDirectory}/.pi --target-host pi --build-host pi";
+    wake-desktop    = "ssh pi wake-desktop";
   };
 
   # fired into a running REAPER by bs()/sr() via `reaper -nonewinst`
@@ -45,6 +48,11 @@
       extraOptions = {
         SetEnv = "TERM=xterm-256color";
       };
+    };
+    # Raspberry Pi at home (~/.pi), over the tailnet
+    matchBlocks."pi" = {
+      hostname = "100.64.0.3";
+      user = "root";
     };
     # AIC lab machines (tardis-b11 etc.); `tardis` relies on the shared master
     # so one login covers the desktop check, the tunnel and the teardown.

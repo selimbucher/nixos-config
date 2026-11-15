@@ -25,6 +25,10 @@
   ];
   networking.hosts."100.64.0.2" = [ "laptop" ];
 
+  # Woken from off or suspend by the Pi at home (`wake-desktop`, ~/.pi). From
+  # off it also needs ErP Ready off and Power On By PCI-E on in the BIOS.
+  networking.interfaces.enp10s0.wakeOnLan.enable = true;
+
   # Allow same-user ptrace (classic behavior). Yama's default of 1 blocks
   # gdb from attaching to running processes, which reaper-rescue and the
   # crashwatch wedge watchdog need for live backtraces of Wine plugin hosts.
