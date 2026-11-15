@@ -30,7 +30,8 @@ from collections import defaultdict
 SYS_DIR = "/var/lib/batlog"
 # runs before the system service exists (no root) write here; report reads both
 USER_DIR = os.path.expanduser("~/.local/state/batlog")
-BAT = "/sys/class/power_supply/BAT0"
+# BAT0 on the Zenbook, BAT1 on the Framework
+BAT = (sorted(glob.glob("/sys/class/power_supply/BAT*")) or ["/sys/class/power_supply/BAT0"])[0]
 PMC = "/sys/kernel/debug/pmc_core"
 # RAPL zones by name: their numbering differs between machines
 RAPL_NAMES = {"package-0": "pkg", "core": "core", "uncore": "unc", "psys": "sys"}

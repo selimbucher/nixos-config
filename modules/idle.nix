@@ -12,7 +12,8 @@
 
 let
   brightnessctl = "${pkgs.brightnessctl}/bin/brightnessctl";
-  onBattery = ''[ "$(cat /sys/class/power_supply/BAT0/status)" = Discharging ]'';
+  # BAT0 on the Zenbook, BAT1 on the Framework
+  onBattery = "grep -qsx Discharging /sys/class/power_supply/BAT*/status";
 
   # to a third of the current level, remembered for `idle-dim restore`
   idleDim = pkgs.writeShellScript "idle-dim" ''
