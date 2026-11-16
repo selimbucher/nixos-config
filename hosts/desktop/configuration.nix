@@ -80,5 +80,6 @@
     uiFontSize = 11;
     codeFontSize = 11;
     jackBufferSize = 64;
+    pinQuantum = true;
   };
 }

@@ -141,6 +141,12 @@
       description = "Buffer size for Jack.";
     };
 
+    pinQuantum = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Hold the PipeWire graph at jackBufferSize for every client, not only JACK ones.";
+    };
+
     uiFontSize = lib.mkOption {
       type = lib.types.int;
       default = 10;

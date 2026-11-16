@@ -270,8 +270,9 @@
   services.pipewire.extraConfig.pipewire."92-low-latency" = {
     "context.properties" = {
       "default.clock.rate" = 48000;
-      "default.clock.quantum" = config.deviceConfig.jackBufferSize;
       "default.clock.min-quantum" = config.deviceConfig.jackBufferSize;
+    } // lib.optionalAttrs config.deviceConfig.pinQuantum {
+      "default.clock.quantum" = config.deviceConfig.jackBufferSize;
       # max-quantum IS the pin: default.clock.force-quantum is NOT a config
       # property (runtime metadata only — pipewire silently ignores it here;
       # verified 2026-08-17 when vesktop's 512-sample request dragged the
@@ -279,6 +280,11 @@
       # min = max = jackBufferSize means no client request can move it.
       "default.clock.max-quantum" = config.deviceConfig.jackBufferSize;
     };
+  };
+  # Unpinned, the graph runs at the smallest request: REAPER asks for
+  # jackBufferSize, players like Spotify get up to 2048.
+  services.pipewire.extraConfig.jack."92-low-latency" = {
+    "jack.properties"."node.latency" = "${toString config.deviceConfig.jackBufferSize}/48000";
   };
 
   security.rtkit.enable = true;
