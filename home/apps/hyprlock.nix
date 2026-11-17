@@ -34,8 +34,10 @@ in
       path = "screenshot";
       blur_passes = 3;
       noise = 0.05;
-      brightness=0.75;
-      contrast=1.2;
+      # contrast is an S-curve (lights lighter, darks darker); brightness
+      # below 1 is what darkens
+      contrast = 2;
+      brightness = 0.6;
     }];
 
     "input-field" = lib.optional passwordLock {
@@ -45,7 +47,7 @@ in
       inner_color = "rgba(255, 255, 255, 0.1)";
       # with no outline hyprlock paints check_color as the field itself while
       # PAM runs (the key wait); keep it the field colour, the text stays white
-      check_color = "rgba(255, 255, 255, 0.1)";
+      check_color = "rgba(255, 255, 255, 0.2)";
       fail_color = "rgba(0, 0, 0, 0.0)";
       clear_color = "rgba(0, 0, 0, 0.0)";
       capslock_color = "rgba(255, 255, 255, 0.1)";
