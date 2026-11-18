@@ -43,7 +43,7 @@ in
     vesktop
     gimp
     onlyoffice-desktopeditors
-    libreoffice-fresh
+    libreoffice
     vscode
     nwg-displays
     tree

@@ -34,7 +34,13 @@
   libxkbcommon,
   zlib,
   zstd,
-  xorg,
+  libx11,
+  libxcb,
+  libxcb-util,
+  libxcb-image,
+  libxcb-keysyms,
+  libxcb-render-util,
+  libxcb-wm,
   xcb-util-cursor,
   wayland,
   libdrm,
@@ -87,13 +93,13 @@ stdenv.mkDerivation (finalAttrs: {
     libxkbcommon
     zlib
     zstd
-    xorg.libX11
-    xorg.libxcb
-    xorg.xcbutil
-    xorg.xcbutilimage
-    xorg.xcbutilkeysyms
-    xorg.xcbutilrenderutil
-    xorg.xcbutilwm
+    libx11
+    libxcb
+    libxcb-util
+    libxcb-image
+    libxcb-keysyms
+    libxcb-render-util
+    libxcb-wm
     xcb-util-cursor
     wayland
     libdrm

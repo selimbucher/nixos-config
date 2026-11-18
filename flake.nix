@@ -65,10 +65,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    claude-desktop-bin = {
-      url = "github:patrickjaja/claude-desktop-bin";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    claude-desktop-bin.url = "github:patrickjaja/claude-desktop-bin";
 
   };
 

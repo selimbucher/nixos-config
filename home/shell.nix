@@ -40,28 +40,28 @@
 
   programs.ssh = {
     enable = true;
+    # home-manager's old `Host *` block only restated OpenSSH's defaults
+    enableDefaultConfig = false;
     # Omitted entirely under secrets-stub: an empty HostName would make ssh
     # reject the whole config file.
-    matchBlocks."hetzner" = lib.mkIf (inputs.secrets.hetznerIp != "") {
-      hostname = inputs.secrets.hetznerIp;
-      user = "root";
-      extraOptions = {
-        SetEnv = "TERM=xterm-256color";
-      };
+    settings."hetzner" = lib.mkIf (inputs.secrets.hetznerIp != "") {
+      HostName = inputs.secrets.hetznerIp;
+      User = "root";
+      SetEnv.TERM = "xterm-256color";
     };
     # Raspberry Pi at home (~/.pi), over the tailnet
-    matchBlocks."pi" = {
-      hostname = "100.64.0.3";
-      user = "root";
+    settings."pi" = {
+      HostName = "100.64.0.3";
+      User = "root";
     };
     # AIC lab machines (tardis-b11 etc.); `tardis` relies on the shared master
     # so one login covers the desktop check, the tunnel and the teardown.
-    matchBlocks."tardis-*" = {
-      hostname = "%h.ee.ethz.ch";
-      controlMaster = "auto";
-      controlPath = "~/.ssh/cm-%C";
-      controlPersist = "10m";
-      extraOptions.StrictHostKeyChecking = "accept-new";
+    settings."tardis-*" = {
+      HostName = "%h.ee.ethz.ch";
+      ControlMaster = "auto";
+      ControlPath = "~/.ssh/cm-%C";
+      ControlPersist = "10m";
+      StrictHostKeyChecking = "accept-new";
     };
   };
 

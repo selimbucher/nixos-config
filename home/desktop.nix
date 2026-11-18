@@ -1,6 +1,7 @@
 { inputs, config, pkgs, lib, ... }:
 {
   home.pointerCursor = {
+    enable = true;
     gtk.enable = true;
     x11.enable = true;
     name = "Capitaine Cursors - White";
