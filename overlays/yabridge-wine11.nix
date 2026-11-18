@@ -203,6 +203,16 @@ let
       # REAPER waited forever on the host.
       # Upstream bug.
       ./patches/msvcrt-abort-fastfail.patch
+      # d2d1-builtin-shape-bytecode.patch (ours, 2026-11-17): d2d1 compiled
+      # its 7 shape shaders with D3DCompile for every ID2D1Device. Equator2
+      # (JUCE) loads and frees d2d1.dll ~190 times while loading and ~130
+      # times per editor open, so that was ~2400 compiles in vkd3d's HLSL
+      # compiler per session: load 34.9s -> 23.4s, editor open 13.4s -> 5s
+      # (renders identical). Bytecode is generated from the unchanged HLSL
+      # (now shape_hlsl.h) by gen_shape_bytecode.c with the same D3DCompile
+      # arguments; regenerate it when the HLSL changes. Windows' d2d1 ships
+      # precompiled shaders too. Drops the d3dcompiler import.
+      ./patches/d2d1-builtin-shape-bytecode.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''
