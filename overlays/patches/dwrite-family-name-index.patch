@@ -1,0 +1,138 @@
+--- a/dlls/dwrite/font.c
++++ b/dlls/dwrite/font.c
+@@ -423,6 +423,8 @@
+     struct dwrite_fontfamily_data **family_data;
+     size_t size;
+     size_t count;
++    /* Every localized family name, mapped to the first family that has it. */
++    struct rb_tree family_names;
+ 
+     struct
+     {
+@@ -3360,6 +3362,23 @@
+     return refcount;
+ }
+ 
++struct family_name_entry
++{
++    struct rb_entry entry;
++    UINT32 index;
++    WCHAR name[1];
++};
++
++static int family_name_compare(const void *key, const struct rb_entry *entry)
++{
++    return wcsicmp(key, RB_ENTRY_VALUE(entry, const struct family_name_entry, entry)->name);
++}
++
++static void family_name_destroy(struct rb_entry *entry, void *context)
++{
++    free(RB_ENTRY_VALUE(entry, struct family_name_entry, entry));
++}
++
+ static ULONG WINAPI dwritefontcollection_Release(IDWriteFontCollection3 *iface)
+ {
+     struct dwrite_fontcollection *collection = impl_from_IDWriteFontCollection3(iface);
+@@ -3375,6 +3394,7 @@
+             release_fontfamily_data(collection->family_data[i]);
+         for (i = 0; i < collection->set.count; ++i)
+             release_fontset_entry(collection->set.entries[i]);
++        rb_destroy(&collection->family_names, family_name_destroy, NULL);
+         free(collection->family_data);
+         free(collection);
+     }
+@@ -3413,24 +3433,9 @@
+ 
+ static UINT32 collection_find_family(struct dwrite_fontcollection *collection, const WCHAR *name)
+ {
+-    size_t i;
++    struct rb_entry *entry = rb_get(&collection->family_names, name);
+ 
+-    for (i = 0; i < collection->count; ++i)
+-    {
+-        IDWriteLocalizedStrings *family_name = collection->family_data[i]->familyname;
+-        UINT32 j, count = IDWriteLocalizedStrings_GetCount(family_name);
+-        HRESULT hr;
+-
+-        for (j = 0; j < count; j++)
+-        {
+-            WCHAR buffer[255];
+-            hr = IDWriteLocalizedStrings_GetString(family_name, j, buffer, ARRAY_SIZE(buffer));
+-            if (SUCCEEDED(hr) && !wcsicmp(buffer, name))
+-                return i;
+-        }
+-    }
+-
+-    return ~0u;
++    return entry ? RB_ENTRY_VALUE(entry, struct family_name_entry, entry)->index : ~0u;
+ }
+ 
+ static HRESULT WINAPI dwritefontcollection_FindFamilyName(IDWriteFontCollection3 *iface, const WCHAR *name,
+@@ -3689,15 +3694,59 @@
+     return S_OK;
+ }
+ 
++static void fontcollection_remove_family_names(struct dwrite_fontcollection *collection,
++        struct dwrite_fontfamily_data *family, UINT32 index)
++{
++    UINT32 i, count = IDWriteLocalizedStrings_GetCount(family->familyname);
++
++    for (i = 0; i < count; ++i)
++    {
++        struct family_name_entry *name;
++        struct rb_entry *entry;
++        WCHAR buffer[255];
++
++        if (FAILED(IDWriteLocalizedStrings_GetString(family->familyname, i, buffer, ARRAY_SIZE(buffer))))
++            continue;
++        if (!(entry = rb_get(&collection->family_names, buffer)))
++            continue;
++        name = RB_ENTRY_VALUE(entry, struct family_name_entry, entry);
++        if (name->index != index)
++            continue;
++        rb_remove(&collection->family_names, entry);
++        free(name);
++    }
++}
++
+ static HRESULT fontcollection_add_family(struct dwrite_fontcollection *collection,
+         struct dwrite_fontfamily_data *family)
+ {
++    UINT32 i, count = IDWriteLocalizedStrings_GetCount(family->familyname);
++
+     if (!dwrite_array_reserve((void **)&collection->family_data, &collection->size, collection->count + 1,
+             sizeof(*collection->family_data)))
+     {
+         return E_OUTOFMEMORY;
+     }
+ 
++    for (i = 0; i < count; ++i)
++    {
++        struct family_name_entry *name;
++        WCHAR buffer[255];
++
++        if (FAILED(IDWriteLocalizedStrings_GetString(family->familyname, i, buffer, ARRAY_SIZE(buffer))))
++            continue;
++        if (rb_get(&collection->family_names, buffer))
++            continue;
++        if (!(name = malloc(offsetof(struct family_name_entry, name[wcslen(buffer) + 1]))))
++        {
++            fontcollection_remove_family_names(collection, family, collection->count);
++            return E_OUTOFMEMORY;
++        }
++        name->index = collection->count;
++        wcscpy(name->name, buffer);
++        rb_put(&collection->family_names, name->name, &name->entry);
++    }
++
+     collection->family_data[collection->count++] = family;
+     return S_OK;
+ }
+@@ -3710,6 +3759,7 @@
+     collection->factory = factory;
+     IDWriteFactory7_AddRef(collection->factory);
+     collection->family_model = family_model;
++    rb_init(&collection->family_names, family_name_compare);
+ }
+ 
+ HRESULT get_filestream_from_file(IDWriteFontFile *file, IDWriteFontFileStream **stream)

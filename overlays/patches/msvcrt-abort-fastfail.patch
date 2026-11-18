@@ -1,0 +1,45 @@
+--- a/dlls/msvcrt/exit.c
++++ b/dlls/msvcrt/exit.c
+@@ -266,11 +266,16 @@
+   }
+ #endif
+ 
+-  raise(SIGABRT);
+-
+ #if _MSVCR_VER >= 110
++  /* only a handler gets SIGABRT, the default action is to fail fast
++   * without running DLL detach code */
++  if (msvcrt_sigabrt_handled())
++    raise(SIGABRT);
++
+   if (MSVCRT_abort_behavior & _CALL_REPORTFAULT)
+     __fastfail(FAST_FAIL_FATAL_APP_EXIT);
++#else
++  raise(SIGABRT);
+ #endif
+ 
+   /* in case raise() returns */
+--- a/dlls/msvcrt/except.c
++++ b/dlls/msvcrt/except.c
+@@ -647,6 +647,11 @@
+     SetConsoleCtrlHandler(msvcrt_console_handler, FALSE);
+ }
+ 
++BOOL msvcrt_sigabrt_handled(void)
++{
++    return sighandlers[SIGABRT] != SIG_DFL;
++}
++
+ /*********************************************************************
+  *		signal (MSVCRT.@)
+  * Some signals may never be generated except through an explicit call to
+--- a/dlls/msvcrt/msvcrt.h
++++ b/dlls/msvcrt/msvcrt.h
+@@ -269,6 +269,7 @@
+ extern void msvcrt_free_args(void);
+ extern void msvcrt_init_signals(void);
+ extern void msvcrt_free_signals(void);
++extern BOOL msvcrt_sigabrt_handled(void);
+ extern void msvcrt_free_popen_data(void);
+ extern BOOL msvcrt_init_heap(void);
+ extern void msvcrt_destroy_heap(void);

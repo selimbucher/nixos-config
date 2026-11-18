@@ -94,6 +94,17 @@ let
       # host GUI thread) burn a core on font lookups. Adds a 4-entry
       # re-validated LRU per collection. Upstream-worthy.
       ./patches/dwrite-fontface-lookup-cache.patch
+      # dwrite-family-name-index.patch (ours, 2026-11-17): every family
+      # lookup scanned all family names of the collection (COM string copy +
+      # wcsicmp each), and building a collection looks up the family of each
+      # face, so with ~7800 system faces every new collection cost millions
+      # of compares. Indexes all localized family names in an rb-tree (same
+      # wcsicmp order, first family wins like the scan did). Omnisphere 3
+      # was ~60% of its GUI thread here while loading a patch (REAPER blocks
+      # on it in getState()): patch-browse stalls 2.2-2.4s -> one 0.5s in
+      # 16 clicks; editor open 0.86s -> 0.28s; soothe3 open 2.6s -> 1.8s.
+      # Upstream-worthy.
+      ./patches/dwrite-family-name-index.patch
       # mshtml-feature-browser-emulation.patch (ours, 2026-09-12): native
       # mshtml lets a host pick the default document mode for standards-
       # doctype pages via FeatureControl\FEATURE_BROWSER_EMULATION\<exe>;
@@ -177,6 +188,42 @@ let
       # call made under the mutex, so the dying thread releases it.
       # Upstream bug.
       ./patches/ntdll-abort-thread-fd-cache-mutex.patch
+      # ntdll-heap-decommit-slack.patch (ours, 2026-11-16): freeing the last
+      # block of a subheap decommitted everything past it plus 64k, so a loop
+      # that allocates and frees a block at the end of a subheap committed and
+      # decommitted the same pages every iteration. Absynth 6's editor did
+      # that ~3500 times/s (strace: mprotect RW + mmap PROT_NONE on one 64k
+      # range): ~40% of its GUI thread in VirtualAlloc/VirtualFree and
+      # zero-fill faults. Keeps up to 1 MB committed, decommits from 2 MB.
+      ./patches/ntdll-heap-decommit-slack.patch
+      # sc-delayed-auto.patch (ours, 2026-11-17): sc.exe didn't know
+      # "start= delayed-auto" and silently created the service as demand
+      # start. The NTKDaemon installer runs
+      # `sc create NTKDaemonService ... start= delayed-auto`, so the daemon
+      # never started on its own and Kontakt 8 waited 2 s for it on every
+      # editor close (0.45 s with the daemon running). Now auto start plus
+      # SERVICE_CONFIG_DELAYED_AUTO_START_INFO, like Windows' sc.exe.
+      # Upstream bug.
+      ./patches/sc-delayed-auto.patch
+      # msvcrt-abort-fastfail.patch (ours, 2026-11-17): abort() raised
+      # SIGABRT even without a handler, and the default action _exit(3)
+      # runs DLL detach code. UCRT raises only for an installed handler and
+      # then __fastfail()s, which terminates without detach. A yabridge host
+      # that aborted while hosting Kontakt 8 hung forever in ni-platform.dll's
+      # detach (WSAPoll on a socket whose I/O thread was already gone), so
+      # REAPER waited forever on the host.
+      # Upstream bug.
+      ./patches/msvcrt-abort-fastfail.patch
+      # d2d1-builtin-shape-bytecode.patch (ours, 2026-11-17): d2d1 compiled
+      # its 7 shape shaders with D3DCompile for every ID2D1Device. Equator2
+      # (JUCE) loads and frees d2d1.dll ~190 times while loading and ~130
+      # times per editor open, so that was ~2400 compiles in vkd3d's HLSL
+      # compiler per session: load 34.9s -> 23.4s, editor open 13.4s -> 5s
+      # (renders identical). Bytecode is generated from the unchanged HLSL
+      # (now shape_hlsl.h) by gen_shape_bytecode.c with the same D3DCompile
+      # arguments; regenerate it when the HLSL changes. Windows' d2d1 ships
+      # precompiled shaders too. Drops the d3dcompiler import.
+      ./patches/d2d1-builtin-shape-bytecode.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''
