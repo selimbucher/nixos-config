@@ -194,6 +194,15 @@ let
       # SERVICE_CONFIG_DELAYED_AUTO_START_INFO, like Windows' sc.exe.
       # Upstream bug.
       ./patches/sc-delayed-auto.patch
+      # msvcrt-abort-fastfail.patch (ours, 2026-11-17): abort() raised
+      # SIGABRT even without a handler, and the default action _exit(3)
+      # runs DLL detach code. UCRT raises only for an installed handler and
+      # then __fastfail()s, which terminates without detach. A yabridge host
+      # that aborted while hosting Kontakt 8 hung forever in ni-platform.dll's
+      # detach (WSAPoll on a socket whose I/O thread was already gone), so
+      # REAPER waited forever on the host.
+      # Upstream bug.
+      ./patches/msvcrt-abort-fastfail.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''
