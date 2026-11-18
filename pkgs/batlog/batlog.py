@@ -5,13 +5,14 @@
   batlog ab refresh|bitdepth|blur hands-off A/B power test of a display setting
   batlog ab -a CMD -b CMD         same for any two commands (-a = current state,
                                   it is restored at the end)
-  batlog sample                   sampler daemon (as root: RAPL, package
-                                  C-states, every process's GPU time)
+  batlog sample                   sampler daemon (as root: RAPL, MSRs, every
+                                  process's GPU time)
   batlog mark sleep|wake          suspend bookkeeping, run by the sleep hooks
 """
 
 import argparse
 import bisect
+import ctypes
 import datetime
 import glob
 import json
@@ -32,11 +33,15 @@ SYS_DIR = "/var/lib/batlog"
 USER_DIR = os.path.expanduser("~/.local/state/batlog")
 # BAT0 on the Zenbook, BAT1 on the Framework
 BAT = (sorted(glob.glob("/sys/class/power_supply/BAT*")) or ["/sys/class/power_supply/BAT0"])[0]
-PMC = "/sys/kernel/debug/pmc_core"
-# RAPL zones by name: their numbering differs between machines
-RAPL_NAMES = {"package-0": "pkg", "core": "core", "uncore": "unc", "psys": "sys"}
-# package C-state residency MSRs, counting at TSC rate (MSR 0x10)
-PKG_CSTATES = {"pc2": 0x60D, "pc6": 0x3F9, "pc8": 0x630, "pc10": 0x632}
+# RAPL zones by name: their numbering differs between machines. AMD's "core"
+# zone counts a single core, so the SoC split comes from gpu_metrics.
+RAPL_NAMES = {"package-0": "pkg", "psys": "sys"}
+MSR_TSC, MSR_MPERF, MSR_APERF = 0x10, 0xE7, 0xE8
+# DRM fdinfo engines that are video: i915 "video", "video-enhance"; amdgpu
+# VCN "dec", "enc", "enc_1" (VCN 4+ decodes on its unified "enc" ring), "jpeg", "vpe"
+VIDEO_ENGINES = ("video", "dec", "enc", "jpeg", "vpe")
+# written by the curve-optimizer service: the all-core offset in counts
+CO_FILE = "/run/curve-optimizer"
 IDLE_AFTER = 180  # s without input before a sample counts as idle
 CLK = os.sysconf("SC_CLK_TCK")
 
@@ -106,16 +111,38 @@ class Hypr:
         return self._ask(self.path, cmd) if self.path else None
 
 
+def bat_energy(name):
+    """energy_<name> in Wh. Batteries that report charge instead (the
+    Framework's) are converted at their design voltage, as UPower does."""
+    e = rdint(f"{BAT}/energy_{name}")
+    if e is not None:
+        return e / 1e6
+    q, v = rdint(f"{BAT}/charge_{name}"), rdint(f"{BAT}/voltage_min_design")
+    return q * v / 1e12 if q is not None and v else None
+
+
+def ac_online():
+    """the charger is connected. A full battery on AC can report Discharging
+    at a few mA (the Framework's), so its status doesn't tell."""
+    mains = [p for p in glob.glob("/sys/class/power_supply/*") if rd(p + "/type") == "Mains"]
+    if not mains:
+        return rd(f"{BAT}/status") != "Discharging"
+    return any(rd(p + "/online") == "1" for p in mains)
+
+
 def battery():
-    w, wh = rdint(f"{BAT}/power_now"), rdint(f"{BAT}/energy_now")
-    return {"st": rd(f"{BAT}/status", "Unknown"),
+    w = rdint(f"{BAT}/power_now")
+    if w is None:
+        i, v = rdint(f"{BAT}/current_now"), rdint(f"{BAT}/voltage_now")
+        w = abs(i) * v // 1_000_000 if i is not None and v is not None else None
+    return {"st": rd(f"{BAT}/status", "Unknown"), "ac": ac_online(),
             "w": w / 1e6 if w is not None else None,
-            "wh": wh / 1e6 if wh is not None else None,
+            "wh": bat_energy("now"),
             "pct": rdint(f"{BAT}/capacity")}
 
 
 def rapl_zones():
-    """{pkg|core|unc|sys: sysfs dir}"""
+    """{pkg|sys: sysfs dir}"""
     out = {}
     for z in sorted(glob.glob("/sys/class/powercap/intel-rapl:*")):
         k = RAPL_NAMES.get(rd(z + "/name"))
@@ -124,11 +151,121 @@ def rapl_zones():
     return out
 
 
-def gpu_floor():
-    """the i915 minimum clock (MHz), set by a udev rule on the laptop"""
-    for f in glob.glob("/sys/class/drm/card[0-9]/gt/gt0/rps_min_freq_mhz"):
-        return rdint(f)
+U8, U16, U32, U64 = ctypes.c_uint8, ctypes.c_uint16, ctypes.c_uint32, ctypes.c_uint64
+
+
+class GpuMetrics(ctypes.Structure):
+    """gpu_metrics_v3_0 (Strix and Krackan Point APUs), as in the kernel's
+    kgd_pp_interface.h. mW, centi-°C, %, MHz, MB/s; the SMU time-filters
+    every value, so one read is a smoothed snapshot, not an interval average."""
+    _fields_ = [
+        ("structure_size", U16), ("format_revision", U8), ("content_revision", U8),
+        ("temperature_gfx", U16), ("temperature_soc", U16), ("temperature_core", U16 * 16),
+        ("temperature_skin", U16),
+        ("average_gfx_activity", U16), ("average_vcn_activity", U16),
+        ("average_ipu_activity", U16 * 8), ("average_core_c0_activity", U16 * 16),
+        ("average_dram_reads", U16), ("average_dram_writes", U16),
+        ("average_ipu_reads", U16), ("average_ipu_writes", U16),
+        ("system_clock_counter", U64),
+        ("average_socket_power", U32), ("average_ipu_power", U16), ("average_apu_power", U32),
+        ("average_gfx_power", U32), ("average_dgpu_power", U32),
+        ("average_all_core_power", U32), ("average_core_power", U16 * 16),
+        ("average_sys_power", U16), ("stapm_power_limit", U16), ("current_stapm_power_limit", U16),
+        ("average_gfxclk_frequency", U16), ("average_socclk_frequency", U16),
+        ("average_vpeclk_frequency", U16), ("average_ipuclk_frequency", U16),
+        ("average_fclk_frequency", U16), ("average_vclk_frequency", U16),
+        ("average_uclk_frequency", U16), ("average_mpipu_frequency", U16),
+        ("current_coreclk", U16 * 16), ("current_core_maxfreq", U16), ("current_gfx_maxfreq", U16),
+        ("throttle_residency_prochot", U32), ("throttle_residency_spl", U32),
+        ("throttle_residency_fppt", U32), ("throttle_residency_sppt", U32),
+        ("throttle_residency_thm_core", U32), ("throttle_residency_thm_gfx", U32),
+        ("throttle_residency_thm_soc", U32), ("time_filter_alphavalue", U32),
+    ]
+
+
+def gpu_metrics():
+    """the APU's power split, activity, clocks and temperatures, or None"""
+    for f in glob.glob("/sys/class/drm/card[0-9]/device/gpu_metrics"):
+        try:
+            with open(f, "rb") as fh:
+                raw = fh.read()
+        except OSError:
+            continue
+        if len(raw) < ctypes.sizeof(GpuMetrics) or raw[2:4] != b"\x03\x00":
+            continue
+        g = GpuMetrics.from_buffer_copy(raw)
+        return {"soc": g.average_socket_power / 1000, "cores": g.average_all_core_power / 1000,
+                "gfx": g.average_gfx_power / 1000, "npu": g.average_ipu_power / 1000,
+                "sys": g.average_sys_power / 1000,  # the platform's own estimate
+                "gfx%": g.average_gfx_activity, "vcn%": g.average_vcn_activity,
+                "dram": g.average_dram_reads + g.average_dram_writes,
+                "gclk": g.average_gfxclk_frequency, "fclk": g.average_fclk_frequency,
+                "uclk": g.average_uclk_frequency,
+                "skin": g.temperature_skin / 100, "tcore": max(g.temperature_core) / 100}
     return None
+
+
+def level(pattern):
+    """brightness / max_brightness of the first backlight or LED matching pattern"""
+    for d in sorted(glob.glob(pattern)):
+        return rdint(d + "/brightness", 0) / max(rdint(d + "/max_brightness", 1), 1)
+    return None
+
+
+def cpuidle():
+    """{idle state: µs summed over all CPUs}, cumulative, shallowest state first"""
+    out = defaultdict(int)
+    for f in sorted(glob.glob("/sys/devices/system/cpu/cpu[0-9]*/cpuidle/state[0-9]*/time"),
+                    key=lambda f: int(re.search(r"state(\d+)", f).group(1))):
+        name = rd(os.path.dirname(f) + "/name")
+        if name and name != "POLL":
+            out[name] += rdint(f, 0)
+    return dict(out)
+
+
+def wifi():
+    """{"dbm": signal, "ps": power save on} while associated, else None"""
+    for d in glob.glob("/sys/class/net/*/wireless"):
+        dev = d.split("/")[4]
+        if rd(f"/sys/class/net/{dev}/operstate") != "up":
+            return None
+        try:
+            link = subprocess.run(["iw", "dev", dev, "link"], capture_output=True,
+                                  text=True, timeout=2).stdout
+            ps = subprocess.run(["iw", "dev", dev, "get", "power_save"], capture_output=True,
+                                text=True, timeout=2).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        m = re.search(r"signal:\s*(-?\d+)", link)
+        return {"dbm": int(m.group(1)) if m else None, "ps": ps.strip().endswith("on")}
+    return None
+
+
+def radios_off():
+    """rfkill-blocked radio types, e.g. ["bluetooth"]"""
+    return sorted({rd(r + "/type") for r in glob.glob("/sys/class/rfkill/rfkill*")
+                   if rd(r + "/soft") == "1" or rd(r + "/hard") == "1"} - {None})
+
+
+def usb_awake():
+    """USB devices not runtime-suspended right now, hubs aside"""
+    out = []
+    for d in glob.glob("/sys/bus/usb/devices/[0-9]*-[0-9]*"):
+        if ":" in os.path.basename(d) or rd(d + "/bDeviceClass") == "09":
+            continue
+        if rd(d + "/power/runtime_status") == "active":
+            out.append(rd(d + "/product") or f"{rd(d + '/idVendor')}:{rd(d + '/idProduct')}")
+    return sorted(out)
+
+
+def fan_rpm():
+    rpms = [rdint(f) for f in glob.glob("/sys/class/hwmon/hwmon*/fan1_input")]
+    return max((r for r in rpms if r is not None), default=None)
+
+
+def boost():
+    v = rd("/sys/devices/system/cpu/cpufreq/policy0/boost") or rd("/sys/devices/system/cpu/cpufreq/boost")
+    return v == "1" if v is not None else None
 
 
 def cpu_busy_ticks():
@@ -161,19 +298,24 @@ def interrupts(labels):
 
 
 def read_msrs():
-    try:
-        fd = os.open("/dev/cpu/0/msr", os.O_RDONLY)
-    except OSError:
-        return None
-    out = {}
-    try:
-        for k, reg in [("tsc", 0x10), *PKG_CSTATES.items()]:
-            try:
-                out[k] = struct.unpack("<Q", os.pread(fd, 8, reg))[0]
-            except OSError:
-                pass
-    finally:
-        os.close(fd)
+    """{"tsc": CPU 0's TSC, "aperf"/"mperf": summed over all CPUs}, cumulative;
+    None without the msr driver (or root)"""
+    out = {"aperf": 0, "mperf": 0}
+    for dev in glob.glob("/dev/cpu/[0-9]*/msr"):
+        try:
+            fd = os.open(dev, os.O_RDONLY)
+        except OSError:
+            return None
+        try:
+            read = lambda reg: struct.unpack("<Q", os.pread(fd, 8, reg))[0]
+            out["mperf"] += read(MSR_MPERF)
+            out["aperf"] += read(MSR_APERF)
+            if dev == "/dev/cpu/0/msr":
+                out["tsc"] = read(MSR_TSC)
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
     return out
 
 
@@ -230,7 +372,7 @@ def gpu_clients(procs):
                     cid = v.strip()
                 elif k.startswith("drm-engine-") and not k.startswith("drm-engine-capacity"):
                     ns = int(v.split()[0])
-                    if "video" in k:
+                    if k.removeprefix("drm-engine-").startswith(VIDEO_ENGINES):
                         vid += ns
                     else:
                         gfx += ns
@@ -277,9 +419,10 @@ def app_of(pid, procs, memo):
     return key
 
 
-def audio_playing():
+def audio_running(direction="p"):
+    """an ALSA stream is running: "p" playback, "c" capture (microphone)"""
     return any("RUNNING" in (rd(s) or "")
-               for s in glob.glob("/proc/asound/card*/pcm*p/sub*/status"))
+               for s in glob.glob(f"/proc/asound/card*/pcm*{direction}/sub*/status"))
 
 
 def nvme_ops():
@@ -294,32 +437,39 @@ def nvme_ops():
 def snapshot(hy, labels, zones):
     s = {"t": time.time(), "mono": time.monotonic(),
          "boot": time.clock_gettime(time.CLOCK_BOOTTIME), "bat": battery(),
-         "busy": cpu_busy_ticks(), "msr": read_msrs()}
+         "busy": cpu_busy_ticks(), "msr": read_msrs(), "cst": cpuidle()}
     s["irq"], s["inp"] = interrupts(labels)
     s["rapl"] = {k: (rdint(z + "/energy_uj"), rdint(z + "/max_energy_range_uj", 1 << 32))
                  for k, z in zones.items()}
-    s["rc6"] = {os.path.basename(g): rdint(g + "/rc6_residency_ms")
-                for g in glob.glob("/sys/class/drm/card[0-9]/gt/gt*")}
     s["procs"] = scan_procs()
     s["gpu"] = gpu_clients(s["procs"])
     s["net"] = sum(rdint(f, 0) for f in glob.glob("/sys/class/net/wl*/statistics/[rt]x_bytes"))
     s["io"] = nvme_ops()
     mons = hy.ask("j/monitors")
     s["mon"] = [[m["name"], round(m["refreshRate"]),
-                 10 if "2101010" in m.get("currentFormat", "") else 8, m["dpmsStatus"]]
+                 10 if "2101010" in m.get("currentFormat", "") else 8, m["dpmsStatus"],
+                 bool(m.get("vrr"))]
                 for m in mons if not m.get("disabled")] if isinstance(mons, list) else None
     w = hy.ask("j/activewindow")
     s["focus"] = (w.get("class") or None) if isinstance(w, dict) else None
     c = hy.ask("j/cursorpos")
     s["cur"] = (c.get("x"), c.get("y")) if isinstance(c, dict) else None
-    bl = glob.glob("/sys/class/backlight/*")
-    if bl:
-        s["bl"] = rdint(bl[0] + "/brightness", 0) / max(rdint(bl[0] + "/max_brightness", 1), 1)
+    s["bl"] = level("/sys/class/backlight/*")
+    s["kbl"] = level("/sys/class/leds/*kbd_backlight")
+    # amdgpu adaptive backlight (ABM) level, 0 = off; power-profiles-daemon sets it
+    s["abm"] = rdint((glob.glob("/sys/class/drm/card*-eDP-*/amdgpu/panel_power_savings") or [""])[0])
+    s["gm"] = gpu_metrics()
     s["epp"] = rd("/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference")
     s["pp"] = rd("/sys/firmware/acpi/platform_profile")
-    s["gmin"] = gpu_floor()
-    s["aud"] = audio_playing()
+    s["boost"] = boost()
+    s["co"] = rdint(CO_FILE)
+    s["fan"] = fan_rpm()
+    s["aud"] = audio_running("p")
+    s["mic"] = audio_running("c")
     s["bt"] = len(glob.glob("/sys/class/bluetooth/hci*:*"))  # one per connection
+    s["wifi"] = wifi()
+    s["rf"] = radios_off()
+    s["usb"] = usb_awake()
     return s
 
 
@@ -337,23 +487,26 @@ def record(a, b, self_s):
             if e1 is not None and e2 is not None:
                 r[k] = round((e2 - e1) % mx / 1e6 / dt, 2)
         ma, mb = a["msr"] or {}, b["msr"] or {}
-        if "tsc" in ma and "tsc" in mb and mb["tsc"] > ma["tsc"]:
-            dtsc = mb["tsc"] - ma["tsc"]
-            r["pc"] = {k: round((mb[k] - ma[k]) / dtsc, 3)
-                       for k in PKG_CSTATES if k in ma and k in mb}
+        if "tsc" in ma and "tsc" in mb and mb["mperf"] > ma["mperf"]:
+            # clock while busy (APERF/MPERF only count outside idle), busy-weighted
+            r["mhz"] = round((mb["tsc"] - ma["tsc"]) / dt / 1e6
+                             * (mb["aperf"] - ma["aperf"]) / (mb["mperf"] - ma["mperf"]))
+        # share of all CPUs' time in each idle state (the deepest: C3 = CC6 on AMD)
+        ncpu = os.cpu_count() or 1
+        r["cst"] = {k: round((v - a["cst"][k]) / 1e6 / dt / ncpu, 3)
+                    for k, v in b["cst"].items() if k in a["cst"]}
     r["cpu"] = round((b["busy"] - a["busy"]) / CLK / dt, 3)  # cores busy
-    for gt, key in (("gt0", "gpu"), ("gt1", "gpum")):  # render, media (if separate)
-        x, y = a["rc6"].get(gt), b["rc6"].get(gt)
-        if x is not None and y is not None:
-            r[key] = round(min(max(1 - (y - x) / (dt * 1000), 0), 1), 3)
     r["irq"] = round((b["irq"] - a["irq"]) / dt)
     r["inp"] = b["inp"] - a["inp"]
     r["cur"] = a["cur"] is not None and b["cur"] is not None and a["cur"] != b["cur"]
     r["net"] = round((b["net"] - a["net"]) / 1024 / dt, 1)  # KiB/s
     r["io"] = round((b["io"] - a["io"]) / dt, 1)  # SSD ops/s
-    for k in ("bl", "epp", "pp", "gmin", "aud", "bt", "mon", "focus"):
+    for k in ("bl", "kbl", "abm", "epp", "pp", "boost", "co", "fan", "aud", "mic", "bt",
+              "wifi", "rf", "usb", "mon", "focus"):
         if b.get(k) is not None:
-            r[k] = round(b[k], 2) if k == "bl" else b[k]
+            r[k] = round(b[k], 2) if isinstance(b[k], float) else b[k]
+    if b["gm"]:
+        r["gm"] = {k: round(v, 2) if isinstance(v, float) else v for k, v in b["gm"].items()}
 
     # per app: [cpu s, gpu s, video-engine s, wakeups]
     apps = defaultdict(lambda: [0.0, 0.0, 0.0, 0])
@@ -387,6 +540,9 @@ def record(a, b, self_s):
         x = apps[app_of(pid, pb, memo)]
         x[1] += max(g, 0) / 1e9
         x[2] += max(v, 0) / 1e9
+    # GPU engine time over wall time, all clients: render/compute/copy and video
+    r["gpu"] = round(sum(x[1] for x in apps.values()) / dt, 3)
+    r["vid"] = round(sum(x[2] for x in apps.values()) / dt, 3)
     ranked = sorted(apps.items(), key=lambda kv: -(kv[1][0] + kv[1][1]))
     r["apps"] = {}
     for i, (k, (c, g, v, wk)) in enumerate(ranked):
@@ -412,9 +568,8 @@ def cmd_sample(args):
     prev, cpu0 = snapshot(hy, labels, zones), time.process_time()
     while True:
         time.sleep(args.tick)
-        st = rd(f"{BAT}/status")
-        # on AC the battery rate is charging, not drain: sample sparsely
-        if (st != "Discharging" and st == prev["bat"]["st"]
+        # on AC the battery rate is not the laptop's draw: sample sparsely
+        if (ac_online() and prev["bat"]["ac"]
                 and time.monotonic() - prev["mono"] < args.ac_every):
             continue
         try:
@@ -442,7 +597,6 @@ def cmd_mark(args):
         name = rd(w + "/name")
         if name:
             wake[name] = rdint(w + "/event_count", 0)
-    s0ix = rdint(f"{PMC}/slp_s0_residency_usec")
     if args.what == "sleep":
         r["ctx"] = {
             "bt": len(glob.glob("/sys/class/bluetooth/hci*:*")),
@@ -450,9 +604,9 @@ def cmd_mark(args):
                           - {"xHCI Host Controller", None}),
             "ext": [os.path.basename(c).split("-", 1)[1] for c in glob.glob("/sys/class/drm/card*-*")
                     if "eDP" not in c and rd(c + "/status") == "connected"],
-            "aud": audio_playing()}
+            "aud": audio_running("p")}
         with open(state, "w") as f:
-            json.dump({"wake": wake, "s0ix": s0ix}, f)
+            json.dump({"wake": wake}, f)
     else:
         hw = rdint("/sys/power/suspend_stats/last_hw_sleep")  # µs in S0ix, last suspend
         if hw is not None:
@@ -463,8 +617,6 @@ def cmd_mark(args):
             # which wakeup sources fired while asleep (the lid/power key that ended it too)
             r["woke"] = {k: v - before["wake"].get(k, 0) for k, v in wake.items()
                          if v > before["wake"].get(k, 0)}
-            if s0ix is not None and before.get("s0ix") is not None:
-                r["s0ix"] = s0ix - before["s0ix"]
         except (OSError, ValueError, KeyError):
             pass
     append(d, r)
@@ -522,7 +674,9 @@ def wh(rs, key="w"):
 
 
 def wmean(rs, key):
-    xs = [(r[key], r["dt"]) for r in rs if r.get(key) is not None]
+    """time-weighted mean of a record field (or of key(record), if callable)"""
+    get = key if callable(key) else lambda r: r.get(key)
+    xs = [(get(r), r["dt"]) for r in rs if get(r) is not None]
     t = sum(dt for _, dt in xs)
     return sum(v * dt for v, dt in xs) / t if t else None
 
@@ -596,11 +750,16 @@ def cmd_report(args):
     if not recs and not marks:
         sys.exit(f"no data in {' or '.join(dirs)} yet — is `batlog sample` running?")
     classify(recs)
-    B = [r for r in recs if r.get("st") == "Discharging" and r.get("w") and not r.get("sl")]
+    # (records from before `ac` was logged have no usable battery rate)
+    on_battery = lambda r: r.get("ac") is False
+    B = [r for r in recs if on_battery(r) and r.get("w") and not r.get("sl")]
     day = lambda t: time.strftime("%a %d %b %H:%M", time.localtime(t))
     first = min([r["t"] for r in recs + marks])
     print(f"batlog  {day(first)} → {day(time.time())}\n")
-    full = (rdint(f"{BAT}/energy_full") or 0) / 1e6 or None
+    full = bat_energy("full")
+    gm = lambda k: lambda r: (r.get("gm") or {}).get(k)
+    # share of CPU time in the deepest idle state (states are stored shallowest first)
+    deepest = lambda r: list(r["cst"].values())[-1] if r.get("cst") else None
 
     if B:
         mean_w, med_w = wmean(B, "w"), statistics.median(r["w"] for r in B)
@@ -612,9 +771,11 @@ def cmd_report(args):
         has_pkg = any(r.get("pkg") is not None for r in B)
         if has_pkg:
             p = wmean(B, "pkg")
-            print(f"  SoC package {p:.1f} W (cores {f1(wmean(B, 'core'))}, "
-                  f"uncore/GPU {f1(wmean(B, 'unc'))}) + rest of the laptop {mean_w - p:.1f} W "
-                  f"(display, RAM, SSD, Wi-Fi, conversion losses)"
+            soc, cores, gfx = wmean(B, gm("soc")), wmean(B, gm("cores")), wmean(B, gm("gfx"))
+            split = (f" (cores {cores:.1f}, graphics {gfx:.1f}, rest of the SoC "
+                     f"{soc - cores - gfx:.1f})" if None not in (soc, cores, gfx) else "")
+            print(f"  SoC package {p:.1f} W{split} + rest of the laptop {mean_w - p:.1f} W "
+                  f"(display, RAM, SSD, Wi-Fi, fan, conversion losses)"
                   + (f"; psys reads {wmean(B, 'sys'):.1f} W" if wmean(B, "sys") else ""))
         print()
 
@@ -623,11 +784,11 @@ def cmd_report(args):
         for s in ("active", "idle", "screen off"):
             rs = [r for r in B if r["_s"] == s]
             if rs:
-                deep = [r["pc"].get("pc8", 0) + r["pc"].get("pc10", 0) for r in rs if r.get("pc")]
+                deep = wmean(rs, deepest)
                 rows.append((s + (", screen on" if s == "idle" else ""), hours(rs), wh(rs),
                              wmean(rs, "w"), f1(wmean(rs, "pkg")),
-                             f"{statistics.mean(deep) * 100:.0f}%" if deep else "–"))
-        table(rows, ("", "hours", "Wh", "mean W", "SoC W", "PC8+"), 0)
+                             f"{deep * 100:.0f}%" if deep is not None else "–"))
+        table(rows, ("", "hours", "Wh", "mean W", "SoC W", "deep idle"), 0)
         print()
 
         active = [r for r in B if r["_s"] == "active"]
@@ -669,22 +830,35 @@ def cmd_report(args):
 
         print("While active, by setting")
         edp = lambda r: next((m for m in r.get("mon") or [] if m[0].startswith("eDP")), None)
+        onoff = lambda k: lambda r: None if r.get(k) is None else ("on" if r[k] else "off")
         settings = [
             ("refresh", lambda r: f"{edp(r)[1]} Hz" if edp(r) else None),
+            ("VRR", lambda r: ("on" if edp(r)[4] else "off") if edp(r) and len(edp(r)) > 4 else None),
             ("bit depth", lambda r: f"{edp(r)[2]}-bit" if edp(r) else None),
             ("brightness", lambda r: f"{int(r['bl'] * 4) * 25}–{int(r['bl'] * 4) * 25 + 25}%"
                                      if r.get("bl") is not None else None),
-            ("GPU floor", lambda r: f"{r['gmin']} MHz" if r.get("gmin") else None),
+            ("ABM", lambda r: str(r["abm"]) if r.get("abm") is not None else None),
+            ("keyboard light", lambda r: None if r.get("kbl") is None else ("on" if r["kbl"] else "off")),
+            ("profile", lambda r: r.get("pp")),
             ("EPP", lambda r: r.get("epp")),
+            ("boost", onoff("boost")),
+            ("undervolt", lambda r: f"CO {r['co']}" if r.get("co") else "none"),
             ("ext display", lambda r: "yes" if any(not m[0].startswith("eDP") for m in r.get("mon") or [])
                                       else "no"),
             ("audio out", lambda r: "playing" if r.get("aud") else "silent"),
+            ("microphone", lambda r: "recording" if r.get("mic") else "off"),
             ("BT links", lambda r: str(r.get("bt", 0))),
+            ("Wi-Fi", lambda r: "off" if "wlan" in (r.get("rf") or []) else
+                                ("not connected" if not r.get("wifi") else
+                                 "power save " + ("on" if r["wifi"]["ps"] else "off"))),
+            ("Wi-Fi signal", lambda r: f"{r['wifi']['dbm'] // 10 * 10} dBm"
+                                       if (r.get("wifi") or {}).get("dbm") is not None else None),
+            ("fan", lambda r: None if r.get("fan") is None else ("spinning" if r["fan"] else "stopped")),
         ]
         for name, kf in settings:
             rows = group_rows(active, kf, 0.25)
             if len(rows) > 1:
-                print(f"  {name:12}" + "   ".join(f"{k}: {w:.1f} W ({h:.1f} h)"
+                print(f"  {name:15}" + "   ".join(f"{k}: {w:.1f} W ({h:.1f} h)"
                                                    for k, h, w, *_ in sorted(rows)))
         print("  (these mix in whatever else was running; `batlog ab` isolates one setting)\n")
 
@@ -717,8 +891,8 @@ def cmd_report(args):
         elif pending:
             pairs.append((pending, m))
             pending = None
-    pairs = [(s, w) for s, w in pairs if s.get("st") == "Discharging"
-             and w.get("st") == "Discharging" and w["t"] - s["t"] >= 600]
+    pairs = [(s, w) for s, w in pairs if on_battery(s) and on_battery(w)
+             and None not in (s.get("wh"), w.get("wh")) and w["t"] - s["t"] >= 600]
     susp_w = None
     if pairs:
         h = sum(w["t"] - s["t"] for s, w in pairs) / 3600
@@ -754,13 +928,11 @@ def cmd_report(args):
                          f"({wmean(idle, 'w'):.1f} W). Suspended it would have been "
                          f"~{hours(idle) * sw:.0f} Wh: the idle timeouts only act on battery "
                          f"and yield to idle inhibitors, so check what held them off.")
-        pcs = [r["pc"] for r in idle if r.get("pc")]
-        if pcs:
-            deep = statistics.mean(p.get("pc8", 0) + p.get("pc10", 0) for p in pcs)
-            if deep < 0.5:
-                hints.append(f"Idle with the screen on, the SoC sits in PC8 or deeper only "
-                             f"{deep * 100:.0f}% of the time; something keeps it awake "
-                             f"(check wakeups/s above; NVMe APST is off via the kernel cmdline).")
+        deep = wmean(idle, deepest)
+        if deep is not None and deep < 0.8:
+            hints.append(f"Idle with the screen on, the cores spend only {deep * 100:.0f}% of "
+                         f"their time in their deepest idle state; something keeps waking "
+                         f"them (check wakeups/s above).")
         wk = defaultdict(float)
         for r in idle:
             for a, x in (r.get("apps") or {}).items():
@@ -827,7 +999,7 @@ def cmd_ab(args):
         fb = lambda: subprocess.run(args.b, shell=True, check=True)
     else:
         sys.exit("give a preset (refresh, bitdepth, blur) or both -a and -b")
-    if rd(f"{BAT}/status") != "Discharging" and not args.allow_ac:
+    if ac_online() and not args.allow_ac:
         sys.exit("unplug the charger first: the battery only reports drain while discharging")
     seq = (["a", "b", "b", "a"] * args.rounds)[:2 * args.rounds]  # ABBA cancels drift
     total = len(seq) * (args.settle + args.secs)
@@ -847,9 +1019,9 @@ def cmd_ab(args):
             _, i0 = interrupts(labels)
             e0, t0, ws = rdint(f"{rapl}/energy_uj"), time.monotonic(), []
             while time.monotonic() - t0 < args.secs:
-                w = rdint(f"{BAT}/power_now")
+                w = battery()["w"]
                 if w:
-                    ws.append(w / 1e6)
+                    ws.append(w)
                 time.sleep(1)
             e1, t1 = rdint(f"{rapl}/energy_uj"), time.monotonic()
             _, i1 = interrupts(labels)
@@ -868,7 +1040,7 @@ def cmd_ab(args):
         pa = statistics.mean(p for _, p in res["a"])
         pb = statistics.mean(p for _, p in res["b"])
         print(f"  package: {pa:.2f} W → {pb:.2f} W ({pb - pa:+.2f} W)")
-    full = (rdint(f"{BAT}/energy_full") or 0) / 1e6
+    full = bat_energy("full")
     if full:
         print(f"  a full charge at this load: {full / ma:.1f} h (A) vs {full / mb:.1f} h (B)")
     spread = max(max(x for x, _ in v) - min(x for x, _ in v) for v in res.values())

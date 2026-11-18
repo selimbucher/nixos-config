@@ -10,7 +10,7 @@ in
 lib.mkIf config.deviceConfig.battery {
   environment.systemPackages = [ batlog ];
 
-  # package C-state residency (how deep the SoC idles) is read from MSRs
+  # the CPUs' clock while busy (APERF/MPERF) is read from MSRs
   hardware.cpu.x86.msr.enable = true;
 
   # root: RAPL energy, MSRs and other processes' DRM fdinfo are root-only
@@ -18,6 +18,7 @@ lib.mkIf config.deviceConfig.battery {
   systemd.services.batlog = {
     description = "Battery usage sampler";
     wantedBy = [ "multi-user.target" ];
+    path = [ pkgs.iw ];  # Wi-Fi signal and power save
     serviceConfig = {
       ExecStart = "${batlog}/bin/batlog sample";
       StateDirectory = "batlog";
