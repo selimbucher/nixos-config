@@ -52,7 +52,15 @@ lib.mkIf cfg.battery (lib.mkMerge [
     # the closed laptop then sat awake for half a minute. 3 s: it retries.
     HoldoffTimeoutSec = "3s";
   };
-  systemd.sleep.settings.Sleep.HibernateDelaySec = cfg.hibernateAfter;
+  systemd.sleep.settings.Sleep = {
+    HibernateDelaySec = cfg.hibernateAfter;
+    # Power off like a shutdown once the image is written. In platform mode
+    # (ACPI S4) a wake event in that last step (power button, lid, charger)
+    # rolls the hibernation back, and amdgpu's restore without a power cycle
+    # loses buffers: every GPU client crashed, hyprlock included (kernel 7.2,
+    # 2026-11-17). Here nothing can cancel it after the image is written.
+    HibernateMode = "shutdown";
+  };
 }
 
 # After a hibernation the disk unlock opens the hyprlock left from before
