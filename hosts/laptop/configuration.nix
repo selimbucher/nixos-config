@@ -44,7 +44,10 @@
 
   deviceConfig = {
     monitor = [
-      { output = "eDP-1";    mode = "2880x1920@120"; position = "0x0";        scale = "2"; bitdepth = 10; }
+      # The panel's EDID claims HDR, so Hyprland's auto-HDR switched it to HDR
+      # for fullscreen video: a modeset (black for a second), then a washed-out
+      # picture. Marked SDR, it stays in sRGB.
+      { output = "eDP-1";    mode = "2880x1920@120"; position = "0x0";        scale = "2"; bitdepth = 10; supports_hdr = -1; }
       # the Acer, whichever port it is on (it came up as DP-1 and DP-2 on
       # different boots). Native 2560x1440; a 3840x2160@30 entry gave "input
       # not supported" on a cold boot. Over HDMI the closest refresh is used.
