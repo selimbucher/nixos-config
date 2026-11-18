@@ -94,6 +94,17 @@ let
       # host GUI thread) burn a core on font lookups. Adds a 4-entry
       # re-validated LRU per collection. Upstream-worthy.
       ./patches/dwrite-fontface-lookup-cache.patch
+      # dwrite-family-name-index.patch (ours, 2026-11-17): every family
+      # lookup scanned all family names of the collection (COM string copy +
+      # wcsicmp each), and building a collection looks up the family of each
+      # face, so with ~7800 system faces every new collection cost millions
+      # of compares. Indexes all localized family names in an rb-tree (same
+      # wcsicmp order, first family wins like the scan did). Omnisphere 3
+      # was ~60% of its GUI thread here while loading a patch (REAPER blocks
+      # on it in getState()): patch-browse stalls 2.2-2.4s -> one 0.5s in
+      # 16 clicks; editor open 0.86s -> 0.28s; soothe3 open 2.6s -> 1.8s.
+      # Upstream-worthy.
+      ./patches/dwrite-family-name-index.patch
       # mshtml-feature-browser-emulation.patch (ours, 2026-09-12): native
       # mshtml lets a host pick the default document mode for standards-
       # doctype pages via FeatureControl\FEATURE_BROWSER_EMULATION\<exe>;
