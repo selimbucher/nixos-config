@@ -22,7 +22,14 @@ let
   palette = import ../pkgs/desktop-palette.nix;
   inherit (palette) light dark;
 
-  whitesur = pkgs.callPackage ../pkgs/whitesur-libadwaita.nix { };
+  # Without window blur (deviceConfig.blur) the 96% header bars and sidebars
+  # would show what is behind them unblurred: WhiteSur's solid variant then.
+  solid = !osConfig.deviceConfig.blur;
+  whitesur = pkgs.callPackage ../pkgs/whitesur-libadwaita.nix {
+    opacityVariant = if solid then "solid" else "normal";
+  };
+  # WhiteSur names its solid themes WhiteSur-<Light|Dark>-solid
+  gtkTheme = p: p.gtkTheme + lib.optionalString solid "-solid";
 
   # hover glyphs shared with hyprbars (see home/hyprland/hyprland.nix)
   glyphs = pkgs.callPackage ../pkgs/titlebutton-glyphs.nix { };
@@ -484,7 +491,7 @@ let
   # step with it. Started once per Hyprland session (hyprland/startup.nix);
   # applies the current appearance, then again on every change.
   xsettingsConf = p: ''
-    Net/ThemeName "${p.gtkTheme}"
+    Net/ThemeName "${gtkTheme p}"
     Net/IconThemeName "${p.iconTheme}"
     Gtk/CursorThemeName "Capitaine Cursors - White"
     Net/EnableEventSounds 1
@@ -496,7 +503,7 @@ let
   '';
   applyAppearance = mode: p: ''
     ${mode})
-      want_gtk="'${p.gtkTheme}'"
+      want_gtk="'${gtkTheme p}'"
       want_icons="'${p.iconTheme}'"
       xsettings=${pkgs.writeText "xsettingsd-${mode}.conf" (xsettingsConf p)}
       ;;
@@ -754,7 +761,7 @@ in
 
     # GTK2/GTK3 load the theme by name out of the package (both appearances).
     theme = {
-      name = light.gtkTheme;
+      name = gtkTheme light;
       package = whitesur;
     };
 
@@ -777,7 +784,7 @@ in
     # nothing in a libadwaita process (see pkgs/whitesur-libadwaita.nix). The
     # name still goes into settings.ini for plain (non-Adwaita) GTK4 apps.
     gtk4.theme = {
-      name = light.gtkTheme;
+      name = gtkTheme light;
       package = null;
     };
 

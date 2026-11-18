@@ -55,9 +55,10 @@
       # scale 1 for the apps' room; kiwi sizes itself for it (1.25)
       { output = "desc:Acer Technologies KG271U TATEE0028511"; mode = "2560x1440@70"; position = "-560x-1440"; scale = "1"; }
     ];
-    # WhiteSur renders header bars and sidebars at 96% opacity; without blur
-    # behind them that reads as a muddy wallpaper tint rather than vibrancy.
-    blur = true;
+    # Window blur off: Hyprland redoes it behind every translucent pixel on
+    # each frame anything beneath changes (~3 W on an animated page). WhiteSur
+    # goes solid with it (home/theme.nix); kiwi's glass has its own switch.
+    blur = false;
     shadow = true;
     scale = 2.0;
     jackBufferSize = 128;
