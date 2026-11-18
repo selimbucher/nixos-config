@@ -185,6 +185,15 @@ let
       # range): ~40% of its GUI thread in VirtualAlloc/VirtualFree and
       # zero-fill faults. Keeps up to 1 MB committed, decommits from 2 MB.
       ./patches/ntdll-heap-decommit-slack.patch
+      # sc-delayed-auto.patch (ours, 2026-11-17): sc.exe didn't know
+      # "start= delayed-auto" and silently created the service as demand
+      # start. The NTKDaemon installer runs
+      # `sc create NTKDaemonService ... start= delayed-auto`, so the daemon
+      # never started on its own and Kontakt 8 waited 2 s for it on every
+      # editor close (0.45 s with the daemon running). Now auto start plus
+      # SERVICE_CONFIG_DELAYED_AUTO_START_INFO, like Windows' sc.exe.
+      # Upstream bug.
+      ./patches/sc-delayed-auto.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''

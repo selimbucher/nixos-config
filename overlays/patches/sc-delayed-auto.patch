@@ -1,0 +1,49 @@
+--- a/programs/sc/sc.c
++++ b/programs/sc/sc.c
+@@ -59,6 +59,7 @@
+     DWORD start;
+     DWORD error;
+     BOOL tag;
++    BOOL delayed;
+ };
+ 
+ static BOOL parse_create_params( int argc, const WCHAR *argv[], struct create_params *cp )
+@@ -68,6 +69,7 @@
+     cp->displayname = NULL;
+     cp->type        = SERVICE_WIN32_OWN_PROCESS;
+     cp->start       = SERVICE_DEMAND_START;
++    cp->delayed     = FALSE;
+     cp->error       = SERVICE_ERROR_NORMAL;
+     cp->binpath     = NULL;
+     cp->group       = NULL;
+@@ -112,6 +114,11 @@
+             if (!wcsicmp( start, L"boot" )) cp->start = SERVICE_BOOT_START;
+             else if (!wcsicmp( start, L"system" )) cp->start = SERVICE_SYSTEM_START;
+             else if (!wcsicmp( start, L"auto" )) cp->start = SERVICE_AUTO_START;
++            else if (!wcsicmp( start, L"delayed-auto" ))
++            {
++                cp->start = SERVICE_AUTO_START;
++                cp->delayed = TRUE;
++            }
+             else if (!wcsicmp( start, L"demand" )) cp->start = SERVICE_DEMAND_START;
+             else if (!wcsicmp( start, L"disabled" )) cp->start = SERVICE_DISABLED;
+             continue;
+@@ -311,8 +318,17 @@
+                                   cp.depend, cp.obj, cp.password );
+         if (service)
+         {
+-            CloseServiceHandle( service );
+             ret = ERROR_SUCCESS;
++            if (cp.delayed)
++            {
++                SERVICE_DELAYED_AUTO_START_INFO info = { TRUE };
++                if (!ChangeServiceConfig2W( service, SERVICE_CONFIG_DELAYED_AUTO_START_INFO, &info ))
++                {
++                    ret = GetLastError();
++                    WINE_ERR("failed to set delayed auto-start %lu\n", ret);
++                }
++            }
++            CloseServiceHandle( service );
+         }
+         else
+         {
