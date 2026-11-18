@@ -4,6 +4,7 @@
   imports = [
     ../../options.nix
     ./hardware-configuration.nix
+    ./curve-optimizer.nix
     ../../common.nix
   ];
 
