@@ -86,12 +86,15 @@ in
       # compositor (pkgs/hyprbars-dispatch-actions.patch), and to end a
       # title-bar drag wherever the button is let go: over a panel or the
       # dock the window stayed stuck to the pointer
-      # (pkgs/hyprbars-drag-release.patch).
+      # (pkgs/hyprbars-drag-release.patch), and to drag a window by its bar
+      # with a finger as with the pointer, without floating, pinning or
+      # tiling it (pkgs/hyprbars-touch-drag.patch).
       (pkgs.hyprlandPlugins.hyprbars.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ../../pkgs/hyprbars-svg-icons.patch
           ../../pkgs/hyprbars-dispatch-actions.patch
           ../../pkgs/hyprbars-drag-release.patch
+          ../../pkgs/hyprbars-touch-drag.patch
         ];
       }))
       # Apps' own minimize buttons and windows opening where they were left

@@ -1,0 +1,141 @@
+--- a/barDeco.cpp
++++ b/barDeco.cpp
+@@ -32,6 +32,7 @@
+ #include <hyprland/src/protocols/LayerShell.hpp>
+ #include <hyprland/src/event/EventBus.hpp>
+ #include <hyprland/src/layout/LayoutManager.hpp>
++#include <hyprland/src/pointer/PointerController.hpp>
+ #include <hyprland/src/render/OpenGL.hpp>
+ #include <hyprland/src/state/MonitorState.hpp>
+ #include <hyprland/src/ipc/s1/S1.hpp>
+@@ -103,14 +104,14 @@ std::string CHyprBar::getDisplayName() {
+     return "Hyprbar";
+ }
+ 
+-bool CHyprBar::inputIsValid() {
++bool CHyprBar::inputIsValid(std::optional<Vector2D> at) {
+     if (!g_pGlobalState->config.enabled->value() || m_hidden)
+         return false;
+ 
+     if (g_pSeatManager->m_seatGrab && !g_pSeatManager->m_seatGrab->accepts(m_pWindow->wlSurface()->resource()))
+         return false;
+ 
+-    const auto MOUSE    = g_pInputManager->getMouseCoordsInternal();
++    const auto MOUSE    = at.value_or(g_pInputManager->getMouseCoordsInternal());
+     auto       PMONITOR = Desktop::focusState()->monitor();
+ 
+     if (!PMONITOR)
+@@ -160,9 +161,23 @@ void CHyprBar::onMouseButton(Event::SCallbackInfo& info, IPointer::SButtonEvent
+ 
+ void CHyprBar::onTouchDown(Event::SCallbackInfo& info, ITouch::SDownEvent e) {
+     // Don't do anything if you're already grabbed a window with another finger
+-    if (!inputIsValid() || e.touchID != 0)
++    if (e.touchID != 0)
+         return;
+ 
++    // a touchscreen's positions are fractions of the display it is bound to,
++    // else of the focused one (as Hyprland maps them)
++    auto PMONITOR = State::monitorState()->query().name(e.device->m_boundOutput).run();
++    PMONITOR      = PMONITOR ? PMONITOR : Desktop::focusState()->monitor();
++    if (!PMONITOR)
++        return;
++
++    // (the finger, not the pointer, says which bar it is on)
++    const auto POS = PMONITOR->m_position + e.pos * PMONITOR->m_size;
++    if (!inputIsValid(POS))
++        return;
++
++    m_touchMonitor = PMONITOR;
++    m_touchDownPos = POS;
+     handleDownEvent(info, e);
+ }
+ 
+@@ -201,15 +216,21 @@ void CHyprBar::onTouchMove(Event::SCallbackInfo& info, ITouch::SMotionEvent e) {
+     if (!m_bDragPending || !m_bTouchEv || !validMapped(m_pWindow) || e.touchID != m_touchId)
+         return;
+ 
+-    if (!m_bDraggingThis) {
+-        // Initial setup for dragging a window.
+-        (void)Config::Actions::floatWindow(Config::Actions::eTogglableAction::TOGGLE_ACTION_ENABLE, m_pWindow.lock());
+-        // Pin it so you can change workspaces while dragging a window
+-        (void)Config::Actions::pinWindow(Config::Actions::eTogglableAction::TOGGLE_ACTION_ENABLE, m_pWindow.lock());
++    const auto PMONITOR = m_touchMonitor.lock();
++    if (!PMONITOR)
++        return;
+ 
+-        g_layoutManager->beginDragTarget(m_pWindow.lock()->layoutTarget(), MBIND_MOVE);
+-        m_bDraggingThis = true;
++    // A finger drags the window as the pointer does. Hyprland moves a dragged
++    // window by the pointer alone, so the pointer follows the finger, from
++    // where the finger landed.
++    if (!m_bDraggingThis) {
++        Pointer::pointerController()->warpTo(m_touchDownPos, true);
++        handleMovement();
+     }
++
++    Pointer::pointerController()->warpTo(PMONITOR->m_position + e.pos * PMONITOR->m_size, true);
++    g_pInputManager->simulateMouseMovement();
++    info.cancelled = true;
+ }
+ 
+ void CHyprBar::handleDownEvent(Event::SCallbackInfo& info, std::optional<ITouch::SDownEvent> touchEvent) {
+@@ -219,19 +240,7 @@ void CHyprBar::handleDownEvent(Event::SCallbackInfo& info, std::optional<ITouch:
+ 
+     const auto PWINDOW = m_pWindow.lock();
+ 
+-    auto       COORDS = cursorRelativeToBar();
+-    if (m_bTouchEv) {
+-        ITouch::SDownEvent e        = touchEvent.value();
+-        PHLMONITOR         PMONITOR = nullptr;
+-        for (auto& m : State::monitorState()->monitors()) {
+-            if (m->m_name == (!e.device->m_boundOutput.empty() ? e.device->m_boundOutput : "")) {
+-                PMONITOR = m;
+-                break;
+-            }
+-        }
+-        PMONITOR = PMONITOR ? PMONITOR : Desktop::focusState()->monitor();
+-        COORDS   = Vector2D(PMONITOR->m_position.x + e.pos.x * PMONITOR->m_size.x, PMONITOR->m_position.y + e.pos.y * PMONITOR->m_size.y) - assignedBoxGlobal().pos();
+-    }
++    const auto COORDS = m_bTouchEv ? m_touchDownPos - assignedBoxGlobal().pos() : cursorRelativeToBar();
+ 
+     const auto HEIGHT           = g_pGlobalState->config.barHeight->value();
+     const auto BARBUTTONPADDING = g_pGlobalState->config.barButtonPadding->value();
+@@ -244,8 +253,6 @@ void CHyprBar::handleDownEvent(Event::SCallbackInfo& info, std::optional<ITouch:
+     if (!VECINRECT(COORDS, 0, 0, assignedBoxGlobal().w, HEIGHT - 1)) {
+ 
+         if (m_bDraggingThis) {
+-            if (m_bTouchEv)
+-                (void)Config::Actions::floatWindow(Config::Actions::eTogglableAction::TOGGLE_ACTION_DISABLE);
+             g_layoutManager->endDragTarget();
+             LOG(Log::DEBUG, "[hyprbars] Dragging ended on {:x}", (uintptr_t)PWINDOW.get());
+         }
+@@ -296,8 +303,6 @@ void CHyprBar::handleUpEvent(Event::SCallbackInfo& info) {
+     if (m_bDraggingThis) {
+         g_layoutManager->endDragTarget();
+         m_bDraggingThis = false;
+-        if (m_bTouchEv)
+-            (void)Config::Actions::floatWindow(Config::Actions::eTogglableAction::TOGGLE_ACTION_DISABLE);
+ 
+         LOG(Log::DEBUG, "[hyprbars] Dragging ended on {:x}", (uintptr_t)m_pWindow.lock().get());
+     }
+--- a/barDeco.hpp
++++ b/barDeco.hpp
+@@ -89,7 +89,8 @@ class CHyprBar : public IHyprWindowDecoration {
+     void renderBarButtonsText(Render::CRenderContext& ctx, CBox* barBox, const float scale, const float a);
+     void damageOnButtonHover();
+ 
+-    bool inputIsValid();
++    // at the pointer, or at a finger
++    bool inputIsValid(std::optional<Vector2D> at = std::nullopt);
+     void onMouseButton(Event::SCallbackInfo& info, IPointer::SButtonEvent e);
+     void onTouchDown(Event::SCallbackInfo& info, ITouch::SDownEvent e);
+     void onTouchUp(Event::SCallbackInfo& info, ITouch::SUpEvent e);
+@@ -118,6 +119,8 @@ class CHyprBar : public IHyprWindowDecoration {
+     bool                m_bDragPending   = false;
+     bool                m_bCancelledDown = false;
+     int                 m_touchId        = 0;
++    PHLMONITORREF       m_touchMonitor;
++    Vector2D            m_touchDownPos;
+ 
+     // store hover state for buttons as a bitfield
+     unsigned int m_iButtonHoverState = 0;
