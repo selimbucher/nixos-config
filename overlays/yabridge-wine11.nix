@@ -177,6 +177,14 @@ let
       # call made under the mutex, so the dying thread releases it.
       # Upstream bug.
       ./patches/ntdll-abort-thread-fd-cache-mutex.patch
+      # ntdll-heap-decommit-slack.patch (ours, 2026-11-16): freeing the last
+      # block of a subheap decommitted everything past it plus 64k, so a loop
+      # that allocates and frees a block at the end of a subheap committed and
+      # decommitted the same pages every iteration. Absynth 6's editor did
+      # that ~3500 times/s (strace: mprotect RW + mmap PROT_NONE on one 64k
+      # range): ~40% of its GUI thread in VirtualAlloc/VirtualFree and
+      # zero-fill faults. Keeps up to 1 MB committed, decommits from 2 MB.
+      ./patches/ntdll-heap-decommit-slack.patch
     ];
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''

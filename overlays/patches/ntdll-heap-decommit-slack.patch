@@ -1,0 +1,33 @@
+--- a/dlls/ntdll/heap.c
++++ b/dlls/ntdll/heap.c
+@@ -81,6 +81,12 @@
+ 
+ #define INITIAL_COMMIT_ALIGN  (0x400 * sizeof(void *))
+ #define REGION_ALIGN  0x10000
++
++/* Free space at the end of a subheap stays committed up to this size, and is
++ * only decommitted once there is twice as much. A smaller slack makes a loop
++ * that allocates and frees a block at the end of a subheap commit and
++ * decommit the same pages on every iteration. */
++#define HEAP_DECOMMIT_SLACK  0x100000
+ #define BLOCK_ALIGN   (2 * sizeof(void *))
+ 
+ struct DECLSPEC_ALIGN(8) block
+@@ -835,6 +841,7 @@
+     commit_end = ROUND_ADDR( (char *)commit_end + REGION_ALIGN - 1, REGION_ALIGN - 1 );
+     if (subheap == &heap->subheap) commit_end = max( (char *)commit_end, (char *)base + heap->min_size );
+     if (commit_end >= subheap_commit_end( subheap )) return TRUE;
++    if ((char *)subheap_commit_end( subheap ) - (char *)commit_end < HEAP_DECOMMIT_SLACK) return TRUE;
+ 
+     size = (char *)subheap_commit_end( subheap ) - (char *)commit_end;
+     addr = (void *)commit_end;
+@@ -945,8 +952,7 @@
+     block_init_free( block, flags, subheap, block_size );
+     insert_free_block( heap, flags, subheap, block );
+ 
+-    /* keep room for a full committed block as hysteresis */
+-    if (!next) subheap_decommit( heap, subheap, (char *)((struct entry *)block + 1) + REGION_ALIGN );
++    if (!next) subheap_decommit( heap, subheap, (char *)((struct entry *)block + 1) + HEAP_DECOMMIT_SLACK );
+ 
+     /* Note: interior free block MEM_RESET (MADV_FREE) was tested here but has no effect.
+      * Free blocks are reused within milliseconds — the kernel never gets a chance to
