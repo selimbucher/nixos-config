@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] winebth.sys: Create device nodes only for paired devices.
+
+Every remote device BlueZ reported got a permanent Enum\WINEBTH key with
+property subkeys (968 devices and 5826 keys in one prefix). Each new one
+dirtied system.reg, which wineserver then rewrote (22 MB, ~1 s with the
+whole prefix blocked) every 30 s. As on Windows, only paired devices get a
+device node; a reported device stays reported until BlueZ removes it, so
+unpairing never takes the PnP removal path.
+---
+ dlls/winebth.sys/winebth.c | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/winebth.sys/winebth.c b/dlls/winebth.sys/winebth.c
+index 21bcdaa0b048d2fdce25059b2bb023826b9302d2..a4f38ad096c03a1c74133837537f1bd10b60cf52 100644
+--- a/dlls/winebth.sys/winebth.c
++++ b/dlls/winebth.sys/winebth.c
+@@ -101,6 +101,9 @@ struct bluetooth_remote_device
+     struct winebluetooth_device_properties props; /* Guarded by props_cs */
+     BOOL started; /* Whether the device has been started. Guarded by props_cs */
+     BOOL removed;
++    /* Whether the device is in the radio's bus relations. Like on Windows, only paired devices get a
++     * device node; a device stays reported until it is removed. Guarded by device_list_cs */
++    BOOL reported;
+ 
+     BOOL le; /* Guarded by props_cs */
+     UNICODE_STRING bthle_symlink_name; /* Guarded by props_cs */
+@@ -1042,6 +1045,7 @@ static void bluetooth_radio_add_remote_device( struct winebluetooth_watcher_even
+             ext->remote_device.props_mask = event.known_props_mask;
+             ext->remote_device.props = event.props;
+             ext->remote_device.removed = FALSE;
++            ext->remote_device.reported = FALSE;
+             ext->remote_device.started = FALSE;
+ 
+             ext->remote_device.le = FALSE;
+@@ -1219,9 +1223,15 @@ static void bluetooth_radio_update_device_props( struct winebluetooth_watcher_ev
+                 if (event.changed_props_mask & WINEBLUETOOTH_DEVICE_PROPERTY_CLASS)
+                     device->props.class = event.props.class;
+                 winebluetooth_device_properties_to_info( device->props_mask, &device->props, &device_new_info );
+-                bluetooth_device_set_properties( device, adapter_addr.rgBytes, &device->props, device->props_mask );
++                /* IRP_MN_START_DEVICE sets them on devices that aren't started yet. */
++                if (device->started)
++                    bluetooth_device_set_properties( device, adapter_addr.rgBytes, &device->props, device->props_mask );
+                 LeaveCriticalSection( &device->props_cs );
+ 
++                if (!device->reported && (event.changed_props_mask & WINEBLUETOOTH_DEVICE_PROPERTY_PAIRED) &&
++                    event.props.paired && radio->started)
++                    IoInvalidateDeviceRelations( radio->device_obj, BusRelations );
++
+                 device_old_flags = old_info.flags;
+                 goto done;
+             }
+@@ -2210,6 +2220,14 @@ static NTSTATUS WINAPI radio_pdo_pnp( DEVICE_OBJECT *device_obj, struct bluetoot
+             }
+             LIST_FOR_EACH_ENTRY( remote_device, &device->remote_devices, struct bluetooth_remote_device, entry )
+             {
++                if (!remote_device->reported)
++                {
++                    EnterCriticalSection( &remote_device->props_cs );
++                    remote_device->reported = (remote_device->props_mask & WINEBLUETOOTH_DEVICE_PROPERTY_PAIRED) &&
++                                              remote_device->props.paired;
++                    LeaveCriticalSection( &remote_device->props_cs );
++                    if (!remote_device->reported) continue;
++                }
+                 devices->Objects[i++] = remote_device->device_obj;
+                 call_fastcall_func1( ObfReferenceObject, remote_device->device_obj );
+             }
