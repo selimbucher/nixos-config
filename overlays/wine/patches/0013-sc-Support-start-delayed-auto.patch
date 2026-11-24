@@ -1,6 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] sc: Support start= delayed-auto.
+
+sc.exe did not know "start= delayed-auto" and created such services as
+demand start. The NTKDaemon installer runs
+`sc create NTKDaemonService ... start= delayed-auto`, so the daemon never
+started by itself and Kontakt 8 waited 2 s for it on every editor close
+(0.45 s with the daemon running). Now auto start plus
+SERVICE_CONFIG_DELAYED_AUTO_START_INFO, as Windows' sc.exe does.
+---
+ programs/sc/sc.c | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/programs/sc/sc.c b/programs/sc/sc.c
+index 7c271a6aa8e5b7b5e8628dde59c98ac0840cbe59..fbbbbe0d4a8853230736b1b122209e05ada2e2f1 100644
 --- a/programs/sc/sc.c
 +++ b/programs/sc/sc.c
-@@ -59,6 +59,7 @@
+@@ -59,6 +59,7 @@ struct create_params
      DWORD start;
      DWORD error;
      BOOL tag;
@@ -8,7 +25,7 @@
  };
  
  static BOOL parse_create_params( int argc, const WCHAR *argv[], struct create_params *cp )
-@@ -68,6 +69,7 @@
+@@ -68,6 +69,7 @@ static BOOL parse_create_params( int argc, const WCHAR *argv[], struct create_pa
      cp->displayname = NULL;
      cp->type        = SERVICE_WIN32_OWN_PROCESS;
      cp->start       = SERVICE_DEMAND_START;
@@ -16,7 +33,7 @@
      cp->error       = SERVICE_ERROR_NORMAL;
      cp->binpath     = NULL;
      cp->group       = NULL;
-@@ -112,6 +114,11 @@
+@@ -112,6 +114,11 @@ static BOOL parse_create_params( int argc, const WCHAR *argv[], struct create_pa
              if (!wcsicmp( start, L"boot" )) cp->start = SERVICE_BOOT_START;
              else if (!wcsicmp( start, L"system" )) cp->start = SERVICE_SYSTEM_START;
              else if (!wcsicmp( start, L"auto" )) cp->start = SERVICE_AUTO_START;
@@ -28,7 +45,7 @@
              else if (!wcsicmp( start, L"demand" )) cp->start = SERVICE_DEMAND_START;
              else if (!wcsicmp( start, L"disabled" )) cp->start = SERVICE_DISABLED;
              continue;
-@@ -311,8 +318,17 @@
+@@ -311,8 +318,17 @@ int __cdecl wmain( int argc, const WCHAR *argv[] )
                                    cp.depend, cp.obj, cp.password );
          if (service)
          {

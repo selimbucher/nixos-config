@@ -9,10 +9,6 @@ let
     # the systemd user service's minimal PATH.
     export PATH=${lib.makeBinPath [ pkgs.gdb pkgs.iproute2 ]}:"$PATH"
   '' + builtins.readFile (src + "/reaper-rescue.sh"));
-  reaperCrashwatch = pkgs.writeShellScriptBin "reaper-crashwatch" (''
-    # the wedge watchdog invokes reaper-rescue --capture-only
-    export PATH=${reaperRescue}/bin:"$PATH"
-  '' + builtins.readFile (src + "/reaper-crashwatch.sh"));
   reaperLogged = pkgs.writeShellScriptBin "reaper-logged"
     (builtins.readFile (src + "/reaper-logged.sh"));
   # Runs during home-manager activation, where PATH is minimal.
@@ -23,28 +19,10 @@ in
 {
   home.packages = [
     reaperRescue
-    reaperCrashwatch
     reaperLogged
     reaperAutosaveFix
     pkgs.gdb # live backtraces in reaper-rescue + `coredumpctl debug` on stored cores
   ];
-
-  # Auto-collect a diagnostic bundle into ~/reaper-crashlogs/ whenever
-  # REAPER, wine or a yabridge host dumps core.
-  # Restart=always, not on-failure: systemd counts SIGTERM as a *clean* exit, so
-  # on-failure did not restart it. On 2026-08-24 23:56 something TERMed the
-  # watcher seconds before REAPER started; it stayed dead all session and the
-  # 01:03 freeze went completely uncaptured. A watchdog that can silently stop
-  # watching is worse than none.
-  systemd.user.services.reaper-crashwatch = {
-    Unit.Description = "Auto-collect diagnostics when REAPER, wine or yabridge dumps core";
-    Service = {
-      ExecStart = "${reaperCrashwatch}/bin/reaper-crashwatch";
-      Restart = "always";
-      RestartSec = 5;
-    };
-    Install.WantedBy = [ "default.target" ];
-  };
 
   # Antares plugins (yabridge, ~/.wine-antares) embed a WIBU CodeMeter license
   # client that tries 127.0.0.1:22350 (the CodeMeter Runtime service, which was

@@ -1,8 +1,23 @@
-wineserver: batch inproc mutex abandonment to avoid O(mutexes) ioctl storms on every thread exit.
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:20 +0100
+Subject: [PATCH] server: Batch abandonment of inproc mutexes on thread exit.
 
+With ntsync, every thread exit ran NTSYNC_IOC_MUTEX_KILL on every live
+mutex of the process (abandon_inproc_mutexes). Omnisphere joins ~7000
+short-lived threads per patch load against 3000+ mutexes: ~34 s of pegged
+wineserver while REAPER waits. Dead thread ids are now batched (at most
+128; a thread id is reused only after 256 frees) and flushed with one
+pass over the mutexes every 250 ms.
+---
+ server/inproc_sync.c | 69 ++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 67 insertions(+), 2 deletions(-)
+
+diff --git a/server/inproc_sync.c b/server/inproc_sync.c
+index 522d9a4e3201705db0842c0e0ec156d53536e236..7b21d7d73c76fdca61f82e5da8ea778c64a10d5e 100644
 --- a/server/inproc_sync.c
 +++ b/server/inproc_sync.c
-@@ -198,12 +198,77 @@
+@@ -198,12 +198,77 @@ static void inproc_sync_destroy( struct object *obj )
      close( sync->fd );
  }
  

@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <selim.bucher@slimmer.ch>
+Date: Tue, 24 Nov 2026 16:46:44 +0100
+Subject: [PATCH] dxcore: Report D3D attributes and the IsIntegrated property.
+
+IsAttributeSupported() returned FALSE for every attribute, so Photoshop's
+GPU check (LibXPUInfo) treated the adapter as having no Direct3D support
+and never created a D3D12 device. It also failed the IsIntegrated query
+and gave up on the adapter.
+
+wined3d adapters can back d3d11 and d3d12 devices, so report the D3D11
+graphics, D3D12 graphics and D3D12 core compute attributes. wined3d does
+not expose whether an adapter is integrated; guess it from the PCI
+vendor.
+---
+ dlls/dxcore/dxcore.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/dxcore/dxcore.c b/dlls/dxcore/dxcore.c
+index 1f7ebc3e83139ae28843094a7b13b3f6929580b6..a7afdaaab80d126e3030149b6b3c7a139563d560 100644
+--- a/dlls/dxcore/dxcore.c
++++ b/dlls/dxcore/dxcore.c
+@@ -91,7 +91,15 @@ static BOOL STDMETHODCALLTYPE dxcore_adapter_IsValid(IDXCoreAdapter *iface)
+ 
+ static BOOL STDMETHODCALLTYPE dxcore_adapter_IsAttributeSupported(IDXCoreAdapter *iface, REFGUID attribute)
+ {
+-    FIXME("iface %p, attribute %s stub!\n", iface, debugstr_guid(attribute));
++    TRACE("iface %p, attribute %s.\n", iface, debugstr_guid(attribute));
++
++    /* Every adapter wined3d enumerates can back d3d11 and d3d12 devices. */
++    if (IsEqualGUID(attribute, &DXCORE_ADAPTER_ATTRIBUTE_D3D11_GRAPHICS)
++            || IsEqualGUID(attribute, &DXCORE_ADAPTER_ATTRIBUTE_D3D12_GRAPHICS)
++            || IsEqualGUID(attribute, &DXCORE_ADAPTER_ATTRIBUTE_D3D12_CORE_COMPUTE))
++        return TRUE;
++
++    FIXME("Unhandled attribute %s.\n", debugstr_guid(attribute));
+     return FALSE;
+ }
+ 
+@@ -120,6 +128,7 @@ static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
+         [DedicatedSystemMemory] = sizeof(UINT64),
+         [SharedSystemMemory] = sizeof(UINT64),
+         [IsHardware] = sizeof(BYTE),
++        [IsIntegrated] = sizeof(BYTE),
+         [IsDetachable] = sizeof(BYTE),
+     };
+ 
+@@ -132,6 +141,7 @@ static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
+         case DedicatedSystemMemory:
+         case SharedSystemMemory:
+         case IsHardware:
++        case IsIntegrated:
+         case IsDetachable:
+             *size = property_sizes[property];
+             return S_OK;
+@@ -207,6 +217,13 @@ static HRESULT STDMETHODCALLTYPE dxcore_adapter_GetProperty(IDXCoreAdapter *ifac
+             *(BYTE *)buffer = 1;
+             break;
+ 
++        case IsIntegrated:
++            /* wined3d does not tell integrated from discrete adapters; Intel
++             * adapters are integrated far more often than not. */
++            FIXME("Guessing IsIntegrated from the PCI vendor.\n");
++            *(BYTE *)buffer = adapter->identifier.vendor_id == 0x8086;
++            break;
++
+         case IsDetachable:
+             /* Wine does not model removable adapters. */
+             FIXME("Returning FALSE for IsDetachable.\n");

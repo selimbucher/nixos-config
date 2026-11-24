@@ -1,6 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] ntdll: Keep some committed memory at the end of a subheap.
+
+Freeing the last block of a subheap decommitted everything past it plus
+64k, so a loop that allocates and frees a block at the end of a subheap
+committed and decommitted the same pages on every iteration. Absynth 6's
+editor did that ~3500 times per second (~40% of its GUI thread in
+VirtualAlloc/VirtualFree and zero-fill faults; editor open 1-14 s ->
+~1 s). Up to 1 MB stays committed; decommitting starts at 2 MB.
+---
+ dlls/ntdll/heap.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/ntdll/heap.c b/dlls/ntdll/heap.c
+index c971624f5997dcab7da3393cec4bf1d40d4f1f58..87d3c09b3a6d11fe4dd706f98d9180d6c41d204a 100644
 --- a/dlls/ntdll/heap.c
 +++ b/dlls/ntdll/heap.c
-@@ -81,6 +81,12 @@
+@@ -81,6 +81,12 @@ struct rtl_heap_entry
  
  #define INITIAL_COMMIT_ALIGN  (0x400 * sizeof(void *))
  #define REGION_ALIGN  0x10000
@@ -13,7 +30,7 @@
  #define BLOCK_ALIGN   (2 * sizeof(void *))
  
  struct DECLSPEC_ALIGN(8) block
-@@ -835,6 +841,7 @@
+@@ -836,6 +842,7 @@ static inline BOOL subheap_decommit( const struct heap *heap, SUBHEAP *subheap,
      commit_end = ROUND_ADDR( (char *)commit_end + REGION_ALIGN - 1, REGION_ALIGN - 1 );
      if (subheap == &heap->subheap) commit_end = max( (char *)commit_end, (char *)base + heap->min_size );
      if (commit_end >= subheap_commit_end( subheap )) return TRUE;
@@ -21,7 +38,7 @@
  
      size = (char *)subheap_commit_end( subheap ) - (char *)commit_end;
      addr = (void *)commit_end;
-@@ -945,8 +952,7 @@
+@@ -946,8 +953,7 @@ static NTSTATUS heap_free_block( struct heap *heap, ULONG flags, struct block *b
      block_init_free( block, flags, subheap, block_size );
      insert_free_block( heap, flags, subheap, block );
  

@@ -60,13 +60,15 @@ in
     # is the only wine there.
     wine
 
-    # Installs wine-gecko (32+64) and wine-mono into a prefix. Run once per
-    # prefix (and again after a nixpkgs wine bump changes the MSI versions):
+    # Installs wine-gecko (32+64) and wine-mono into a prefix:
     #   WINEPREFIX=~/.wine-ni wine-install-addons
-    # Needed because wine here is the stock cached build without
-    # embedInstallers, so wineboot has no MSIs to auto-install on prefix
-    # creation. Dropping the MSIs in ~/.cache/wine did NOT work (wineboot -u
-    # ignored them); direct msiexec /i is the verified method.
+    # Only needed without deviceConfig.wineFork: the fork is built with
+    # embedInstallers (overlays/yabridge-wine11.nix) and wineboot installs
+    # them itself. The stock cached wine-staging has no MSIs to auto-install;
+    # run this once per prefix there (and again after a nixpkgs wine bump
+    # changes the MSI versions). Dropping the MSIs in ~/.cache/wine did NOT
+    # work (wineboot -u ignored them); direct msiexec /i is the verified
+    # method.
     (writeShellScriptBin "wine-install-addons" ''
       set -eu
       : "''${WINEPREFIX:?set WINEPREFIX to the target prefix, e.g. ~/.wine-ni}"

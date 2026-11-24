@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sun, 22 Nov 2026 14:59:06 +0100
+Subject: [PATCH] ntdll: Fail short TokenLinkedToken queries with
+ STATUS_INFO_LENGTH_MISMATCH.
+
+The wow64 thunk ignored the buffer length and wrote the linked token
+handle into the caller's buffer, so a size query with a NULL buffer
+faulted and failed with ERROR_NOACCESS. AdobeUpdateService.exe asks for
+the size first and only accepts ERROR_BAD_LENGTH, as on Windows. It
+then couldn't start Adobe's elevated installer and Creative Cloud stayed
+on "Initializing".
+---
+ dlls/ntdll/unix/security.c | 2 +-
+ dlls/wow64/security.c      | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/ntdll/unix/security.c b/dlls/ntdll/unix/security.c
+index 9635d0547538990a4c5ef9fb39719d8c7127fc06..bd264cb3f05fcce85387f5b25dd5419cfe17e917 100644
+--- a/dlls/ntdll/unix/security.c
++++ b/dlls/ntdll/unix/security.c
+@@ -373,7 +373,7 @@ NTSTATUS WINAPI NtQueryInformationToken( HANDLE token, TOKEN_INFORMATION_CLASS c
+ 
+     if (class < ARRAY_SIZE(info_len)) len = info_len[class];
+     if (retlen) *retlen = len;
+-    if (length < len) return STATUS_BUFFER_TOO_SMALL;
++    if (length < len) return class == TokenLinkedToken ? STATUS_INFO_LENGTH_MISMATCH : STATUS_BUFFER_TOO_SMALL;
+ 
+     switch (class)
+     {
+diff --git a/dlls/wow64/security.c b/dlls/wow64/security.c
+index 331e2978cdd69f67f1e880cc254227502c3298ae..ef7e4a0a621bd64269aa03e00068a821b10521b3 100644
+--- a/dlls/wow64/security.c
++++ b/dlls/wow64/security.c
+@@ -539,9 +539,10 @@ NTSTATUS WINAPI wow64_NtQueryInformationToken( UINT *args )
+     {
+         TOKEN_LINKED_TOKEN link;
+ 
++        if (retlen) *retlen = sizeof(ULONG);
++        if (len < sizeof(ULONG)) return STATUS_INFO_LENGTH_MISMATCH;
+         status = NtQueryInformationToken( handle, class, &link, sizeof(link), &ret_size );
+         if (!status) *(ULONG *)info = HandleToLong( link.LinkedToken );
+-        if (retlen) *retlen = sizeof(ULONG);
+         return status;
+     }
+ 

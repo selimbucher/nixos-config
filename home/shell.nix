@@ -1,6 +1,8 @@
 { inputs, config, pkgs, lib, hostName, ... }:
 {
   home.shellAliases = {
+    nice-rebuild = "nice sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
+    nrb = "nice sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
     rebuild = "sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
     rb      = "sudo SSH_AUTH_SOCK=$SSH_AUTH_SOCK nixos-rebuild switch --flake ${config.home.homeDirectory}/.nixos#${hostName}";
     nu      = "nix flake update";

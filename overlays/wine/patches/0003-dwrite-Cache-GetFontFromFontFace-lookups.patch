@@ -1,11 +1,25 @@
-dwrite: cache GetFontFromFontFace lookups (JUCE D2D text resolves the collection font per text draw; the full-collection scan dominated UI-thread CPU in Absynth 6's preset browser).
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] dwrite: Cache GetFontFromFontFace() lookups.
 
+GetFontFromFontFace() scans the whole collection (a reference key compare
+per candidate) and JUCE's Direct2D text path calls it on every text draw;
+busy plug-in editors (Absynth 6's preset browser) spent 25-30% of their GUI
+thread there. Adds a 4-entry LRU per collection; every hit is re-validated
+against the font data before it is used.
+---
+ dlls/dwrite/font.c | 69 ++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 61 insertions(+), 8 deletions(-)
+
+diff --git a/dlls/dwrite/font.c b/dlls/dwrite/font.c
+index 937b384642125bbdcea6c3a7c99ecc640d5301c4..85d06e5c00dcee5f63f340f7db08dec2c90da655 100644
 --- a/dlls/dwrite/font.c
 +++ b/dlls/dwrite/font.c
-@@ -429,6 +429,21 @@
-         struct dwrite_fontset_entry **entries;
-         unsigned int count;
+@@ -431,6 +431,21 @@ struct dwrite_fontcollection
      } set;
+ 
+     BOOL is_system;
 +
 +    /* Small LRU cache for GetFontFromFontFace(): text renderers (notably
 +     * JUCE's Direct2D backend) resolve the collection font from a font face
@@ -24,7 +38,7 @@ dwrite: cache GetFontFromFontFace lookups (JUCE D2D text resolves the collection
  };
  
  struct dwrite_fontfamily
-@@ -3455,22 +3470,60 @@
+@@ -3561,22 +3576,60 @@ static HRESULT WINAPI dwritefontcollection_GetFontFromFontFace(IDWriteFontCollec
      face_index = IDWriteFontFace_GetIndex(face);
  
      found_font = FALSE;
@@ -91,5 +105,5 @@ dwrite: cache GetFontFromFontFace lookups (JUCE D2D text resolves the collection
 +            entry->face = face;
 +        }
      }
-     IDWriteFontFile_Release(file);
  
+     /* Second pass by path alone, see is_same_local_path(). */

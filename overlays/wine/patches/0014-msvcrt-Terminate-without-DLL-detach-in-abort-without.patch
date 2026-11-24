@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] msvcrt: Terminate without DLL detach in abort() without a
+ SIGABRT handler.
+
+abort() raised SIGABRT even without a handler, and the default action
+_exit(3) runs DLL detach code. UCRT raises only for an installed handler
+and then __fastfail()s, which terminates without detach. A yabridge host
+that aborted while hosting Kontakt 8 hung forever in ni-platform.dll's
+detach (WSAPoll on a socket whose I/O thread was gone), and REAPER waited
+forever for the host.
+---
+ dlls/msvcrt/except.c | 5 +++++
+ dlls/msvcrt/exit.c   | 9 +++++++--
+ dlls/msvcrt/msvcrt.h | 1 +
+ 3 files changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/msvcrt/except.c b/dlls/msvcrt/except.c
+index b70d74e5f69e8b6d56364c93edc54ee33e86573c..ec41301d17b356142d1d63fd56deba8c1a62d2d3 100644
+--- a/dlls/msvcrt/except.c
++++ b/dlls/msvcrt/except.c
+@@ -653,6 +653,11 @@ void msvcrt_free_signals(void)
+     SetConsoleCtrlHandler(msvcrt_console_handler, FALSE);
+ }
+ 
++BOOL msvcrt_sigabrt_handled(void)
++{
++    return sighandlers[SIGABRT] != SIG_DFL;
++}
++
+ /*********************************************************************
+  *		signal (MSVCRT.@)
+  * Some signals may never be generated except through an explicit call to
+diff --git a/dlls/msvcrt/exit.c b/dlls/msvcrt/exit.c
+index 153e843978f11a1760e70907b9fc719891eeade7..f476fc7f0befcd2293ca49ea0e2492926f05d750 100644
+--- a/dlls/msvcrt/exit.c
++++ b/dlls/msvcrt/exit.c
+@@ -266,11 +266,16 @@ void CDECL abort(void)
+   }
+ #endif
+ 
+-  raise(SIGABRT);
+-
+ #if _MSVCR_VER >= 110
++  /* only a handler gets SIGABRT, the default action is to fail fast
++   * without running DLL detach code */
++  if (msvcrt_sigabrt_handled())
++    raise(SIGABRT);
++
+   if (MSVCRT_abort_behavior & _CALL_REPORTFAULT)
+     __fastfail(FAST_FAIL_FATAL_APP_EXIT);
++#else
++  raise(SIGABRT);
+ #endif
+ 
+   /* in case raise() returns */
+diff --git a/dlls/msvcrt/msvcrt.h b/dlls/msvcrt/msvcrt.h
+index 47cf70f1cc9762af6cc6681be7b9771d86886214..846baa68a163fb8401b3fd9e009da808f5525bd9 100644
+--- a/dlls/msvcrt/msvcrt.h
++++ b/dlls/msvcrt/msvcrt.h
+@@ -269,6 +269,7 @@ extern void msvcrt_init_args(void);
+ extern void msvcrt_free_args(void);
+ extern void msvcrt_init_signals(void);
+ extern void msvcrt_free_signals(void);
++extern BOOL msvcrt_sigabrt_handled(void);
+ extern void msvcrt_free_popen_data(void);
+ extern BOOL msvcrt_init_heap(void);
+ extern void msvcrt_destroy_heap(void);

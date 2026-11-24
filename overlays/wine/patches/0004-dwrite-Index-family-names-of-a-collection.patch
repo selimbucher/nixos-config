@@ -1,6 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] dwrite: Index family names of a collection.
+
+Every family lookup compared against all family names of the collection,
+and building a collection looks up the family of each face: with ~7800
+system faces each new collection cost millions of compares. All localized
+family names now go into an rb-tree (same wcsicmp order; the first family
+with a name wins, as with the scan). Omnisphere 3 patch browsing stalls
+2.2-2.4 s -> one 0.5 s in 16 clicks, editor open 0.86 s -> 0.28 s; soothe3
+editor open 2.6 s -> 1.8 s.
+---
+ dlls/dwrite/font.c | 84 ++++++++++++++++++++++++++++++++++++----------
+ 1 file changed, 67 insertions(+), 17 deletions(-)
+
+diff --git a/dlls/dwrite/font.c b/dlls/dwrite/font.c
+index 85d06e5c00dcee5f63f340f7db08dec2c90da655..7502d3170a7e75b8e34482a9e298dcf503ef4964 100644
 --- a/dlls/dwrite/font.c
 +++ b/dlls/dwrite/font.c
-@@ -423,6 +423,8 @@
+@@ -423,6 +423,8 @@ struct dwrite_fontcollection
      struct dwrite_fontfamily_data **family_data;
      size_t size;
      size_t count;
@@ -9,7 +27,7 @@
  
      struct
      {
-@@ -3360,6 +3362,23 @@
+@@ -3411,6 +3413,23 @@ static ULONG WINAPI dwritefontcollection_AddRef(IDWriteFontCollection3 *iface)
      return refcount;
  }
  
@@ -33,7 +51,7 @@
  static ULONG WINAPI dwritefontcollection_Release(IDWriteFontCollection3 *iface)
  {
      struct dwrite_fontcollection *collection = impl_from_IDWriteFontCollection3(iface);
-@@ -3375,6 +3394,7 @@
+@@ -3426,6 +3445,7 @@ static ULONG WINAPI dwritefontcollection_Release(IDWriteFontCollection3 *iface)
              release_fontfamily_data(collection->family_data[i]);
          for (i = 0; i < collection->set.count; ++i)
              release_fontset_entry(collection->set.entries[i]);
@@ -41,19 +59,19 @@
          free(collection->family_data);
          free(collection);
      }
-@@ -3413,24 +3433,9 @@
+@@ -3464,24 +3484,9 @@ static HRESULT WINAPI dwritefontcollection_GetFontFamily(IDWriteFontCollection3
  
  static UINT32 collection_find_family(struct dwrite_fontcollection *collection, const WCHAR *name)
  {
 -    size_t i;
-+    struct rb_entry *entry = rb_get(&collection->family_names, name);
- 
+-
 -    for (i = 0; i < collection->count; ++i)
 -    {
 -        IDWriteLocalizedStrings *family_name = collection->family_data[i]->familyname;
 -        UINT32 j, count = IDWriteLocalizedStrings_GetCount(family_name);
 -        HRESULT hr;
--
++    struct rb_entry *entry = rb_get(&collection->family_names, name);
+ 
 -        for (j = 0; j < count; j++)
 -        {
 -            WCHAR buffer[255];
@@ -67,8 +85,8 @@
 +    return entry ? RB_ENTRY_VALUE(entry, struct family_name_entry, entry)->index : ~0u;
  }
  
- static HRESULT WINAPI dwritefontcollection_FindFamilyName(IDWriteFontCollection3 *iface, const WCHAR *name,
-@@ -3689,15 +3694,59 @@
+ /* A family that is not installed is looked up in the GDI FontSubstitutes key,
+@@ -3821,15 +3826,59 @@ static HRESULT fontfamily_add_font(struct dwrite_fontfamily_data *family_data, s
      return S_OK;
  }
  
@@ -128,7 +146,7 @@
      collection->family_data[collection->count++] = family;
      return S_OK;
  }
-@@ -3710,6 +3759,7 @@
+@@ -3842,6 +3891,7 @@ static void init_font_collection(struct dwrite_fontcollection *collection, IDWri
      collection->factory = factory;
      IDWriteFactory7_AddRef(collection->factory);
      collection->family_model = family_model;

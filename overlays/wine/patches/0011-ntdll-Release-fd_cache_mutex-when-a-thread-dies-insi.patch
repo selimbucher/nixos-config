@@ -1,8 +1,27 @@
-ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise the process can't exit: plug-in hosts linger forever after unload).
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] ntdll: Release fd_cache_mutex when a thread dies inside a
+ server call.
 
+When a process exits, the server closes the other threads' pipes, and a
+thread waiting for a server reply inside an uninterrupted section dies in
+abort_thread() while holding fd_cache_mutex. Every later NtClose() then
+waits for it forever with the server signals blocked, so that thread cannot
+be killed and the process never exits (a Guitar Rig 7 host after unload).
+The fd cache is consistent at every server call made under the mutex, so
+the dying thread releases it.
+---
+ dlls/ntdll/unix/server.c       | 33 +++++++++++++++++++++++++++++++++
+ dlls/ntdll/unix/thread.c       |  1 +
+ dlls/ntdll/unix/unix_private.h |  1 +
+ 3 files changed, 35 insertions(+)
+
+diff --git a/dlls/ntdll/unix/server.c b/dlls/ntdll/unix/server.c
+index 764ab5978f9795fcfbbc2a3255dcca1c8efcd7e6..0f4002a13d7132fc990d55a3b9f0985ab0eba180 100644
 --- a/dlls/ntdll/unix/server.c
 +++ b/dlls/ntdll/unix/server.c
-@@ -105,6 +105,11 @@
+@@ -106,6 +106,11 @@ static int initial_cwd = -1;
  static pid_t server_pid;
  pthread_mutex_t fd_cache_mutex = PTHREAD_MUTEX_INITIALIZER;
  
@@ -14,7 +33,7 @@ ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise
  /* atomically exchange a 64-bit value */
  static inline LONG64 interlocked_xchg64( LONG64 *dest, LONG64 val )
  {
-@@ -328,6 +333,11 @@
+@@ -329,6 +334,11 @@ void server_enter_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigse
  {
      pthread_sigmask( SIG_BLOCK, &server_block_set, sigset );
      mutex_lock( mutex );
@@ -26,7 +45,7 @@ ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise
  }
  
  
-@@ -336,6 +346,7 @@
+@@ -337,6 +347,7 @@ void server_enter_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigse
   */
  void server_leave_uninterrupted_section( pthread_mutex_t *mutex, sigset_t *sigset )
  {
@@ -34,11 +53,10 @@ ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise
      mutex_unlock( mutex );
      pthread_sigmask( SIG_SETMASK, sigset, NULL );
  }
-@@ -933,6 +944,28 @@
-     }
+@@ -935,6 +946,28 @@ unsigned int server_queue_process_apc( HANDLE process, const union apc_call *cal
  }
  
-+
+ 
 +/***********************************************************************
 + *           server_abort_thread_sections
 + *
@@ -60,22 +78,27 @@ ntdll: release fd_cache_mutex when a thread dies inside a server call (otherwise
 +    }
 +}
 +
- 
++
  /***********************************************************************
   *           wine_server_send_fd
+  *
+diff --git a/dlls/ntdll/unix/thread.c b/dlls/ntdll/unix/thread.c
+index ba317a8def22983bca6f865cc73a1a9515b45555..f08d78a303e05af6feb9cca6bd61edaf62e3e9dc 100644
 --- a/dlls/ntdll/unix/thread.c
 +++ b/dlls/ntdll/unix/thread.c
-@@ -1515,6 +1515,7 @@
+@@ -1612,6 +1612,7 @@ static void unlink_wait_on_address_entry(void)
  void abort_thread( int status )
  {
      pthread_sigmask( SIG_BLOCK, &server_block_set, NULL );
 +    server_abort_thread_sections();
+     unlink_wait_on_address_entry();
      if (InterlockedDecrement( &nb_threads ) <= 0) abort_process( status );
      pthread_exit_wrapper( status );
- }
+diff --git a/dlls/ntdll/unix/unix_private.h b/dlls/ntdll/unix/unix_private.h
+index 829db1e3e224674ca8cec8ceecea4b87b1baadfe..359c9642005afde2732d5465f2ccf0095090219b 100644
 --- a/dlls/ntdll/unix/unix_private.h
 +++ b/dlls/ntdll/unix/unix_private.h
-@@ -220,6 +220,7 @@
+@@ -232,6 +232,7 @@ extern int inproc_device_fd;
  extern timeout_t server_start_time;
  extern sigset_t server_block_set;
  extern pthread_mutex_t fd_cache_mutex;

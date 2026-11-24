@@ -7,21 +7,26 @@
 #   - sets YABRIDGE_DEBUG_FILE so all yabridge/plugin/Wine output is kept
 #   - captures REAPER's own stdout/stderr
 #
-# Logs land in ~/reaper-crashlogs/sessions/, newest 20 sessions are kept.
-# reaper-rescue and reaper-crashwatch pull these logs into crash bundles.
+# Logs land in ~/.local/state/reaper/sessions/ (XDG_STATE_HOME); the newest 10
+# sessions are kept, and an earlier log over 100 MB is cut to its last 50 MB.
+# reaper-rescue pulls these logs into its bundles.
 #
 # Managed in ~/.nixos (home/apps/reaper-tools.nix packages this file).
 
 set -u
 
-SESSIONS="$HOME/reaper-crashlogs/sessions"
+SESSIONS="${XDG_STATE_HOME:-$HOME/.local/state}/reaper/sessions"
 mkdir -p "$SESSIONS"
 TS="$(date +%Y-%m-%d_%H%M%S)"
 LOG="$SESSIONS/$TS-reaper.log"
 
-# keep the newest 20 sessions (2 files each; current-* symlinks are kept)
-ls -1t "$SESSIONS" 2>/dev/null | grep -v '^current-' | tail -n +41 | while IFS= read -r f; do
+# keep the newest 10 sessions (2 files each; current-* symlinks are kept)
+ls -1t "$SESSIONS" 2>/dev/null | grep -v '^current-' | tail -n +21 | while IFS= read -r f; do
   rm -f "$SESSIONS/$f"
+done
+# a Wine server with tracing on once wrote 5.6 GB into a session's log
+find "$SESSIONS" -maxdepth 1 -type f -name '*.log' -size +100M | while IFS= read -r f; do
+  tail -c 50M "$f" > "$f.cut" && mv "$f.cut" "$f"
 done
 
 # Boot every yabridge plugin prefix (the ~/.wine* prefixes yabridgectl syncs
@@ -54,9 +59,12 @@ fi
 # Bump YABRIDGE_DEBUG_LEVEL to 1 or 2 here when hunting a specific bug.
 export YABRIDGE_DEBUG_FILE="$SESSIONS/$TS-yabridge.log"
 
-# Stable names for the live session logs. reaper-crashwatch's wedge watchdog
-# follows current-yabridge.log with tail -F; retargeting the symlink on a new
-# session makes tail reopen it automatically.
+# Only the AMD Vulkan driver. Without this every Vulkan instance loads all 13
+# Mesa drivers and parses their driconf; DXVK creates one per D3D11 device, and
+# Equator2 creates ~190 of those while loading (23.4s -> 18.9s).
+export VK_LOADER_DRIVERS_SELECT='*radeon*'
+
+# Stable names for the current session's logs.
 ln -sfn "$TS-yabridge.log" "$SESSIONS/current-yabridge.log"
 ln -sfn "$TS-reaper.log" "$SESSIONS/current-reaper.log"
 
