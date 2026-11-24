@@ -1,0 +1,11 @@
+--- a/modules/programs/rclone.nix
++++ b/modules/programs/rclone.nix
+@@ -590,7 +590,7 @@
+                  --config "$stagingPath" \
+                  ${remote.name} config_refresh_token=false \
+                  ${secret}="$(cat "${secretFile}")" \
+-                 --non-interactive; then
++                 --obscure --non-interactive; then
+             echo "Failed to inject secret \"${secretFile}\""
+             cleanup
+           fi

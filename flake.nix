@@ -71,6 +71,16 @@
 
   outputs = { self, nixpkgs, home-manager, ... }@inputs:
     let
+      # Upstream home-manager plus local patches; drop a patch once upstream
+      # has it (a patch that no longer applies fails the build).
+      # rclone-obscure: without --obscure, rclone stores a secret of 22+
+      # base64 characters unobscured in rclone.conf (~/Drive got 401s).
+      homeManagerModule = import "${nixpkgs.legacyPackages.x86_64-linux.applyPatches {
+        name = "home-manager-patched";
+        src = home-manager;
+        patches = [ ./patches/home-manager-rclone-obscure.patch ];
+      }}/nixos";
+
       mkHome = hostName: {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
@@ -85,7 +95,7 @@
           specialArgs = { inherit inputs; hostName = "laptop"; };
           modules = [
             ./hosts/laptop/configuration.nix
-            home-manager.nixosModules.home-manager
+            homeManagerModule
             (mkHome "laptop")
           ];
         };
@@ -94,7 +104,7 @@
           specialArgs = { inherit inputs; hostName = "desktop"; };
           modules = [
             ./hosts/desktop/configuration.nix
-            home-manager.nixosModules.home-manager
+            homeManagerModule
             (mkHome "desktop")
           ];
         };
