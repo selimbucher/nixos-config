@@ -15,8 +15,9 @@
 # Note that since media.nix dropped its separate wine64Packages.staging,
 # this attribute is also the interactive wine, so a rollback here rolls
 # back everything, not just the plugin hosts.
-# yabridgectl needs no changes: it reuses yabridge.src, and master's
-# Cargo.lock is identical to 5.1.1's (verified), so the cargoHash holds.
+# yabridgectl reuses yabridge.src. The fork's yabridgectl is a member of a
+# cargo workspace with Cargo.lock at the repository root, so it is built from
+# there (see the yabridgectl override at the bottom).
 #
 # ROLLBACK: remove this overlay from common.nix and rebuild — but wine 11
 # upgrades the ~/.wine* prefixes one-way on first launch, so also restore the
@@ -91,20 +92,13 @@ let
       ln -s ${old.src.gecko32} $out/share/wine/gecko/${old.src.gecko32.name}
     '';
   });
-  # ARA2 support (2026-09-05): robbert-vdh/yabridge PR #500 (samuel-asleep:
-  # ara2-support, sponsored/tested by NlGHT). Unmerged and unreviewed upstream
-  # as of 2026-09-05, but testers confirm Melodyne through REAPER on Wine 11
-  # with comping/fixed lanes/audio all working, plus Auto-Align 2 on NixOS.
-  # The branch is upstream master b580a9f (our previous pin) + ~12.7k lines of
-  # ARA bridging behind meson -Dara=true, so everything else is unchanged.
-  # ARA needs the headers-only Celemony ARA_API repo (subprojects/ara.wrap,
-  # pinned rev below) plus the branch's packagefiles/ara override of
+  # yabridge comes from Selim's fork (github.com/selimbucher/yabridge, branch
+  # main): samuel-asleep's ARA2 branch (robbert-vdh/yabridge PR #500, upstream
+  # master + ARA behind -Dara=true) with our fixes and a few unmerged upstream
+  # PRs as commits on top. Upstream doesn't tag releases; bump `rev` to a
+  # pushed commit of the fork. ARA needs the headers-only Celemony ARA_API repo
+  # (subprojects/ara.wrap) plus the branch's packagefiles/ara override of
   # ARAInterface.h, copied in the same way nixpkgs handles the other wraps.
-  # Wine-side ARA callbacks are compiled with ARA_CALL=ms_abi (see the branch's
-  # meson.build) — that's why this can't be done as a runtime-only shim.
-  # ROLLBACK: useAra = false restores the upstream-master pin (rebuild only,
-  # no prefix/state changes; ARA state saved in projects is simply ignored).
-  useAra = true;
   ara_api = prev.fetchFromGitHub {
     owner = "Celemony";
     repo = "ARA_API";
@@ -120,189 +114,34 @@ in
   };
 
   yabridge = prev.yabridge.overrideAttrs (old: {
-    version = if useAra then "5.1.2-alpha-ara-a38234b" else "5.1.2-alpha-b580a9f";
-    src = if useAra then prev.fetchFromGitHub {
-      owner = "samuel-asleep";
+    version = "5.1.2-selim-20141f5";
+    src = prev.fetchFromGitHub {
+      owner = "selimbucher";
       repo = "yabridge";
-      rev = "a38234ba3817aaa0a3a9cc46c3cd54b4a350a85d"; # ara2-support, 2026-08-28 (PR #500 head)
-      hash = "sha256-19otZmQXMvgfwMnwZPXJYr27bSkWobqS7ZD+PfOM7i0=";
-    } else prev.fetchFromGitHub {
-      owner = "robbert-vdh";
-      repo = "yabridge";
-      rev = "b580a9f7fc46509767ca156d4f92872552b9e571"; # master, 2026-08-02
-      hash = "sha256-TiKiyE3GZYCX1+vooHdD03fAhNQPAA1IzTfkG++I7TY=";
+      rev = "20141f508eaca41c1941a9db44070153daeba7f8";
+      hash = "sha256-Cjm7ybhLjyud2M2V5B8ee/ZKAQzpscxeUKh2RHyIwss=";
     };
-    postUnpack = (old.postUnpack or "") + prev.lib.optionalString useAra ''
+    postUnpack = (old.postUnpack or "") + ''
       cp -R --no-preserve=mode,ownership ${ara_api} "$sourceRoot/subprojects/ara"
     '';
-    postPatch = (old.postPatch or "") + prev.lib.optionalString useAra ''
+    postPatch = (old.postPatch or "") + ''
       cp subprojects/packagefiles/ara/* subprojects/ara/
     '';
-    mesonFlags = (old.mesonFlags or [ ]) ++ prev.lib.optional useAra "-Dara=true";
+    mesonFlags = (old.mesonFlags or [ ]) ++ [ "-Dara=true" ];
     # Drop libyabridge-drop-32-bit-support.patch (first in the list): the
     # 32-bit handling it patched was reworked on master and bitbridge is
-    # disabled anyway — same recipe as the NixOS report in yabridge#409.
-    # yabridge-survive-hostdeath.patch (ours, 2026-09-01): when a Wine plugin
-    # host dies mid-process() (e.g. soothe3's PACE fail-fast, c0000409), the
-    # asio socket read throws, nothing catches it, and std::terminate kills
-    # ALL of REAPER (core-dump verified: asio::read -> __cxa_throw ->
-    # terminate inside Vst3PluginProxyImpl::process). The patch catches the
-    # exception in the VST3 + CLAP audio paths and mutes just that plugin.
-    # Candidate for upstreaming to robbert-vdh/yabridge with the backtrace.
-    # yabridge-pooled-mutual-recursion.patch (ours, 2026-09-01): fork() in
-    # MutualRecursionHelper spawned a fresh Wine thread + io_context for EVERY
-    # mutually recursive call (performEdit = one per parameter). Omnisphere
-    # makes thousands of those per preset load; each Wine thread lifecycle
-    # costs ~0.7ms serialized through wineserver even after the
-    # wineserver-batch-mutex-abandon.patch. Reuse a small pool of sending
-    # threads instead. Candidate for upstreaming alongside survive-hostdeath.
-    # yabridge-clap-mutual-recursion-state.patch (ours, 2026-09-04): the CLAP
-    # bridge ran plugin::Activate/Deactivate and state::Save/Load through
-    # main_context_.run_in_context() directly. When the Wine main thread is
-    # parked inside send_mutually_recursive_main_thread_message() (e.g.
-    # FabFilter Pro-L 2 firing clap_host_latency.changed() from a GUI click on
-    # its oversampling menu), the main context's event loop is not running, so
-    # those requests never execute; REAPER's main thread is meanwhile blocked
-    # in ext_state_save (undo capture) -> three-way deadlock ring, REAPER
-    # frozen. The VST3 bridge already routes SetState/GetState through
-    # do_mutual_recursion_on_gui_thread() for exactly this reason ("in case
-    # this happens during a resize"); this patch gives the four CLAP handlers
-    # the same treatment. Root-caused live via headless Xvfb REAPER probe +
-    # xdotool GUI clicks + eu-stack of the frozen pair (fab-probe harness).
-    # Candidate for upstreaming.
-    # survive-hostdeath has an -ara variant: identical hunks, re-contexted
-    # against the ARA branch's extra includes in vst3-impls/plugin-proxy.*.
-    patches = (prev.lib.drop 1 old.patches) ++ [
-      (if useAra then ./patches/yabridge-survive-hostdeath-ara.patch
-                 else ./patches/yabridge-survive-hostdeath.patch)
-      ./patches/yabridge-pooled-mutual-recursion.patch
-      ./patches/yabridge-clap-mutual-recursion-state.patch
-      # yabridge-clap-async-void-notifications.patch (ours, 2026-09-04): the
-      # other half of the same deadlock. The recursion-state patch only covers
-      # requests arriving WHILE the Wine main thread is already parked in a
-      # mutually recursive send; when REAPER's Save was queued to the main
-      # context BEFORE the plugin's GUI click fired latency.changed(), the
-      # main context loop never resumes and the ring re-forms (reproduced:
-      # patched host still wedged on click cycle 1). Void host notifications
-      # (latency.changed, params.rescan, mark_dirty, ...) don't need their
-      # callback to have RUN before we Ack - schedule on the host's main
-      # thread without blocking and Ack immediately, like a native async
-      # host. Kills the whole ring class on the plugin side.
-      ./patches/yabridge-clap-async-void-notifications.patch
-      # yabridge-mute-not-takedown.patch (ours, 2026-09-06): generalises
-      # survive-hostdeath from process() to EVERY plugin-side call. The 4
-      # REAPER core dumps of 2026-09-06 00:11-00:25 were all "Wine host died
-      # (another session ran wineserver -k on ~/.wine-ni) -> uncaught
-      # std::system_error in setParamNormalized / setChannelContextInfos /
-      # Construct -> std::terminate". Now the first failed socket op marks the
-      # bridge dead, logs once, and every later call returns kInternalError /
-      # a default response; VST2 outputs silence. Also replaces the
-      # std::terminate() in the startup watchdog (host exits before the
-      # sockets connect, e.g. wineserver protocol mismatch) with aborting the
-      # blocking accept, so the module init fails instead of REAPER.
-      ./patches/yabridge-mute-not-takedown.patch
-      # yabridge-ara-mutual-recursion.patch (ours, 2026-09-06): REAPER froze
-      # (main thread parked in AraDocumentControllerProxy::notify_model_updates
-      # waiting for Melodyne's Ack, Melodyne waiting for REAPER's model-update
-      # callbacks, which yabridge ran on its host-callbacks thread). ARA
-      # requires those callbacks synchronously on the calling thread, so the
-      # notifyModelUpdates / begin+endEditing / archive store+restore calls
-      # now go through send_mutually_recursive_message() and the VST3 host
-      # callback dispatcher runs callbacks on the blocked caller when one is
-      # waiting. Wine side: the ARA host-callback proxies send mutually
-      # recursively too and dc_call() uses do_mutual_recursion_on_gui_thread,
-      # so nested REAPER->plugin requests are served while Melodyne sits in a
-      # callback (the same ring, seen from Wine). Candidate for PR #500.
-      ./patches/yabridge-ara-mutual-recursion.patch
-      # yabridge-main-context-nested-loops.patch (ours, 2026-09-08): REAPER
-      # froze with its main thread in ARA notifyModelUpdates while Melodyne's
-      # Wine GUI thread sat in its own popup/drag tracking loop (SetCapture +
-      # PeekMessage + DispatchMessage + Sleep(1), ~22 levels deep). yabridge
-      # only executes host->plugin GUI-thread work (run_in_context) from its
-      # own asio loop, which a plugin-owned nested Win32 loop never returns
-      # to, so every such request starves for as long as the popup/dialog is
-      # open. Natively the host's main thread IS that thread and its work is
-      # message driven, so it keeps running inside nested loops. The patch
-      # adds a message-only window to MainContext; run_in_context/schedule_task
-      # post a WM_APP message to it and its wndproc polls the context, so any
-      # dispatching loop also runs our queued tasks. Candidate for upstream.
-      # 2026-09-10: the poke is a one-shot 10 ms timer, not a posted message.
-      # Posted messages outrank WM_PAINT/WM_TIMER, and Melodyne's audio
-      # threads submit a task per block (~1500/s), so during playback its
-      # editor never got a paint or timer message and looked frozen.
-      ./patches/yabridge-main-context-nested-loops.patch
-      # yabridge-ara-factory-slot-sharing.patch (ours, 2026-09-10): the fork
-      # gives every ARA factory object a createDocumentController trampoline
-      # from a static pool of 8, but keys its registry by factoryID: each new
-      # Melodyne instance took a fresh slot and overwrote the same entry, so
-      # the older slots stayed marked used with nothing behind them and only
-      # the newest was ever freed. Twelve Melodyne tracks exhausted the pool
-      # ("ARA factory trampoline pool exhausted" in REAPER's log), the factory
-      # REAPER got was a stub, and REAPER then created a new ARA document per
-      # FX-window open: the editor drew its grid with no notes in it. Now one
-      # slot per factoryID, shared by all live factory objects (counted, freed
-      # when the last goes), 32 slots, and getFactory() called twice on an
-      # instance unregisters the old factory first. Candidate for upstream.
-      ./patches/yabridge-ara-factory-slot-sharing.patch
-      # yabridge-ara-head-tail-any-thread.patch (ours, 2026-09-10): the fork
-      # runs every ARA document-controller call REAPER makes on the plugin's
-      # GUI thread. ARA exempts getPlaybackRegionHeadAndTailTime(), "callable
-      # from any audio rendering thread", and REAPER asks it once per block
-      # per item from its render threads. Hopping those onto the GUI thread
-      # tied the audio path to that thread (the 09-08 wedge: media thread
-      # parked on it while Melodyne sat in a popup loop) and flooded it with
-      # work (the 09-10 frozen editor). Answer it on the receiving thread.
-      ./patches/yabridge-ara-head-tail-any-thread.patch
-      # yabridge-pid-running-deleted-exe.patch (ours, 2026-10-03): the Wine
-      # hosts' watchdog asks pid_running(REAPER) every 5s, implemented as
-      # fs::canonical("/proc/<pid>/exe"). nix-optimise.service replaced
-      # REAPER's binary with a hard link mid-session (19:11:33), the link
-      # became ".reaper-wrapped (deleted)", canonical() failed, and every
-      # host declared REAPER dead and exited ("The native plugin host seems
-      # to have died" x3 while REAPER was alive: Addictive Drums 2, Lounge
-      # Lizard EP-4, Kontakt 8). Read the link instead of resolving it: still
-      # fails for zombies, succeeds for a live process with a replaced exe.
-      # Candidate for upstreaming.
-      ./patches/yabridge-pid-running-deleted-exe.patch
-      # yabridge-bounded-host-terminate.patch (ours, 2026-10-18): unloading a
-      # plugin closes the host's sockets, sends it SIGINT and then waitpid()s
-      # with no timeout. Wine turns the SIGINT into a Ctrl-C event whose
-      # default handler kills all other threads and then runs every
-      # DLL_PROCESS_DETACH; Guitar Rig 7 sleeps in its detach waiting for one
-      # of its (now dead) threads, so the host never exits, the unloading
-      # thread blocks forever, and the host lingers with its memory (the
-      # leaked Kontakt 8 host found hours after REAPER quit). Reproduced in
-      # 2 of 3 Guitar Rig unloads. SIGKILL after 2s; clean exits take <0.1s.
-      ./patches/yabridge-bounded-host-terminate.patch
-      # yabridge-process-bus-bounds.patch (ours, 2026-10-18): REAPER crashed
-      # (SIGSEGV in YaProcessData::repopulate) after Lounge Lizard EP-4's host
-      # died: the host death was caught in a non-process call, so process()
-      # kept running, and REAPER passed 4 input busses where the shared
-      # buffers knew of none, so num_input_channels() indexed past the end.
-      # process() now also stops on the bridge-wide lost-host flag, a bus
-      # without offsets counts as zero channels, and CLAP copies only the
-      # clamped channel count (it copied the host's count, which overruns
-      # when a host passes more channels than the plugin has).
-      ./patches/yabridge-process-bus-bounds.patch
-      # yabridge-ara-host-refs-before-send.patch (ours, 2026-10-23): the
-      # document-controller proxy recorded an audio source's (region
-      # sequence's, modification's, playback region's) host ref only after
-      # the Add* message returned, but Auto-Tune Pro 10.3.1 creates its ARA
-      # audio reader synchronously inside createAudioSource(). The host-side
-      # CreateAudioReader handler then found no source, answered reader 0,
-      # and every readAudioSamples(reader=0) failed: the plugin's analysis
-      # thread zero-filled and retried forever (one core at 100%, no audio
-      # from any playback renderer), its editor thread sat in a Sleep(50)
-      # loop waiting for that analysis, and REAPER's main thread wedged in
-      # notifyModelUpdates behind it (2026-09-27 23:41 and 2026-10-23 20:10
-      # wedges, 19:28 host crash). Record the refs before sending.
-      ./patches/yabridge-ara-host-refs-before-send.patch
-      # yabridge-ara-chunked-audio-reads.patch (ours, 2026-10-23): the Wine
-      # side clamped readAudioSamples() to the 65536-frame shared buffer and
-      # still returned true, so a plugin reading larger blocks (Auto-Tune
-      # reads 173600 frames at once) got the first 65536 frames and stale
-      # memory for the rest. Transfer big reads in several round trips.
-      ./patches/yabridge-ara-chunked-audio-reads.patch
-    ];
+    # disabled anyway.
+    patches = prev.lib.drop 1 old.patches;
+  });
+  yabridgectl = prev.yabridgectl.overrideAttrs (finalAttrs: old: {
+    sourceRoot = finalAttrs.src.name;
+    buildAndTestSubdir = "tools/yabridgectl";
+    # nixpkgs' patches are against tools/yabridgectl with -p3
+    patchFlags = [ "-p1" ];
+    cargoDeps = final.rustPlatform.fetchCargoVendor {
+      inherit (finalAttrs) src sourceRoot;
+      name = "${finalAttrs.pname}-${finalAttrs.version}";
+      hash = "sha256-WQ90IAyoUEDRf/N3XQPSSwZ/Lrtne1Tk6otFPKpA7Ik=";
+    };
   });
 }
