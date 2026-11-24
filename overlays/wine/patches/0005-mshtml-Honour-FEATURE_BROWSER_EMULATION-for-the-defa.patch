@@ -1,6 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] mshtml: Honour FEATURE_BROWSER_EMULATION for the default
+ document mode.
+
+Native mshtml lets a host pick the document mode of standards-doctype pages
+with FeatureControl\FEATURE_BROWSER_EMULATION\<exe>; Wine ignored the key
+and used IE7, so jscript ran in legacy mode and failed (800a03ea on
+`default`) on the ES5 bundle Adobe's Creative Cloud Set-up.exe renders its
+UI with (it writes 11001 for itself): the installer window never appeared.
+---
+ dlls/mshtml/mutation.c | 62 ++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 60 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/mshtml/mutation.c b/dlls/mshtml/mutation.c
+index 3d3cec92b08df8e5f382646d786da02487a02254..971f2a7008b95111fbdee3c83ad293bb7ffd4f4d 100644
 --- a/dlls/mshtml/mutation.c
 +++ b/dlls/mshtml/mutation.c
-@@ -53,6 +53,61 @@
+@@ -53,6 +53,61 @@ static const IID NS_ICONTENTUTILS_CID =
  
  static nsIContentUtils *content_utils;
  
@@ -62,7 +79,7 @@
  static BOOL is_iexplore(void)
  {
      static volatile char cache = -1;
-@@ -936,17 +991,20 @@
+@@ -975,17 +1030,20 @@ static void NSAPI nsDocumentObserver_BindToDocument(nsIDocumentObserver *iface,
  
          nsres = nsIContent_QueryInterface(aContent, &IID_nsIDOMDocumentType, (void**)&nsdoctype);
          if(NS_SUCCEEDED(nsres)) {

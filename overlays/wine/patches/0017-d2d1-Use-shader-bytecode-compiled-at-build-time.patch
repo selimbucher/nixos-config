@@ -1,0 +1,118 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 23:04:13 +0100
+Subject: [PATCH] d2d1: Use shader bytecode compiled at build time.
+
+d2d1 compiled its shaders with D3DCompile() for every factory. Equator2
+(JUCE) loads and frees d2d1.dll ~190 times while loading and ~130 times
+per editor open, so it compiled them thousands of times per session in
+vkd3d's HLSL compiler (Wine 11.16: load 34.9 s -> 23.4 s, editor open
+13.4 s -> 5 s with precompiled shaders).
+
+d2d_compile_shader() now looks a shader up in builtin_shaders.h by the
+FNV-1a hash, length and profile of its source and compiles only what is
+not there. The checked-in table is empty; the build replaces it with the
+shaders of device.c compiled by vkd3d-compiler
+(overlays/wine/d2d1-shader-bytecode.py in the NixOS configuration), so the
+table follows the HLSL whenever it changes. Windows' d2d1 ships
+precompiled shaders too.
+---
+ dlls/d2d1/builtin_shaders.h |  7 ++++++
+ dlls/d2d1/device.c          | 49 ++++++++++++++++++++++++++++++++-----
+ 2 files changed, 50 insertions(+), 6 deletions(-)
+ create mode 100644 dlls/d2d1/builtin_shaders.h
+
+diff --git a/dlls/d2d1/builtin_shaders.h b/dlls/d2d1/builtin_shaders.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..0a791744982f0096c429db0768d1baf78ea3bbae
+--- /dev/null
++++ b/dlls/d2d1/builtin_shaders.h
+@@ -0,0 +1,7 @@
++/* Replaced at build time with the compiled shaders of device.c; see
++ * d2d_compile_shader(). Empty, every shader is compiled at run time. */
++
++static const struct d2d_builtin_shader d2d_builtin_shaders[] =
++{
++    {0}
++};
+diff --git a/dlls/d2d1/device.c b/dlls/d2d1/device.c
+index d23fd890f47238c7ea20471e992098c43514a38c..7f6dd66aa5c374b4bc670d3ce4e5116d97667e18 100644
+--- a/dlls/d2d1/device.c
++++ b/dlls/d2d1/device.c
+@@ -15841,6 +15841,46 @@ static const char effect_vs_code[] =
+     "    return o;\n"
+     "}\n";
+ 
++/* Bytecode of the shaders above, keyed by the FNV-1a hash and length of their
++ * source; builtin_shaders.h is generated at build time and may be empty. A shader
++ * whose source is not in it is compiled at run time. Applications that load and
++ * free d2d1.dll for every window (Equator2 does so ~190 times while loading)
++ * otherwise compile all of them again with every new factory. */
++struct d2d_builtin_shader
++{
++    UINT64 source_hash;
++    size_t source_size;
++    const char *profile;
++    const BYTE *code;
++    size_t code_size;
++};
++
++#include "builtin_shaders.h"
++
++static HRESULT d2d_compile_shader(const char *source, size_t size, const char *name,
++        const char *profile, ID3D10Blob **blob)
++{
++    const struct d2d_builtin_shader *shader;
++    UINT64 hash = 0xcbf29ce484222325ull;
++    size_t i;
++    HRESULT hr;
++
++    for (i = 0; i < size; ++i)
++        hash = (hash ^ (unsigned char)source[i]) * 0x100000001b3ull;
++
++    for (shader = d2d_builtin_shaders; shader->code; ++shader)
++    {
++        if (shader->source_hash != hash || shader->source_size != size || strcmp(shader->profile, profile))
++            continue;
++        if (FAILED(hr = D3DCreateBlob(shader->code_size, blob)))
++            return hr;
++        memcpy(ID3D10Blob_GetBufferPointer(*blob), shader->code, shader->code_size);
++        return S_OK;
++    }
++
++    return D3DCompile(source, size, name, NULL, NULL, "main", profile, 0, 0, blob, NULL);
++}
++
+ /* Compiling the shaders takes tens of milliseconds, and every render target created
+  * from the factory (CreateWicBitmapRenderTarget(), CreateDCRenderTarget(),
+  * CreateHwndRenderTarget()) creates a device of its own. Nuendo draws each icon of a
+@@ -15861,8 +15901,7 @@ static HRESULT d2d_factory_get_precompiled_shaders(struct d2d_factory *factory,
+ 
+         if (factory->precompiled_shape_vs[i])
+             continue;
+-        if (FAILED(hr = D3DCompile(si->vs_code, si->vs_code_size, si->name, NULL, NULL,
+-                "main", "vs_4_0", 0, 0, &compiled, NULL)))
++        if (FAILED(hr = d2d_compile_shader(si->vs_code, si->vs_code_size, si->name, "vs_4_0", &compiled)))
+         {
+             WARN("Failed to compile shader for shape type %#x, hr %#lx.\n", si->shape_type, hr);
+             goto done;
+@@ -15872,8 +15911,7 @@ static HRESULT d2d_factory_get_precompiled_shaders(struct d2d_factory *factory,
+ 
+     if (!factory->precompiled_shape_ps)
+     {
+-        if (FAILED(hr = D3DCompile(shape_ps_code, sizeof(shape_ps_code) - 1, "ps", NULL, NULL,
+-                "main", "ps_4_0", 0, 0, &compiled, NULL)))
++        if (FAILED(hr = d2d_compile_shader(shape_ps_code, sizeof(shape_ps_code) - 1, "ps", "ps_4_0", &compiled)))
+         {
+             WARN("Failed to compile the pixel shader, hr %#lx.\n", hr);
+             goto done;
+@@ -15883,8 +15921,7 @@ static HRESULT d2d_factory_get_precompiled_shaders(struct d2d_factory *factory,
+ 
+     if (!factory->precompiled_effect_vs)
+     {
+-        if (FAILED(hr = D3DCompile(effect_vs_code, sizeof(effect_vs_code) - 1, "effect_vs", NULL, NULL,
+-                "main", "vs_4_0", 0, 0, &compiled, NULL)))
++        if (FAILED(hr = d2d_compile_shader(effect_vs_code, sizeof(effect_vs_code) - 1, "effect_vs", "vs_4_0", &compiled)))
+         {
+             WARN("Failed to compile the effect vertex shader, hr %#lx.\n", hr);
+             goto done;

@@ -1,14 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Selim Bucher <me@selim.one>
-Subject: [PATCH] windows.ui.notifications: Add stub ToastNotificationManager, ToastNotification and XmlDocument factories.
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] windows.ui.notifications: Add stub toast notification
+ factories.
 
-Adobe Creative Cloud desktop creates a toast notifier at startup and
-dereferences the factory without checking RoGetActivationFactory's result,
-so a missing Windows.UI.Notifications runtime crashed it on launch.
-Nothing is displayed; Show() succeeds silently.
+ToastNotificationManager, ToastNotification and
+Windows.Data.Xml.Dom.XmlDocument activation factories; Show() does nothing.
+Creative Cloud desktop creates a toast notifier at start and dereferences
+the factory without checking RoGetActivationFactory(), so "class not
+registered" became an access violation. Registration comes from
+classes.idl, so prefixes pick it up at their next update.
+---
+ configure.ac                                  |    1 +
+ dlls/windows.ui.notifications/Makefile.in     |    6 +
+ dlls/windows.ui.notifications/classes.idl     |   23 +
+ dlls/windows.ui.notifications/main.c          | 2164 +++++++++++++++++
+ dlls/windows.ui.notifications/private.h       |   32 +
+ .../windows.ui.notifications.spec             |    3 +
+ 6 files changed, 2229 insertions(+)
+ create mode 100644 dlls/windows.ui.notifications/Makefile.in
+ create mode 100644 dlls/windows.ui.notifications/classes.idl
+ create mode 100644 dlls/windows.ui.notifications/main.c
+ create mode 100644 dlls/windows.ui.notifications/private.h
+ create mode 100644 dlls/windows.ui.notifications/windows.ui.notifications.spec
 
+diff --git a/configure.ac b/configure.ac
+index b6aca59ac34195d9e8fa949ed6aea756bc558888..c60c974d8b02cbde33aa622ebaa3e676806ac6f3 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -3392,6 +3392,7 @@
+@@ -3337,6 +3337,7 @@ WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers)
  WINE_CONFIG_MAKEFILE(dlls/windows.system.profile.systemmanufacturers/tests)
  WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput)
  WINE_CONFIG_MAKEFILE(dlls/windows.ui.core.textinput/tests)
@@ -16,6 +36,9 @@ Nothing is displayed; Show() succeeds silently.
  WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml)
  WINE_CONFIG_MAKEFILE(dlls/windows.ui.xaml/tests)
  WINE_CONFIG_MAKEFILE(dlls/windows.ui)
+diff --git a/dlls/windows.ui.notifications/Makefile.in b/dlls/windows.ui.notifications/Makefile.in
+new file mode 100644
+index 0000000000000000000000000000000000000000..642f5ea91b11bf370242f5c050e99037a30d3001
 --- /dev/null
 +++ b/dlls/windows.ui.notifications/Makefile.in
 @@ -0,0 +1,6 @@
@@ -25,6 +48,9 @@ Nothing is displayed; Show() succeeds silently.
 +SOURCES = \
 +	classes.idl \
 +	main.c
+diff --git a/dlls/windows.ui.notifications/classes.idl b/dlls/windows.ui.notifications/classes.idl
+new file mode 100644
+index 0000000000000000000000000000000000000000..5793cc61ccd4fcb2b3ef878bd27e24039ec1c207
 --- /dev/null
 +++ b/dlls/windows.ui.notifications/classes.idl
 @@ -0,0 +1,23 @@
@@ -51,6 +77,9 @@ Nothing is displayed; Show() succeeds silently.
 +namespace Windows.Data.Xml.Dom {
 +    runtimeclass XmlDocument;
 +}
+diff --git a/dlls/windows.ui.notifications/main.c b/dlls/windows.ui.notifications/main.c
+new file mode 100644
+index 0000000000000000000000000000000000000000..22932c767a21a5192dc1aa35e77bbc4cc0df53b9
 --- /dev/null
 +++ b/dlls/windows.ui.notifications/main.c
 @@ -0,0 +1,2164 @@
@@ -2218,6 +2247,9 @@ Nothing is displayed; Show() succeeds silently.
 +    if (*factory) return S_OK;
 +    return CLASS_E_CLASSNOTAVAILABLE;
 +}
+diff --git a/dlls/windows.ui.notifications/private.h b/dlls/windows.ui.notifications/private.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..09a4c2507f4ce0d2aed4f87617c1d8fb2ac61dfb
 --- /dev/null
 +++ b/dlls/windows.ui.notifications/private.h
 @@ -0,0 +1,32 @@
@@ -2253,6 +2285,9 @@ Nothing is displayed; Show() succeeds silently.
 +#include "wine/debug.h"
 +
 +#endif
+diff --git a/dlls/windows.ui.notifications/windows.ui.notifications.spec b/dlls/windows.ui.notifications/windows.ui.notifications.spec
+new file mode 100644
+index 0000000000000000000000000000000000000000..31a5eafe950f0bd74581021c1d498d2f8c9e77e4
 --- /dev/null
 +++ b/dlls/windows.ui.notifications/windows.ui.notifications.spec
 @@ -0,0 +1,3 @@

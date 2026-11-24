@@ -1,8 +1,26 @@
-ntdll: cache directory listings for case-insensitive lookups (every probe for a missing file read its whole directory twice; NI plug-ins probe thousands of product names per load).
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] ntdll: Cache directory listings for case-insensitive lookups.
 
+A lookup that misses the exact-case name reads the whole directory, and
+lookup_unix_name() retries a missing name as a "name?" reparse point, so
+each probe for a file that does not exist costs two directory reads. NI's
+plug-ins probe a few thousand product names in installed_products/ and
+Native Access/ras3/ during DLL init: ~26k directory reads, a third of
+Kontakt 8's DLL init. Listings of directories on local file systems whose
+mtime and ctime are at least 2 s old are cached and revalidated with a
+stat on every use. Kontakt 8 load 8.1-8.2 s -> 6.2-6.5 s, Guitar Rig 7
+6.3-6.4 s -> 5.8 s. WINE_DISABLE_DIR_CACHE=1 turns the cache off.
+---
+ dlls/ntdll/unix/file.c | 300 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 300 insertions(+)
+
+diff --git a/dlls/ntdll/unix/file.c b/dlls/ntdll/unix/file.c
+index faa19cc2cb28e9aeb2626c3be619de8108afa879..a9816979cac1681ed944710d13bcf00d66b3c487 100644
 --- a/dlls/ntdll/unix/file.c
 +++ b/dlls/ntdll/unix/file.c
-@@ -3000,6 +3000,297 @@
+@@ -2806,6 +2806,297 @@ NTSTATUS WINAPI NtQueryDirectoryFile( HANDLE handle, HANDLE event, PIO_APC_ROUTI
  }
  
  
@@ -300,7 +318,7 @@ ntdll: cache directory listings for case-insensitive lookups (every probe for a 
  /***********************************************************************
   *           find_file_in_dir
   *
-@@ -3038,6 +3329,15 @@
+@@ -2844,6 +3135,15 @@ static NTSTATUS find_file_in_dir( int root_fd, char *unix_name, int pos, const W
      is_name_8_dot_3 = is_name_8_dot_3 && length >= 8 && name[4] == '~';
  #endif
  

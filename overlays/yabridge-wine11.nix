@@ -32,205 +32,64 @@ let
     inherit (prev.stdenv.hostPlatform) system;
     config.allowUnfree = true;
   };
-  # giang17's d2d1-dcomp Wine fork (wine 11.16 based, NOT staging): implements
-  # the D2D 1.3 + DirectComposition path that JUCE 8.0.x plugin editors
-  # hardwire (pre-8.0.13 JUCE has no software fallback at all). Without it,
-  # soothe3's editor is black and kills the host; with it plus the two patches
-  # below, the full UI renders and is interactive (verified 2026-08-30,
-  # pluginval strictness 10 all green + REAPER; see Obsidian "VST Plugins on
-  # Wine.md" § soothe3 and ~/.local/share/wine-fixes/soothe3-d2d/).
+  # giang17's d2d1-dcomp Wine fork (rebased onto Wine dev releases, NOT
+  # staging): implements the D2D 1.3 + DirectComposition path that JUCE 8.0.x
+  # plugin editors hardwire (pre-8.0.13 JUCE has no software fallback at all).
+  # Without it, soothe3's editor is black and kills the host. The fork's
+  # wine.inf hides wine_get_version from plug-in hosts (yabridge-host.exe,
+  # reaper.exe, FL64.exe, ...); per prefix, HKCU\Software\Wine\HideWineVersion
+  # or HKCU\Software\Wine\AppDefaults\<exe>\HideWineVersion = "Y"/"N"
+  # overrides that (an AppDefaults value wins).
   #
-  # - dcomp-wndproc-loop-guard.patch (ours, offered upstream): the fork's
-  #   dcomp.dll/dxgi.dll subclass the editor HWND alongside JUCE and PACE;
-  #   the saved wndprocs are user32 winproc handles so identity checks can't
-  #   see a cycle, the chain can close into a ring, and one forwarded message
-  #   then recurses until the 1MB thread stack overflows. The patch caps
-  #   same-window forward nesting at 32.
-  # - hide-wine-exports.patch: hides wine_get_version and friends (the fork is
-  #   not staging-based, so the Staging HideWineExports registry key from the
-  #   Antares note doesn't exist here). Side effect on JUCE >= 8.0.13 plugins:
-  #   they can't detect Wine, take the full D2D path instead of the degraded
-  #   GDI fallback — which is exactly what this fork wants (it ships the same
-  #   default via wine.inf HideWineVersion on newer branch tips).
+  # wine/source.json pins the fork branch and commit. wine/patches/ are our
+  # changes on top, applied in file name order; each patch header says what
+  # it fixes. wine/update.sh moves both to a newer fork branch (wine/README.md).
   #
-  # COST: no Hydra cache for a fork — bumping `rev` means a local ~1h wine
-  # build plus a yabridge rebuild. The fork rebases onto wine dev releases
-  # roughly biweekly; only bump when something needs it. builtins.fetchGit
-  # with a full rev is pure-eval-safe and lets nix reuse a previously built
-  # source checkout.
+  # COST: no Hydra cache for a fork — a bump means a local ~1h wine build plus
+  # a yabridge rebuild. builtins.fetchGit with a full rev is pure-eval-safe
+  # and lets nix reuse a previously built source checkout.
   #
-  # NOTE: home/packages/media.nix derives gecko/mono MSI versions from this
-  # nixpkgs' wine sources.nix (11.14-era) while the fork is 11.16 — close
-  # enough in practice; if a prefix ever nags about wrong gecko/mono, that
-  # version skew is why.
+  # embedInstallers links the gecko/mono MSIs from nixpkgs-wine's sources.nix
+  # (`unstable` set) into share/wine, so wineboot installs them on prefix
+  # creation. Wine only picks them up by exact version: they must match
+  # WINE_MONO_VERSION (dlls/mscoree/mscoree_private.h) and GECKO_VERSION
+  # (dlls/appwiz.cpl/addons.c) of the fork; update.sh warns when a new branch
+  # changes them, then bump the nixpkgs-wine input to a nixpkgs that ships them.
   #
   # EXIT STRATEGY: if oeksound ships soothe3 on JUCE >= 8.0.13 (asked via
   # wine-fixes/soothe3-d2d/oeksound-email.md), point `yabridge` back at
   # prev.wineWow64Packages.staging and delete all of this.
-  wine-d2d1-dcomp = winePkgs.wineWow64Packages.unstable.overrideAttrs (old: {
-    pname = "wine-wow64-d2d1-dcomp-hwe-1116-loopguard";
-    src = builtins.fetchGit {
-      url = "https://github.com/giang17/wine";
-      rev = "19062635e50d84edef523f912c397119c2691630";
-      ref = "d2d1-dcomp-11.16";
-    };
-    patches = (old.patches or [ ]) ++ [
-      ./patches/hide-wine-exports.patch
-      ./patches/dcomp-wndproc-loop-guard.patch
-      # wineserver-batch-mutex-abandon.patch (ours, 2026-09-01): with ntsync,
-      # wineserver brute-forces NTSYNC_IOC_MUTEX_KILL on EVERY live mutex for
-      # EVERY thread exit (abandon_inproc_mutexes). Omnisphere joins ~7000
-      # short-lived threads per patch load against ~3000+ mutexes -> ~34s of
-      # pegged wineserver = the frozen-REAPER preset loads. Batch dead tids
-      # (max 128, safe: ptid reuse needs 256 frees) and flush with one
-      # read-owner pass every 250ms. Diagnosis: omni-preset-freeze memory +
-      # scratchpad/omni-probe. Candidate for upstream (novel, unfiled).
-      ./patches/wineserver-batch-mutex-abandon.patch
-      # dwrite-fontface-lookup-cache.patch (ours, 2026-09-11): wine's
-      # GetFontFromFontFace does a full collection scan (refkey memcmp per
-      # candidate + two COM allocs) on EVERY text draw; JUCE's D2D text path
-      # calls it per draw, so busy plugin UIs (Absynth 6 node-view preset
-      # explorer, perf-profiled: dwrite+string/heap satellites ~25-30% of the
-      # host GUI thread) burn a core on font lookups. Adds a 4-entry
-      # re-validated LRU per collection. Upstream-worthy.
-      ./patches/dwrite-fontface-lookup-cache.patch
-      # dwrite-family-name-index.patch (ours, 2026-11-17): every family
-      # lookup scanned all family names of the collection (COM string copy +
-      # wcsicmp each), and building a collection looks up the family of each
-      # face, so with ~7800 system faces every new collection cost millions
-      # of compares. Indexes all localized family names in an rb-tree (same
-      # wcsicmp order, first family wins like the scan did). Omnisphere 3
-      # was ~60% of its GUI thread here while loading a patch (REAPER blocks
-      # on it in getState()): patch-browse stalls 2.2-2.4s -> one 0.5s in
-      # 16 clicks; editor open 0.86s -> 0.28s; soothe3 open 2.6s -> 1.8s.
-      # Upstream-worthy.
-      ./patches/dwrite-family-name-index.patch
-      # mshtml-feature-browser-emulation.patch (ours, 2026-09-12): native
-      # mshtml lets a host pick the default document mode for standards-
-      # doctype pages via FeatureControl\FEATURE_BROWSER_EMULATION\<exe>;
-      # wine ignored the key and hardcoded IE7, so jscript ran in legacy
-      # mode and choked (800a03ea on `default`) on the ES5 webpack bundle
-      # that Adobe's Creative Cloud Set-up.exe renders its UI with (it
-      # writes 11001 for itself) -> installer window never appears. This is
-      # the missing piece wine-staging's mshtml-adobe set does NOT have;
-      # the staging msxml3 bits are moot with native msxml3 in ~/.wine-cc.
-      # Upstream-worthy (mirrors native, no app check).
-      ./patches/mshtml-feature-browser-emulation.patch
-      # mshtml-adobe-jsobject-events.patch: subset of ValveSoftware/wine
-      # PR #310 (Bakreski) that still applies on 11.16 — don't hand dynamic
-      # DISPIDs to jscript (the installer's native JSObject bridge), route
-      # on* attributes through wine's event system in IE9+ mode. The PR's
-      # NodeList hunk is already upstream, its msxml3 CDATA hunk is
-      # unnecessary with native msxml3.
-      ./patches/mshtml-adobe-jsobject-events.patch
-      # mshtml-querycommandsupported-false.patch (ours, 2026-09-12): the
-      # installer's sign-in step loads Adobe's delegated QR-login page, whose
-      # init script calls document.queryCommandSupported("copy") at top
-      # level; wine's E_NOTIMPL stub throws, the script aborts before it
-      # starts polling and the page sits on "Loading...". Native answers
-      # FALSE for unknown commands, so do that.
-      ./patches/mshtml-querycommandsupported-false.patch
-      # mshtml-location-port-explicit-only.patch (ours, 2026-09-12): IUri
-      # reports the scheme default port as present, so location.port was
-      # "443" on https pages (native: ""). The QR sign-in page keys its
-      # environment table on protocol+hostname+port and got an undefined
-      # API URL -> "Something Went Wrong". Only report explicit ports.
-      ./patches/mshtml-location-port-explicit-only.patch
-      # wine-windows-ui-notifications-stub.patch (ours, 2026-09-12): new
-      # windows.ui.notifications.dll with stub ToastNotificationManager /
-      # ToastNotification / Windows.Data.Xml.Dom.XmlDocument activation
-      # factories. Creative Cloud desktop (5.9+/6.9) creates a toast
-      # notifier on launch and dereferences the factory without checking
-      # RoGetActivationFactory, so wine's "class not registered" became
-      # an access violation at startup. Show() is a silent no-op.
-      # Registration is generated from classes.idl (makedep register), so
-      # prefixes pick it up on the next wineboot update.
-      ./patches/wine-windows-ui-notifications-stub.patch
-      # kernel32-SetThreadpoolTimerEx.patch: verbatim wine-staging 11.16
-      # patchset kernel32-SetThreadpoolTimerEx (bug 57980, "Help: Adobe
-      # Lightroom CC"). Creative Cloud desktop 6.9 aborts with "unimplemented
-      # function KERNEL32.dll.SetThreadpoolTimerEx" right after its UI loads;
-      # the fork is not staging-based so it lacks it.
-      ./patches/kernel32-SetThreadpoolTimerEx.patch
-      # secur32-post-1116-fixes.patch: five upstream secur32 commits that
-      # landed right after 11.16 (081d8b1 df5c23c b717164 e240785 1b1ef35):
-      # context-handle validation, gnutls credential leak, wrong comment
-      # length in _copyPackageInfoFlatWToA (heap overflow) and wrong
-      # deallocator in thunk_ContextAttributesAToW (heap corruption).
-      # Creative Cloud desktop corrupts its process heap ~1 min after
-      # launch only when schannel is enabled (schannel=d → no fault).
-      ./patches/secur32-post-1116-fixes.patch
-      # ntdll-dir-listing-cache.patch (ours, 2026-10-18): a lookup that
-      # misses the exact-case name reads the whole directory to search it
-      # case-insensitively, and lookup_unix_name retries every missing name
-      # as a "name?" reparse point, so each probe for a file that doesn't
-      # exist costs two full directory reads. NI's plug-ins probe a few
-      # thousand product names against installed_products/ and
-      # Native Access/ras3/ (~300 entries each) in their DLL init: ~26k
-      # directory reads, about a third of Kontakt 8's DLL init (perf +
-      # strace). Caches listings of directories whose mtime/ctime are >= 2s
-      # old on local filesystems, revalidated by stat on every use.
-      # Measured load (DLL init, warm prefix, 3 runs each): Kontakt 8
-      # 8.13-8.22s -> 6.24-6.52s, Guitar Rig 7 6.34-6.40s -> 5.76-5.80s.
-      # Lookup results checked identical to stock (case variants, 8.3 names,
-      # umlauts, changes made in-process and from Linux mid-run).
-      # WINE_DISABLE_DIR_CACHE=1 turns it off without a rebuild.
-      # Upstream-worthy.
-      ./patches/ntdll-dir-listing-cache.patch
-      # ntdll-abort-thread-fd-cache-mutex.patch (ours, 2026-10-18): when a
-      # process exits, the server closes the other threads' pipes and a
-      # thread waiting on a server reply inside an uninterrupted section
-      # dies right there in abort_thread() - still holding fd_cache_mutex.
-      # Every later NtClose() then waits for it forever with the server
-      # signals blocked, so that thread can't be killed and the process
-      # never exits (caught live: a Guitar Rig 7 host after unload, mutex
-      # owner tid long gone). The fd cache is consistent at every server
-      # call made under the mutex, so the dying thread releases it.
-      # Upstream bug.
-      ./patches/ntdll-abort-thread-fd-cache-mutex.patch
-      # ntdll-heap-decommit-slack.patch (ours, 2026-11-16): freeing the last
-      # block of a subheap decommitted everything past it plus 64k, so a loop
-      # that allocates and frees a block at the end of a subheap committed and
-      # decommitted the same pages every iteration. Absynth 6's editor did
-      # that ~3500 times/s (strace: mprotect RW + mmap PROT_NONE on one 64k
-      # range): ~40% of its GUI thread in VirtualAlloc/VirtualFree and
-      # zero-fill faults. Keeps up to 1 MB committed, decommits from 2 MB.
-      ./patches/ntdll-heap-decommit-slack.patch
-      # sc-delayed-auto.patch (ours, 2026-11-17): sc.exe didn't know
-      # "start= delayed-auto" and silently created the service as demand
-      # start. The NTKDaemon installer runs
-      # `sc create NTKDaemonService ... start= delayed-auto`, so the daemon
-      # never started on its own and Kontakt 8 waited 2 s for it on every
-      # editor close (0.45 s with the daemon running). Now auto start plus
-      # SERVICE_CONFIG_DELAYED_AUTO_START_INFO, like Windows' sc.exe.
-      # Upstream bug.
-      ./patches/sc-delayed-auto.patch
-      # msvcrt-abort-fastfail.patch (ours, 2026-11-17): abort() raised
-      # SIGABRT even without a handler, and the default action _exit(3)
-      # runs DLL detach code. UCRT raises only for an installed handler and
-      # then __fastfail()s, which terminates without detach. A yabridge host
-      # that aborted while hosting Kontakt 8 hung forever in ni-platform.dll's
-      # detach (WSAPoll on a socket whose I/O thread was already gone), so
-      # REAPER waited forever on the host.
-      # Upstream bug.
-      ./patches/msvcrt-abort-fastfail.patch
-      # d2d1-builtin-shape-bytecode.patch (ours, 2026-11-17): d2d1 compiled
-      # its 7 shape shaders with D3DCompile for every ID2D1Device. Equator2
-      # (JUCE) loads and frees d2d1.dll ~190 times while loading and ~130
-      # times per editor open, so that was ~2400 compiles in vkd3d's HLSL
-      # compiler per session: load 34.9s -> 23.4s, editor open 13.4s -> 5s
-      # (renders identical). Bytecode is generated from the unchanged HLSL
-      # (now shape_hlsl.h) by gen_shape_bytecode.c with the same D3DCompile
-      # arguments; regenerate it when the HLSL changes. Windows' d2d1 ships
-      # precompiled shaders too. Drops the d3dcompiler import.
-      ./patches/d2d1-builtin-shape-bytecode.patch
-    ];
+  wineSource = prev.lib.importJSON ./wine/source.json;
+  winePatches = map (name: ./wine/patches + "/${name}")
+    (builtins.sort builtins.lessThan (builtins.attrNames (prev.lib.filterAttrs
+      (name: type: type == "regular" && prev.lib.hasSuffix ".patch" name)
+      (builtins.readDir ./wine/patches))));
+  wine-d2d1-dcomp = (winePkgs.wineWow64Packages.unstable.override {
+    embedInstallers = true;
+  }).overrideAttrs (old: {
+    # "yabridge" in the store path: reaper-rescue finds the DAW's wineservers by it
+    pname = "wine-yabridge";
+    inherit (wineSource) version;
+    src = builtins.fetchGit { inherit (wineSource) url ref rev; };
+    patches = (old.patches or [ ]) ++ winePatches;
+    # d2d1's shaders, compiled from the HLSL in device.c with the vkd3d
+    # version Wine bundles for D3DCompile (see the d2d1 patch).
+    postPatch = (old.postPatch or "") + ''
+      ${prev.python3.interpreter} ${./wine/d2d1-shader-bytecode.py} \
+        ${winePkgs.vkd3d}/bin/vkd3d-compiler dlls/d2d1/device.c > dlls/d2d1/builtin_shaders.h
+    '';
     nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ prev.autoconf prev.perl prev.flex prev.bison ];
     preConfigure = ''
       ./tools/make_requests || true
       ./tools/make_specfiles || true
       autoreconf -f -i || autoconf || true
     '' + (old.preConfigure or "");
+    # nixpkgs' wow64 build embeds only the x86_64 gecko, but wineboot's
+    # Wow64Install pass registers the 32-bit iexplore.exe too, and that one
+    # asks for the x86 MSI.
+    postInstall = (old.postInstall or "") + ''
+      ln -s ${old.src.gecko32} $out/share/wine/gecko/${old.src.gecko32.name}
+    '';
   });
   # ARA2 support (2026-09-05): robbert-vdh/yabridge PR #500 (samuel-asleep:
   # ara2-support, sponsored/tested by NlGHT). Unmerged and unreviewed upstream
@@ -256,9 +115,7 @@ in
 {
   wineWow64Packages = prev.wineWow64Packages // {
     # Was prev.wineWow64Packages.staging (11.14, Hydra-cached — see the COST
-    # note above for what switching to the fork trades away). The gecko/mono
-    # note from the staging era still applies: they are installed per-prefix
-    # via wine-install-addons in home/packages/media.nix, not embedded.
+    # note above for what switching to the fork trades away).
     yabridge = wine-d2d1-dcomp;
   };
 

@@ -1,11 +1,24 @@
-From: Filip Bakreski (ValveSoftware/wine PR #310, subset)
-Subject: mshtml: JSObject dispatch and IE9+ event attribute fixes for the Adobe installer
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:40 +0100
+Subject: [PATCH] mshtml: JSObject dispatch and IE9+ event attribute fixes for
+ the Adobe installer.
+
+Subset of ValveSoftware/wine PR #310 by Filip Bakreski that still applies:
+dynamic DISPIDs are not handed to jscript (the installer's native JSObject
+bridge), and on* attributes go through Wine's event system in IE9+ mode.
+---
+ dlls/mshtml/dispex.c    |  5 ++++-
+ dlls/mshtml/htmlelem.c  | 11 +++++++++++
+ dlls/mshtml/htmlevent.c | 14 ++++++++++++++
+ dlls/mshtml/htmlevent.h |  1 +
+ 4 files changed, 30 insertions(+), 1 deletion(-)
 
 diff --git a/dlls/mshtml/dispex.c b/dlls/mshtml/dispex.c
-index 0eb18fe8d3df..476c5f96c4c6 100644
+index 8db3d6ac1c6c1e864c54fd93b73781dfce362dad..5e4166c0d14b1f9ee6148b1b1b4b39d8584177df 100644
 --- a/dlls/mshtml/dispex.c
 +++ b/dlls/mshtml/dispex.c
-@@ -2315,7 +2315,10 @@ static HRESULT WINAPI DispatchEx_InvokeEx(IWineJSDispatchHost *iface, DISPID id,
+@@ -2399,7 +2399,10 @@ static HRESULT WINAPI DispatchEx_InvokeEx(IWineJSDispatchHost *iface, DISPID id,
      if(!ensure_real_info(This))
          return E_OUTOFMEMORY;
  
@@ -18,10 +31,10 @@ index 0eb18fe8d3df..476c5f96c4c6 100644
  
      switch(wFlags) {
 diff --git a/dlls/mshtml/htmlelem.c b/dlls/mshtml/htmlelem.c
-index a04dfbb70735..188c1bc1b5d5 100644
+index a4fab5762792253abf46f215fa7338acf97aac79..723c6dfee9ad54cc000bbafbb6e0e84acdc231af 100644
 --- a/dlls/mshtml/htmlelem.c
 +++ b/dlls/mshtml/htmlelem.c
-@@ -1168,6 +1168,17 @@ static HRESULT WINAPI HTMLElement_setAttribute(IHTMLElement *iface, BSTR strAttr
+@@ -1039,6 +1039,17 @@ static HRESULT WINAPI HTMLElement_setAttribute(IHTMLElement *iface, BSTR strAttr
  
      TRACE("(%p)->(%s %s %08lx)\n", This, debugstr_w(strAttributeName), debugstr_variant(&AttributeValue), lFlags);
  
@@ -40,10 +53,10 @@ index a04dfbb70735..188c1bc1b5d5 100644
          hres = dispex_get_id(&This->node.event_target.dispex, translate_attr_name(strAttributeName, compat_mode),
                  (lFlags&ATTRFLAG_CASESENSITIVE ? fdexNameCaseSensitive : fdexNameCaseInsensitive) | fdexNameEnsure, &dispid);
 diff --git a/dlls/mshtml/htmlevent.c b/dlls/mshtml/htmlevent.c
-index d1c39a10519c..ab5ea5ba20f1 100644
+index 39fe7c3538461b3fef144132036dd65f5007d37b..daa9fdfeef8ff9e1aa78df2c2a1a3eca9cfeb479 100644
 --- a/dlls/mshtml/htmlevent.c
 +++ b/dlls/mshtml/htmlevent.c
-@@ -4869,6 +4883,20 @@ void bind_target_event(HTMLDocumentNode *doc, EventTarget *event_target, const W
+@@ -4874,6 +4874,20 @@ void bind_target_event(HTMLDocumentNode *doc, EventTarget *event_target, const W
      set_event_handler_disp(event_target, eid, disp);
  }
  
@@ -65,10 +78,10 @@ index d1c39a10519c..ab5ea5ba20f1 100644
  {
      int i;
 diff --git a/dlls/mshtml/htmlevent.h b/dlls/mshtml/htmlevent.h
-index 6dec8cf9a9a7..5c4a9cddbb0d 100644
+index 9576d91c9ff979ce41e93899725b7fbab915532c..6b1d9f3b383ecd0ef20ff3b7181bbe022a0a0c57 100644
 --- a/dlls/mshtml/htmlevent.h
 +++ b/dlls/mshtml/htmlevent.h
-@@ -109,6 +109,7 @@ HRESULT doc_init_events(HTMLDocumentNode*);
+@@ -111,6 +111,7 @@ HRESULT doc_init_events(HTMLDocumentNode*);
  void detach_events(HTMLDocumentNode *doc);
  HRESULT create_event_obj(DOMEvent*,HTMLDocumentNode*,IHTMLEventObj**);
  void bind_target_event(HTMLDocumentNode*,EventTarget*,const WCHAR*,IDispatch*);
