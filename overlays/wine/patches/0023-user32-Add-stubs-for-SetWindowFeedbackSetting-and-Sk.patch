@@ -1,0 +1,68 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Tue, 24 Nov 2026 20:49:31 +0100
+Subject: [PATCH] user32: Add stubs for SetWindowFeedbackSetting and
+ SkipPointerFrameMessages.
+
+Photoshop imports both and calls SetWindowFeedbackSetting while setting
+up pointer input for a new document window; without an implementation
+Wine aborts the process. Neither function has an effect Wine could
+reproduce, so report success.
+---
+ dlls/user32/input.c     | 20 ++++++++++++++++++++
+ dlls/user32/user32.spec |  4 ++--
+ 2 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/user32/input.c b/dlls/user32/input.c
+index 051f4e48ec958f7d1f0d1f00e300930895152874..26270268d345c277cbc905b3ec6cdc1d3f820282 100644
+--- a/dlls/user32/input.c
++++ b/dlls/user32/input.c
+@@ -742,6 +742,26 @@ BOOL WINAPI SetGestureConfig( HWND hwnd, DWORD reserved, UINT count,
+     return FALSE;
+ }
+ 
++/**********************************************************************
++ * SetWindowFeedbackSetting (USER32.@)
++ */
++BOOL WINAPI SetWindowFeedbackSetting( HWND hwnd, FEEDBACK_TYPE feedback, DWORD flags,
++                                      UINT32 size, const void *config )
++{
++    FIXME( "hwnd %p, feedback %d, flags %#lx, size %u, config %p stub!\n",
++           hwnd, feedback, flags, size, config );
++    return TRUE;
++}
++
++/**********************************************************************
++ * SkipPointerFrameMessages (USER32.@)
++ */
++BOOL WINAPI SkipPointerFrameMessages( UINT32 id )
++{
++    FIXME( "id %u stub!\n", id );
++    return TRUE;
++}
++
+ BOOL WINAPI GetPointerDeviceProperties( HANDLE device, UINT32 *count,
+                                         POINTER_DEVICE_PROPERTY *properties)
+ {
+diff --git a/dlls/user32/user32.spec b/dlls/user32/user32.spec
+index 241b40054b8d58f84ef3a234ab17f6dfc4f2524e..c086c1b4aa6cfddcf689f9fb33532c561b49fb4b 100644
+--- a/dlls/user32/user32.spec
++++ b/dlls/user32/user32.spec
+@@ -1108,7 +1108,7 @@
+ # @ stub SetWindowCompositionTransition
+ @ stdcall SetWindowContextHelpId(long long) NtUserSetWindowContextHelpId
+ @ stdcall SetWindowDisplayAffinity(long long)
+-# @ stub SetWindowFeedbackSetting
++@ stdcall SetWindowFeedbackSetting(long long long long ptr)
+ @ stdcall SetWindowLongA(long long long)
+ @ stdcall -arch=win64 SetWindowLongPtrA(long long long)
+ @ stdcall -arch=win64 SetWindowLongPtrW(long long long)
+@@ -1139,7 +1139,7 @@
+ @ stdcall ShutdownBlockReasonDestroy(long)
+ # @ stub ShutdownBlockReasonQuery
+ # @ stub SignalRedirectionStartComplete
+-# @ stub SkipPointerFrameMessages
++@ stdcall SkipPointerFrameMessages(long)
+ # @ stub SoftModalMessageBox
+ # @ stub SoundSentry
+ @ stdcall SubtractRect(ptr ptr ptr)
