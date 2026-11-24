@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: stardazed <263018575+stardazed@users.noreply.github.com>
+Date: Sun, 22 Nov 2026 17:01:31 +0100
+Subject: [PATCH] dxcore: Add a semi-stub for the IsDetachable property.
+
+Adobe Photoshop 2026's LibXPUInfo.dll queries IsDetachable during GPU enumeration and throws when the call fails. Wine does not model removable adapters, so report FALSE.
+---
+ dlls/dxcore/dxcore.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/dlls/dxcore/dxcore.c b/dlls/dxcore/dxcore.c
+index 6ed9da6c70ea54e7b93c74518e5d388cb440c6d0..1f7ebc3e83139ae28843094a7b13b3f6929580b6 100644
+--- a/dlls/dxcore/dxcore.c
++++ b/dlls/dxcore/dxcore.c
+@@ -120,6 +120,7 @@ static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
+         [DedicatedSystemMemory] = sizeof(UINT64),
+         [SharedSystemMemory] = sizeof(UINT64),
+         [IsHardware] = sizeof(BYTE),
++        [IsDetachable] = sizeof(BYTE),
+     };
+ 
+     switch (property)
+@@ -131,6 +132,7 @@ static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
+         case DedicatedSystemMemory:
+         case SharedSystemMemory:
+         case IsHardware:
++        case IsDetachable:
+             *size = property_sizes[property];
+             return S_OK;
+         case DriverDescription:
+@@ -205,6 +207,12 @@ static HRESULT STDMETHODCALLTYPE dxcore_adapter_GetProperty(IDXCoreAdapter *ifac
+             *(BYTE *)buffer = 1;
+             break;
+ 
++        case IsDetachable:
++            /* Wine does not model removable adapters. */
++            FIXME("Returning FALSE for IsDetachable.\n");
++            *(BYTE *)buffer = 0;
++            break;
++
+         case DriverDescription:
+         {
+             memcpy(buffer, adapter->identifier.description, size);

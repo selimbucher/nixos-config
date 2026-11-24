@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: stardazed <263018575+stardazed@users.noreply.github.com>
+Date: Sun, 22 Nov 2026 17:01:31 +0100
+Subject: [PATCH] dxcore: Report supported properties from
+ IsPropertySupported().
+
+IsPropertySupported() always returned FALSE. Report the properties that GetPropertySize() and GetProperty() actually handle.
+---
+ dlls/dxcore/dxcore.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/dxcore/dxcore.c b/dlls/dxcore/dxcore.c
+index 0bea5e32a61a4d638fbd831f74a6a725f7ff1428..6ed9da6c70ea54e7b93c74518e5d388cb440c6d0 100644
+--- a/dlls/dxcore/dxcore.c
++++ b/dlls/dxcore/dxcore.c
+@@ -95,10 +95,17 @@ static BOOL STDMETHODCALLTYPE dxcore_adapter_IsAttributeSupported(IDXCoreAdapter
+     return FALSE;
+ }
+ 
++static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
++        DXCoreAdapterProperty property, size_t *size);
++
+ static BOOL STDMETHODCALLTYPE dxcore_adapter_IsPropertySupported(IDXCoreAdapter *iface, DXCoreAdapterProperty property)
+ {
+-    FIXME("iface %p, property %u stub!\n", iface, property);
+-    return FALSE;
++    struct dxcore_adapter *adapter = impl_from_IDXCoreAdapter(iface);
++    size_t size;
++
++    TRACE("iface %p, property %u.\n", iface, property);
++
++    return SUCCEEDED(dxcore_adapter_get_property_size(adapter, property, &size));
+ }
+ 
+ static HRESULT dxcore_adapter_get_property_size(struct dxcore_adapter *adapter,
