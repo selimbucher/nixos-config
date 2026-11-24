@@ -234,6 +234,9 @@
     }];
   };
 
+  # ZSA Voyager: Oryx flashing + live training in the browser (WebHID).
+  hardware.keyboard.zsa.enable = true;
+
   services.pipewire = {
     enable = true;
     alsa.enable = true;
