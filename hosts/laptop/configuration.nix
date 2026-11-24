@@ -5,6 +5,7 @@
     ../../options.nix
     ./hardware-configuration.nix
     ./curve-optimizer.nix
+    ./speakers.nix
     ../../common.nix
   ];
 
