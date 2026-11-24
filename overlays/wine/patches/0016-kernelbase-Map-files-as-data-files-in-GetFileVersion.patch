@@ -1,0 +1,43 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sat, 21 Nov 2026 22:52:48 +0100
+Subject: [PATCH] kernelbase: Map files as data files in GetFileVersionInfo*().
+
+The file was loaded with LOAD_LIBRARY_AS_IMAGE_RESOURCE, and an image
+mapping of a PE whose sections are not page aligned reads every section.
+NI's ProductScan, run by every NI plug-in host at start, reads the version
+information of each installed NI binary several times: 11.2 GB of reads
+and 21 s of kernel time per host. A data file mapping is read lazily and
+FindResource() works the same on it: Guitar Rig 7 load 39-53 s -> 12.4 s.
+For a native d3dcompiler_47.dll the result is now the file's own version
+instead of the builtin's, as on Windows.
+---
+ dlls/kernelbase/version.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/kernelbase/version.c b/dlls/kernelbase/version.c
+index 809577afcfc8154040a41825304d7775541e86f0..1b5c625d6c0d19c3914e7345a9e9248b02811f4b 100644
+--- a/dlls/kernelbase/version.c
++++ b/dlls/kernelbase/version.c
+@@ -772,7 +772,9 @@ DWORD WINAPI GetFileVersionInfoSizeExW( DWORD flags, LPCWSTR filename, LPDWORD r
+     if (flags & ~FILE_VER_GET_LOCALISED)
+         FIXME("flags 0x%lx ignored\n", flags & ~FILE_VER_GET_LOCALISED);
+ 
+-    if ((hModule = LoadLibraryExW( filename, 0, LOAD_LIBRARY_AS_IMAGE_RESOURCE )))
++    /* A data file mapping is read lazily; an image mapping of a file whose sections
++     * aren't page aligned reads the whole file. */
++    if ((hModule = LoadLibraryExW( filename, 0, LOAD_LIBRARY_AS_DATAFILE )))
+     {
+         HRSRC hRsrc = NULL;
+         if (!(flags & FILE_VER_GET_LOCALISED))
+@@ -877,7 +879,9 @@ BOOL WINAPI GetFileVersionInfoExW( DWORD flags, LPCWSTR filename, DWORD ignored,
+     if (flags & ~FILE_VER_GET_LOCALISED)
+         FIXME("flags 0x%lx ignored\n", flags & ~FILE_VER_GET_LOCALISED);
+ 
+-    if ((hModule = LoadLibraryExW( filename, 0, LOAD_LIBRARY_AS_IMAGE_RESOURCE )))
++    /* A data file mapping is read lazily; an image mapping of a file whose sections
++     * aren't page aligned reads the whole file. */
++    if ((hModule = LoadLibraryExW( filename, 0, LOAD_LIBRARY_AS_DATAFILE )))
+     {
+         HRSRC hRsrc = NULL;
+         if (!(flags & FILE_VER_GET_LOCALISED))
