@@ -206,11 +206,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795039679,
-        "narHash": "sha256-/LC50T58i7G3XzryfCIGQSPHZ1fLYPDNC39tZZVWzN4=",
+        "lastModified": 1795398715,
+        "narHash": "sha256-caKWdSG/RwL0VAbJYL7H4Hdty0OWyz6DGXEHPZDrXOc=",
         "owner": "selimbucher",
         "repo": "kiwi-shell",
-        "rev": "1cf3d76f70743e63d0788fadcea53bc8459ea5eb",
+        "rev": "5624f1df4c036d0009b96a546cd0b9cfedcace84",
         "type": "github"
       },
       "original": {
@@ -227,11 +227,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1793646818,
-        "narHash": "sha256-4bQzt4JadlgEtpelit0usT/5DlFo5wyZdj/vWiCe4jQ=",
+        "lastModified": 1795201119,
+        "narHash": "sha256-+cqoicVBe4jadk0vhHut+YYSat5khL6gaeBdOfviSqs=",
         "owner": "selimbucher",
         "repo": "kiwi-settings",
-        "rev": "92d0e1a8629477c5b0642bb4fa88a2777b425b18",
+        "rev": "1f1a5ca06305a8ab38cc0b0f5eb2917be1883062",
         "type": "github"
       },
       "original": {
