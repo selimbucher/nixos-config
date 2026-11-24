@@ -25,6 +25,19 @@
   ];
   networking.hosts."100.64.0.2" = [ "laptop" ];
 
+  # Sessions that outlive the SSH connection: `ssh -t desktop tmux new -As claude`.
+  programs.tmux = {
+    enable = true;
+    # The 500 ms default holds back every Esc (Claude Code's interrupt key).
+    escapeTime = 10;
+    historyLimit = 50000;
+    terminal = "tmux-256color";
+    extraConfig = ''
+      set -g mouse on
+      set -g focus-events on
+    '';
+  };
+
   # Woken from off or suspend by the Pi at home (`wake-desktop`, ~/.pi). From
   # off it also needs ErP Ready off and Power On By PCI-E on in the BIOS.
   networking.interfaces.enp10s0.wakeOnLan.enable = true;
