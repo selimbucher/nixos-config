@@ -1,0 +1,52 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Selim Bucher <me@selim.one>
+Date: Sun, 22 Nov 2026 14:59:06 +0100
+Subject: [PATCH] winhttp: Remove Content-Length from the raw headers when
+ decompressing.
+
+WINHTTP_QUERY_RAW_HEADERS_CRLF still listed the compressed length after
+init_gzip_stream() removed the header. Adobe's Growth SDK in Creative
+Cloud sizes its body buffer from it and overran the heap once the
+decompressed body was larger, which left the process deadlocked on the
+heap lock.
+---
+ dlls/winhttp/request.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/dlls/winhttp/request.c b/dlls/winhttp/request.c
+index 7a9a4901547420a5015708d88f898312ccad1511..e77e47bb6ee5a0beb39d80990ebd8185de47169f 100644
+--- a/dlls/winhttp/request.c
++++ b/dlls/winhttp/request.c
+@@ -2740,6 +2740,24 @@ static DWORD handle_authorization( struct request *request, DWORD status )
+     return ERROR_WINHTTP_LOGIN_FAILURE;
+ }
+ 
++/* remove a header line from the raw response headers */
++static void remove_raw_header( struct request *request, const WCHAR *field )
++{
++    WCHAR *line, *next;
++    int len = wcslen( field );
++
++    if (!request->raw_headers || !(line = wcsstr( request->raw_headers, L"\r\n" ))) return;
++    line += 2; /* skip the status line */
++    while ((next = wcsstr( line, L"\r\n" )) && next != line)
++    {
++        next += 2;
++        if (!wcsnicmp( line, field, len ) && line[len] == ':')
++            memmove( line, next, (wcslen( next ) + 1) * sizeof(WCHAR) );
++        else
++            line = next;
++    }
++}
++
+ static DWORD init_gzip_stream( struct request *request, BOOL is_gzip )
+ {
+     struct gzip_stream *gzip_stream;
+@@ -2770,6 +2788,7 @@ static DWORD init_gzip_stream( struct request *request, BOOL is_gzip )
+     request->data_stream = &gzip_stream->data_stream;
+ 
+     remove_header( request, L"Content-Length", FALSE );
++    remove_raw_header( request, L"Content-Length" );
+     request->content_length = ~0ull;
+     return ERROR_SUCCESS;
+ }
