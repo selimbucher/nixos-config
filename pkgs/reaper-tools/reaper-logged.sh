@@ -59,6 +59,11 @@ fi
 # Bump YABRIDGE_DEBUG_LEVEL to 1 or 2 here when hunting a specific bug.
 export YABRIDGE_DEBUG_FILE="$SESSIONS/$TS-yabridge.log"
 
+# Only the AMD Vulkan driver. Without this every Vulkan instance loads all 13
+# Mesa drivers and parses their driconf; DXVK creates one per D3D11 device, and
+# Equator2 creates ~190 of those while loading (23.4s -> 18.9s).
+export VK_LOADER_DRIVERS_SELECT='*radeon*'
+
 # Stable names for the current session's logs.
 ln -sfn "$TS-yabridge.log" "$SESSIONS/current-yabridge.log"
 ln -sfn "$TS-reaper.log" "$SESSIONS/current-reaper.log"
