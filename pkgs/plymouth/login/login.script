@@ -1,16 +1,31 @@
-## Login-style unlock screen: the disk passphrase is asked on the blurred
-## wallpaper, under the user's name, in a rounded field. After the
-## passphrase the field gives way to a spinner until the session takes over.
+## The disk passphrase screen of encrypted hosts, after the macOS lock screen:
+## the wallpaper dimmed, a padlock with the date and clock at the top, the
+## avatar and name around the centre and a frosted password pill under them.
+## Typing brings an arrow button into the pill, a wrong passphrase shakes it,
+## and while the disk unlocks a ring turns round the avatar.
 ##
-## One canvas spans all displays (as in spinner_alt), so everything sits on
-## the canvas centre and is sized from the smallest display. plymouthd must
-## run with DeviceScale=1: with its own HiDPI doubling the script would only
-## see half the panel's pixels. The images exist once per scale step
-## (pkgs/plymouth/login/gen.sh) and are never resized here.
+## One canvas spans all displays, so everything sits on the canvas centre and
+## is sized from the smallest display. plymouthd must run with DeviceScale=1:
+## with its own HiDPI doubling the script would only see half the panel's
+## pixels. The images exist once per scale step (NAME-STEP.png, drawn by
+## gen.py) and are never resized.
 
 user_name = "Selim Bucher";
 
-// --- canvas, safe area, scale step ---
+// layout in units of a 1080-line display, from the canvas centre; gen.py bakes
+// the glass behind the pill at PILL_DY
+AVATAR_DY = 69.5;
+NAME_DY = 125;
+PILL_DY = 165;
+NOTE_DY = 201;
+LOCK_DY = -482;
+// date and clock as hyprlock draws them (home/apps/hyprlock.nix): pango points
+// on the laptop panel, text tops at 10 % and 11 % of the screen height
+DATE_PT = 32;
+TIME_PT = 148;
+DATE_TOP = 0.10;
+TIME_TOP = 0.11;
+
 canvas.w = Window.GetWidth();
 canvas.h = Window.GetHeight();
 safe.h = canvas.h;
@@ -19,162 +34,258 @@ for (i = 0; Window.GetWidth(i); i++)
 center.x = canvas.w / 2;
 center.y = canvas.h / 2;
 
-// sizes below are in units of a 1080-line display; u = device pixels per unit
+// u = device pixels per unit, in steps of 0.25 (the laptop panel: 1.75)
 step = Math.Int(safe.h / 1080 * 4 + 0.5) * 25;
 if (step < 100) step = 100;
 if (step > 250) step = 250;
 u = step / 100;
 fun px(units) { return Math.Int(units * u + 0.5); }
-fun font(size) { return "Quicksand Medium " + Math.Int(size * u * 0.75 + 0.5); }
+// size in units; pango takes points (0.75 px at 96 dpi)
+fun label(str, r, g, b, a, family, size) {
+    return Image.Text(str, r, g, b, a, family + " " + Math.Int(size * u * 0.75 + 0.5));
+}
+fun asset(name) { return Image(name + "-" + step + ".png"); }
 fun ease(value, target, rate) { return value + (target - value) * rate; }
+fun ease_out(p) {
+    if (p < 0) p = 0;
+    if (p > 1) p = 1;
+    return 1 - (1 - p) * (1 - p) * (1 - p);
+}
+// a sprite centred on (x, y)
+fun place(sprite, image, x, y) {
+    sprite.SetX(Math.Int(x - image.GetWidth() / 2));
+    sprite.SetY(Math.Int(y - image.GetHeight() / 2));
+}
 
-// --- background: fades in from black ---
 Window.SetBackgroundTopColor(0, 0, 0);
 Window.SetBackgroundBottomColor(0, 0, 0);
-bg.image = Image("bg.png");
-fit = canvas.w / bg.image.GetWidth();
-if (canvas.h / bg.image.GetHeight() > fit) fit = canvas.h / bg.image.GetHeight();
-bg.image = bg.image.Scale(Math.Int(bg.image.GetWidth() * fit) + 1, Math.Int(bg.image.GetHeight() * fit) + 1);
+
+// --- background: enlarged once to cover the canvas, fades in from black ---
+fun fill_canvas(image) {
+    f = canvas.w / image.GetWidth();
+    if (canvas.h / image.GetHeight() > f) f = canvas.h / image.GetHeight();
+    w = Math.Int(image.GetWidth() * f + 0.5);
+    if (w < canvas.w) w = canvas.w;
+    h = Math.Int(image.GetHeight() * f + 0.5);
+    if (h < canvas.h) h = canvas.h;
+    return image.Scale(w, h);
+}
+bg.image = fill_canvas(Image("bg.png"));
 bg.sprite = Sprite(bg.image);
-bg.sprite.SetPosition(center.x - bg.image.GetWidth() / 2, center.y - bg.image.GetHeight() / 2, -100);
+bg.sprite.SetPosition(Math.Int(center.x - bg.image.GetWidth() / 2),
+                      Math.Int(center.y - bg.image.GetHeight() / 2), -100);
 bg.sprite.SetOpacity(0);
 
-// --- field, placeholder, name, spinner ---
-field.image = Image("field-" + step + ".png");
-field.w = field.image.GetWidth();
-field.h = field.image.GetHeight();
-field.x = Math.Int(center.x - field.w / 2);
-field.y = Math.Int(center.y + px(24));
-field.alpha = 0;     // eased towards field.target every frame
-field.target = 0;
-field.shake = 1000;  // frames since a wrong passphrase
-field.sprite = Sprite(field.image);
-field.sprite.SetPosition(field.x, field.y, 10);
-field.sprite.SetOpacity(0);
+// --- padlock at the top ---
+lock.image = asset("lock");
+lock.sprite = Sprite(lock.image);
+place(lock.sprite, lock.image, center.x, center.y + px(LOCK_DY));
+lock.sprite.SetZ(10);
+lock.sprite.SetOpacity(0);
+lock.y = lock.sprite.GetY();
 
-fun hint_text(text) {
-    hint.image = Image.Text(text, 1, 1, 1, 0.5, font(15));
-    hint.x = Math.Int(center.x - hint.image.GetWidth() / 2);
-    hint.y = Math.Int(field.y + (field.h - hint.image.GetHeight()) / 2);
-    hint.sprite.SetImage(hint.image);
+// --- date and clock ---
+// Plymouth has no clock: modules/plymouth.nix sends the local time every
+// minute as the message "clock:HH:MM Weekday, DD Month". Both stay hidden
+// until the first one.
+clock.time = "";
+clock.date = "";
+clock.alpha = 0;
+clock.date_sprite = Sprite();
+clock.date_sprite.SetZ(10);
+clock.date_sprite.SetOpacity(0);
+clock.time_sprite = Sprite();
+clock.time_sprite.SetZ(10);
+clock.time_sprite.SetOpacity(0);
+fun pt_font(family, pt) { return family + " " + Math.Int(pt * u / 1.75 + 0.5); }
+fun screen_top(fraction) { return Math.Int(center.y - safe.h / 2 + safe.h * fraction); }
+
+fun set_clock(text) {
+    s = String(text);
+    time = s.SubString(6, 11);
+    date = s.SubString(12, s.Length());
+    if (date != clock.date) {
+        clock.date = date;
+        clock.date_image = Image.Text(date, 1, 1, 1, 1, pt_font("Quicksand SemiBold", DATE_PT));
+        clock.date_sprite.SetImage(clock.date_image);
+        clock.date_sprite.SetX(Math.Int(center.x - clock.date_image.GetWidth() / 2));
+        clock.date_y = screen_top(DATE_TOP);
+    }
+    if (time != clock.time) {
+        clock.time = time;
+        clock.time_image = Image.Text(time, 1, 1, 1, 1, pt_font("Quicksand Bold", TIME_PT));
+        clock.time_sprite.SetImage(clock.time_image);
+        clock.time_sprite.SetX(Math.Int(center.x - clock.time_image.GetWidth() / 2));
+        clock.time_y = screen_top(TIME_TOP);
+    }
 }
+
+// --- avatar, ring, name ---
+avatar.image = asset("avatar");
+avatar.sprite = Sprite(avatar.image);
+place(avatar.sprite, avatar.image, center.x, center.y + px(AVATAR_DY));
+avatar.sprite.SetZ(10);
+avatar.sprite.SetOpacity(0);
+avatar.y = avatar.sprite.GetY();
+
+ring.image = asset("ring");
+ring.sprite = Sprite();
+ring.sprite.SetZ(11);
+ring.sprite.SetOpacity(0);
+ring.alpha = 0;
+ring.angle = 0;
+ring.cx = center.x;
+ring.cy = center.y + px(AVATAR_DY);
+
+name.image = label(user_name, 1, 1, 1, 0.96, "Quicksand Bold", 16);
+name.sprite = Sprite(name.image);
+place(name.sprite, name.image, center.x, center.y + px(NAME_DY));
+name.sprite.SetZ(10);
+name.sprite.SetOpacity(0);
+name.y = name.sprite.GetY();
+
+// --- the pill: frosted glass baked from the wallpaper behind it ---
+pill.image = asset("pill");
+pill.w = pill.image.GetWidth();
+pill.h = pill.image.GetHeight();
+pill.x = Math.Int(center.x - pill.w / 2);
+pill.y = Math.Int(center.y + px(PILL_DY) - pill.h / 2);
+pill.sprite = Sprite(pill.image);
+pill.sprite.SetPosition(pill.x, pill.y, 10);
+pill.sprite.SetOpacity(0);
+pill.alpha = 0;
+pill.target = 0;
+pill.shake = 1000;
+
 hint.sprite = Sprite();
 hint.sprite.SetZ(20);
 hint.alpha = 0;
 hint.target = 0;
 hint.wrong = 0;
-hint_text("Enter Password");
-hint.sprite.SetOpacity(0);
+fun hint_text(str, r, g, b, a) {
+    hint.image = label(str, r, g, b, a, "Quicksand Medium", 12.5);
+    hint.sprite.SetImage(hint.image);
+    hint.x = Math.Int(center.x - hint.image.GetWidth() / 2);
+    hint.y = Math.Int(pill.y + (pill.h - hint.image.GetHeight()) / 2);
+}
+hint_text("Enter Password", 1, 1, 1, 0.62);
 
-name.image = Image.Text(user_name, 1, 1, 1, 1, font(25));
-name.x = Math.Int(center.x - name.image.GetWidth() / 2);
-name.y = Math.Int(field.y - px(20) - name.image.GetHeight());
-name.sprite = Sprite(name.image);
-name.sprite.SetPosition(name.x, name.y, 20);
-name.sprite.SetOpacity(0);
+arrow.image = asset("arrow");
+arrow.sprite = Sprite(arrow.image);
+arrow.x = pill.x + pill.w - px(4) - arrow.image.GetWidth();
+arrow.y = Math.Int(pill.y + (pill.h - arrow.image.GetHeight()) / 2);
+arrow.sprite.SetPosition(arrow.x, arrow.y, 20);
+arrow.sprite.SetOpacity(0);
+arrow.alpha = 0;
+arrow.target = 0;
 
-spinner.image = Image("spinner-" + step + ".png");
-spinner.x = Math.Int(center.x - spinner.image.GetWidth() / 2);
-spinner.y = Math.Int(field.y + (field.h - spinner.image.GetHeight()) / 2);
-spinner.alpha = 0;
-spinner.target = 1;   // shown whenever nothing is asked
-spinner.angle = 0;
-spinner.sprite = Sprite();
-spinner.sprite.SetPosition(spinner.x, spinner.y, 20);
-spinner.sprite.SetOpacity(0);
-
-// --- dots ---
-dot.image = Image("dot-" + step + ".png");
-dot.pitch = dot.image.GetWidth() + px(7);
-dot.y = Math.Int(field.y + (field.h - dot.image.GetHeight()) / 2);
+dot.image = asset("dot");
+dot.gap = px(5);
+dot.pitch = dot.image.GetWidth() + dot.gap;
+dot.y = Math.Int(pill.y + (pill.h - dot.image.GetHeight()) / 2);
 dot.count = 0;
-dot.target = 1;       // 0 once the passphrase was sent: they fade with the field
+dot.target = 1;
+dot.most = Math.Int((pill.w - px(56)) / dot.pitch);
 dots = null;
 
-message = null;
-question = null;
-answer = null;
-asking = 0;   // a passphrase is being asked
-asked = 0;    // one was sent before; another request means it was wrong
+// --- a line under the pill: "Unlocking…" and messages ---
+note.sprite = Sprite();
+note.sprite.SetZ(20);
+note.alpha = 0;
+note.target = 0;
+note.text = "";
+note.dy = 0;
+// under the pill while it shows, in its place once it has gone
+fun note_text(str, dy) {
+    if (str == note.text && dy == note.dy) return;
+    note.text = str;
+    note.dy = dy;
+    note.image = label(str, 1, 1, 1, 0.7, "Quicksand Medium", 12);
+    note.sprite.SetImage(note.image);
+    place(note.sprite, note.image, center.x, center.y + px(dy));
+}
+message = "";
+
+// --- animation, 50 frames a second ---
 frame = 0;
-
-fun refresh_callback() {
+fun refresh() {
     frame++;
-
-    // start: the wallpaper fades in, name and field rise into place
-    progress = frame / 30;
-    if (progress > 1) progress = 1;
-    appear = 1 - (1 - progress) * (1 - progress) * (1 - progress);
-    rise = (1 - appear) * px(10);
-    bg.sprite.SetOpacity(progress);
-    name.sprite.SetOpacity(appear);
-    name.sprite.SetY(name.y + rise);
-
-    // a wrong passphrase shakes the field sideways, dying out in half a second
-    shift = 0;
-    if (field.shake < 28) {
-        shift = Math.Sin(field.shake * 0.9) * px(9) * (1 - field.shake / 28);
-        field.shake++;
+    // the wallpaper fades in (short: every frame of it redraws the whole
+    // screen), then the padlock and the user rise into place
+    bg.sprite.SetOpacity(ease_out(frame / 18));
+    a1 = ease_out((frame - 8) / 30);
+    a2 = ease_out((frame - 14) / 30);
+    lock.sprite.SetOpacity(a1 * 0.9);
+    lock.sprite.SetY(lock.y + (1 - a1) * px(6));
+    if (clock.time != "") {
+        clock.alpha = ease(clock.alpha, 1, 0.12);
+        c = clock.alpha * a1;
+        clock.date_sprite.SetOpacity(c);
+        clock.date_sprite.SetY(clock.date_y + (1 - c) * px(6));
+        clock.time_sprite.SetOpacity(c);
+        clock.time_sprite.SetY(clock.time_y + (1 - c) * px(6));
     }
+    avatar.sprite.SetOpacity(a2);
+    avatar.sprite.SetY(avatar.y + (1 - a2) * px(10));
+    name.sprite.SetOpacity(a2);
+    name.sprite.SetY(name.y + (1 - a2) * px(10));
+    rise = (1 - a2) * px(10);
 
-    field.alpha = ease(field.alpha, field.target, 0.2);
-    field.sprite.SetOpacity(field.alpha * appear);
-    field.sprite.SetX(field.x + shift);
-    field.sprite.SetY(field.y + rise);
+    shift = 0;
+    if (pill.shake < 30) {
+        shift = Math.Sin(pill.shake * 0.85) * px(10) * (1 - pill.shake / 30);
+        pill.shake++;
+    }
+    pill.alpha = ease(pill.alpha, pill.target, 0.2);
+    pill.sprite.SetOpacity(pill.alpha * a2);
+    pill.sprite.SetX(pill.x + shift);
+    pill.sprite.SetY(pill.y + rise);
 
     hint.alpha = ease(hint.alpha, hint.target, 0.25);
-    hint.sprite.SetOpacity(hint.alpha * field.alpha * appear);
-    hint.sprite.SetX(hint.x + shift);
-    hint.sprite.SetY(hint.y + rise);
+    hint.sprite.SetOpacity(hint.alpha * pill.alpha * a2);
+    hint.sprite.SetPosition(hint.x + shift, hint.y + rise, 20);
+
+    arrow.alpha = ease(arrow.alpha, arrow.target, 0.22);
+    arrow.sprite.SetOpacity(arrow.alpha * pill.alpha * a2);
+    arrow.sprite.SetX(arrow.x + shift + (1 - arrow.alpha) * px(4));
 
     for (i = 0; i < dot.count; i++) {
         dots[i].x = ease(dots[i].x, dots[i].goal, 0.35);
         dots[i].alpha = ease(dots[i].alpha, dot.target, 0.3);
         dots[i].sprite.SetX(dots[i].x + shift);
-        dots[i].sprite.SetOpacity(dots[i].alpha * appear);
+        dots[i].sprite.SetOpacity(dots[i].alpha * pill.alpha * a2);
     }
 
-    spinner.alpha = ease(spinner.alpha, spinner.target, 0.15);
-    if (spinner.alpha > 0.01) {
-        spinner.angle += 0.13;
-        spinner.sprite.SetImage(spinner.image.Rotate(spinner.angle));
+    ring.alpha = ease(ring.alpha, !pw.asking && frame > 20, 0.12);
+    if (ring.alpha > 0.01) {
+        ring.angle += 0.11;
+        ri = ring.image.Rotate(ring.angle);
+        ring.sprite.SetImage(ri);
+        place(ring.sprite, ri, ring.cx, ring.cy);
     }
-    spinner.sprite.SetOpacity(spinner.alpha * appear);
+    ring.sprite.SetOpacity(ring.alpha * a2);
+
+    note.alpha = ease(note.alpha, note.target, 0.2);
+    note.sprite.SetOpacity(note.alpha * a2);
 }
-Plymouth.SetRefreshFunction(refresh_callback);
+Plymouth.SetRefreshFunction(refresh);
 
-// --- passphrase: called for the request and again after every key ---
-fun DisplayPasswordCallback(prompt_text, bullet_count) {
-    if (!asking && asked && bullet_count == 0) {
-        field.shake = 0;
-        hint.wrong = 1;
-        hint_text("Wrong password");
-    }
-    if (bullet_count > 0 && hint.wrong) {
-        hint.wrong = 0;
-        hint_text("Enter Password");
-    }
-    if (!asking) {
-        // dots of the passphrase sent before are gone by now
-        for (i = 0; i < dot.count; i++) dots[i].sprite.SetOpacity(0);
-        dot.count = 0;
-        dots = null;
-    }
-    asking = 1;
-    field.target = 1;
-    spinner.target = 0;
-    dot.target = 1;
-    if (bullet_count == 0) hint.target = 1; else hint.target = 0;
+// --- the passphrase ---
+// pw.asking: the pill is up; pw.attempts: passphrases sent, so a new request
+// after one means the last was wrong
+pw.asking = 0;
+pw.attempts = 0;
 
-    // they stay inside the field: past its width only as many as fit are shown
-    shown = bullet_count;
-    most = Math.Int((field.w - px(40)) / dot.pitch);
-    if (shown > most) shown = most;
-    first = center.x - (shown * dot.pitch - px(7)) / 2;
+fun layout_dots(count) {
+    shown = count;
+    if (shown > dot.most) shown = dot.most;
+    // centred in the pill, a little left of centre once the arrow shows
+    cx = center.x;
+    if (count > 0) cx = center.x - px(9);
+    first = Math.Int(cx - (shown * dot.pitch - dot.gap) / 2);
     for (i = shown; i < dot.count; i++) dots[i].sprite.SetOpacity(0);
     for (i = 0; i < shown; i++) {
         if (i >= dot.count) {
-            // a new dot comes in from half a step to the right
             dots[i].sprite = Sprite(dot.image);
             dots[i].sprite.SetOpacity(0);
             dots[i].sprite.SetZ(30);
@@ -186,35 +297,71 @@ fun DisplayPasswordCallback(prompt_text, bullet_count) {
     }
     dot.count = shown;
 }
-Plymouth.SetDisplayPasswordFunction(DisplayPasswordCallback);
 
-// --- nothing asked: after the passphrase was sent, and between prompts ---
-fun DisplayNormalCallback() {
-    if (asking) asked = 1;
-    asking = 0;
-    field.target = 0;
+fun display_password(prompt, count) {
+    if (!pw.asking) {
+        for (i = 0; i < dot.count; i++) dots[i].sprite.SetOpacity(0);
+        dot.count = 0;
+        dots = null;
+        if (pw.attempts > 0) {
+            pill.shake = 0;
+            hint.wrong = 1;
+            hint_text("Incorrect Password", 1, 0.72, 0.72, 0.9);
+        }
+    }
+    pw.asking = 1;
+    if (count > 0 && hint.wrong) {
+        hint.wrong = 0;
+        hint_text("Enter Password", 1, 1, 1, 0.62);
+    }
+    pill.target = 1;
+    dot.target = 1;
+    hint.target = count == 0;
+    arrow.target = count > 0;
+    if (message == "") note.target = 0;
+    else note_text(message, NOTE_DY);
+    layout_dots(count);
+}
+Plymouth.SetDisplayPasswordFunction(display_password);
+
+// the passphrase was sent
+fun display_normal() {
+    if (!pw.asking) return;
+    pw.asking = 0;
+    pw.attempts++;
+    pill.target = 0;
     hint.target = 0;
+    arrow.target = 0;
     dot.target = 0;
-    spinner.target = 1;
-    question = null;
-    answer = null;
+    if (message == "") note_text("Unlocking…", PILL_DY);
+    else note_text(message, PILL_DY);
+    note.target = 1;
 }
-Plymouth.SetDisplayNormalFunction(DisplayNormalCallback);
+Plymouth.SetDisplayNormalFunction(display_normal);
 
-// --- other questions and messages: small, under the field ---
-fun DisplayQuestionCallback(prompt_text, entry) {
-    question.image = Image.Text(prompt_text, 1, 1, 1, 0.8, font(14));
-    question.sprite = Sprite(question.image);
-    question.sprite.SetPosition(center.x - question.image.GetWidth() / 2, field.y + field.h + px(18), 20);
-    answer.image = Image.Text(entry, 1, 1, 1, 1, font(14));
-    answer.sprite = Sprite(answer.image);
-    answer.sprite.SetPosition(center.x - answer.image.GetWidth() / 2, field.y + field.h + px(44), 20);
-}
-Plymouth.SetDisplayQuestionFunction(DisplayQuestionCallback);
+// --- messages: the clock, or text for the note line ---
+fun is_clock(text) { return String(text).SubString(0, 6) == "clock:"; }
 
-fun MessageCallback(text) {
-    message.image = Image.Text(text, 1, 1, 1, 0.7, font(14));
-    message.sprite = Sprite(message.image);
-    message.sprite.SetPosition(center.x - message.image.GetWidth() / 2, field.y + field.h + px(18), 20);
+fun display_message(text) {
+    if (is_clock(text)) {
+        set_clock(text);
+        return;
+    }
+    message = text;
+    if (text == "" || text == " ") {
+        message = "";
+        note.target = 0;
+        return;
+    }
+    if (pw.asking) note_text(text, NOTE_DY);
+    else note_text(text, PILL_DY);
+    note.target = 1;
 }
-Plymouth.SetMessageFunction(MessageCallback);
+Plymouth.SetDisplayMessageFunction(display_message);
+
+fun hide_message(text) {
+    if (is_clock(text)) return;  // the next minute's follows
+    message = "";
+    note.target = 0;
+}
+Plymouth.SetHideMessageFunction(hide_message);

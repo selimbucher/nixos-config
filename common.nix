@@ -16,6 +16,7 @@
     ./modules/sleep.nix
     ./modules/numberpad.nix
     ./modules/logitech.nix
+    ./modules/plymouth.nix
   ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -115,43 +116,6 @@
     XCURSOR_PATH = "/run/current-system/sw/share/icons";
     XCURSOR_THEME = "Capitaine Cursors - White";
     XCURSOR_SIZE = "24";
-  };
-
-  boot.plymouth = {
-    enable = true;
-    # An encrypted root asks for its passphrase on a login-style screen
-    # (pkgs/plymouth/login); the others only ever show the spinner.
-    theme = if config.deviceConfig.luksRoot != null then "login" else "spinner_alt";
-    # the login theme places device pixels itself; with Plymouth's HiDPI
-    # doubling it would be drawn at half the panel's resolution and enlarged
-    extraConfig = "DeviceScale=1";
-    # the one font the initrd carries
-    font = "${pkgs.quicksand}/share/fonts/truetype/Quicksand-Medium.ttf";
-    themePackages = [
-      (pkgs.runCommand "plymouth-theme-login" { } ''
-        dir=$out/share/plymouth/themes/login
-        mkdir -p $dir
-        cp ${./pkgs/plymouth/login}/*.png ${./pkgs/plymouth/login}/login.script $dir/
-        cat > $dir/login.plymouth <<EOF
-        [Plymouth Theme]
-        Name=login
-        Description=Login-style unlock screen
-        ModuleName=script
-
-        [script]
-        ImageDir=$dir
-        ScriptFile=$dir/login.script
-        EOF
-      '')
-      # the script is replaced: the original centres on display 0, which is
-      # off-centre everywhere once a monitor of another size is attached
-      ((pkgs.adi1090x-plymouth-themes.override {
-        selected_themes = [ "spinner_alt" ];
-      }).overrideAttrs (o: {
-        # the package's installPhase runs no hooks, so append there
-        installPhase = o.installPhase + "cp ${./pkgs/plymouth/spinner_alt.script} $out/share/plymouth/themes/spinner_alt/spinner_alt.script\n";
-      }))
-    ];
   };
 
   boot.consoleLogLevel = 0;
