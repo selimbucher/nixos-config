@@ -3,7 +3,7 @@
 #
 # Why: wine-9.21-era bugs wedge/kill the plugin hosts (X11 embedding races,
 # GUI thread deadlocks) and every such wedge freezes or crashes REAPER through
-# yabridge's blocking IPC — see ~/reaper-crashlogs and robbert-vdh/yabridge
+# yabridge's blocking IPC — see robbert-vdh/yabridge
 # issue #409. The 5.1.1 release only works with wine <= 9.21; master supports
 # current wine (community-verified with REAPER + NI/FabFilter/XLN on
 # wine 11.7-11.14, incl. a NixOS build of this exact shape).

@@ -12,12 +12,12 @@
 # Usage:
 #   reaper-rescue                capture diagnostics, kill frozen REAPER, clean up
 #   reaper-rescue --capture-only capture diagnostics only, kill NOTHING (REAPER keeps
-#                                running; used by the crashwatch wedge watchdog)
+#                                running)
 #   reaper-rescue --cleanup-only only clean wine/yabridge leftovers (REAPER must not be running)
 
 set -u
 
-LOGROOT="$HOME/reaper-crashlogs"
+LOGROOT="${XDG_STATE_HOME:-$HOME/.local/state}/reaper"
 RUNDIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 TS="$(date +%Y-%m-%d_%H%M%S)"
 START="$(date '+%Y-%m-%d %H:%M:%S')"
@@ -127,7 +127,7 @@ if [ -z "$RPID" ]; then
 fi
 
 SUFFIX=freeze; [ "$CAPTURE_ONLY" = 1 ] && SUFFIX=wedge
-OUT="$LOGROOT/$TS-$SUFFIX"
+OUT="$LOGROOT/rescue/$TS-$SUFFIX"
 mkdir -p "$OUT"
 echo "Collecting diagnostics into $OUT ..."
 
@@ -237,7 +237,8 @@ if [ -d "$LOGROOT/sessions" ]; then
   for pat in '-reaper\.log$' '-yabridge\.log$'; do
     ls -1t "$LOGROOT/sessions" 2>/dev/null | grep -v '^current-' | grep -e "$pat" \
       | head -1 | while IFS= read -r f; do
-      cp "$LOGROOT/sessions/$f" "$OUT/" 2>/dev/null
+      # the end of it, where a freeze shows: a log can run to gigabytes
+      tail -c 20M "$LOGROOT/sessions/$f" > "$OUT/$f" 2>/dev/null
     done
   done
 fi
