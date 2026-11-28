@@ -44,6 +44,9 @@
   # nothing here, Mesa ships radeonsi's VA driver itself.
   boot.initrd.kernelModules = [ "amdgpu" ];
 
+  # iio-sensor-proxy: the ambient light sensor for kiwi's automatic brightness
+  hardware.sensor.iio.enable = true;
+
   deviceConfig = {
     monitor = [
       # The panel's EDID claims HDR, so Hyprland's auto-HDR switched it to HDR
